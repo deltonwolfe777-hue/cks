@@ -15,6 +15,7 @@
     --type-fire:#ff6b35; --type-water:#4d96ff; --type-grass:#5fd068;
     --type-electric:#ffd93d; --type-light:#ffe27a; --type-dark:#9b6dff;
     --type-rock:#c08552; --type-ice:#7fd8e8; --type-wind:#76e0a8; --type-psychic:#ff8fd0;
+    --type-dragon:#6b5cff;
   }
   *{box-sizing:border-box}
   html{scroll-behavior:smooth}
@@ -38,11 +39,11 @@
   .logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;letter-spacing:.5px}
   .logo .mark{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;
     background:linear-gradient(135deg,var(--accent),var(--accent-2));font-size:18px;box-shadow:0 6px 18px rgba(124,92,255,.5)}
-  .nav-links{display:flex;gap:26px;font-size:14px;color:var(--txt-dim)}
+  .nav-links{display:flex;gap:22px;font-size:14px;color:var(--txt-dim)}
   .nav-links a:hover{color:var(--txt)}
   .nav-cta{padding:9px 18px;border-radius:12px;font-weight:700;font-size:14px;
     background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#0b1026;box-shadow:0 8px 22px rgba(124,92,255,.45)}
-  @media(max-width:760px){.nav-links{display:none}}
+  @media(max-width:820px){.nav-links{display:none}}
 
   /* HERO */
   header.hero{position:relative;padding:74px 0 56px;text-align:center}
@@ -69,7 +70,7 @@
   .sec-head{text-align:center;margin-bottom:38px}
   .sec-head .kicker{color:var(--accent-2);font-weight:800;letter-spacing:3px;font-size:13px;text-transform:uppercase}
   .sec-head h2{font-size:clamp(26px,4vw,40px);margin:10px 0 8px;font-weight:900}
-  .sec-head p{color:var(--txt-dim);max-width:620px;margin:0 auto;line-height:1.7}
+  .sec-head p{color:var(--txt-dim);max-width:640px;margin:0 auto;line-height:1.7}
 
   /* FEATURES */
   .features{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
@@ -91,7 +92,7 @@
   .card:hover{transform:translateY(-4px)}
   .card .glow{position:absolute;width:140px;height:140px;border-radius:50%;filter:blur(40px);opacity:.4;top:-40px;right:-30px}
   .card .emoji{font-size:54px;text-align:center;margin:6px 0 10px;filter:drop-shadow(0 8px 14px rgba(0,0,0,.4))}
-  .card .nm{font-weight:800;font-size:18px;display:flex;align-items:center;gap:8px}
+  .card .nm{font-weight:800;font-size:18px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .card .ty{padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700;color:#0b1026}
   .card .chain{display:flex;align-items:center;gap:4px;color:var(--txt-dim);font-size:12px;margin:8px 0;flex-wrap:wrap}
   .card .chain b{color:var(--txt)}
@@ -100,6 +101,24 @@
   .card .st small{display:block;color:var(--txt-dim);font-size:10px}
   .card .st b{font-size:14px}
   .card .ds{color:var(--txt-dim);font-size:12px;margin-top:10px;line-height:1.55;min-height:34px}
+  .card .thint{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:11px;border-top:1px dashed var(--card-border);padding-top:8px}
+  .card .thint .g{color:var(--good)}
+  .card .thint .w{color:var(--bad)}
+
+  /* TYPE CHART */
+  .tc-legend{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;margin-bottom:18px;font-size:13px;color:var(--txt-dim)}
+  .tc-legend .lg{display:inline-block;width:14px;height:14px;border-radius:4px;margin-right:6px;vertical-align:-2px}
+  .tc-wrap{overflow-x:auto;border:1px solid var(--card-border);border-radius:16px;background:var(--card);padding:10px}
+  table.tc{border-collapse:separate;border-spacing:4px;margin:0 auto}
+  table.tc th{font-weight:700;font-size:12px;padding:2px;text-align:center}
+  table.tc th .hbadge{display:inline-block;padding:3px 7px;border-radius:8px;color:#0b1026;font-weight:800;font-size:11px;white-space:nowrap}
+  table.tc td{width:28px;height:28px;text-align:center;border-radius:8px;font-weight:800;font-size:12px}
+  td.c2{background:rgba(52,211,153,.9);color:#052e1a}
+  td.ch{background:rgba(251,113,133,.85);color:#3a0a12}
+  td.c0{background:#3a3f66;color:#9aa6d6}
+  td.c1{background:rgba(255,255,255,.05);color:#586094}
+  table.tc .corner{font-size:11px;color:var(--txt-dim);white-space:nowrap}
+  .tc-note{text-align:center;color:var(--txt-dim);font-size:12px;margin-top:14px}
 
   /* CATCH ARENA */
   .arena{background:linear-gradient(160deg,rgba(124,92,255,.16),rgba(34,211,238,.08));
@@ -164,6 +183,7 @@
     <div class="logo"><span class="mark">🔮</span> 灵契大陆</div>
     <div class="nav-links">
       <a href="#dex">精灵图鉴</a>
+      <a href="#typechart">属性克制</a>
       <a href="#catch">捕捉</a>
       <a href="#mine">我的精灵</a>
       <a href="#coop">羁绊系统</a>
@@ -183,9 +203,9 @@
       <button class="btn btn-ghost" onclick="document.getElementById('dex').scrollIntoView()">📖 浏览图鉴</button>
     </div>
     <div class="hero-stats">
-      <div class="s"><b id="statTotal">10</b><span>种可收服精灵</span></div>
+      <div class="s"><b id="statTotal">15</b><span>种可收服精灵</span></div>
       <div class="s"><b>3</b><span>阶进化形态</span></div>
-      <div class="s"><b>10</b><span>属性相克体系</span></div>
+      <div class="s"><b id="statTypes">11</b><span>属性相克体系</span></div>
       <div class="s"><b id="statCaught">0</b><span>你已收服</span></div>
     </div>
   </div>
@@ -206,10 +226,28 @@
     <div class="sec-head">
       <div class="kicker">Pokédex</div>
       <h2>精灵图鉴</h2>
-      <p>十系精灵栖息于大陆各处，了解它们的进化链与基础数值，制定你的收服与培养策略。</p>
+      <p>十一系精灵栖息于大陆各处，从灵动的兔、鹿到咆哮的虎与巨龙。了解它们的进化链、基础数值与属性克制，制定你的收服与培养策略。</p>
     </div>
     <div class="filters" id="filters"></div>
     <div class="dex" id="dexGrid"></div>
+  </div>
+</section>
+
+<section id="typechart">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Type Matchup</div>
+      <h2>属性克制</h2>
+      <p>参考宝可梦的相克关系设计。行是攻击方、列是防守方，<span style="color:var(--good)">绿色 2× 效果拔群</span>，<span style="color:var(--bad)">橙色 ½× 效果不佳</span>，<span style="color:var(--txt-dim)">灰色 0 完全免疫</span>。善用克制，事半功倍。</p>
+    </div>
+    <div class="tc-legend">
+      <span><i class="lg" style="background:var(--good)"></i>2× 克制</span>
+      <span><i class="lg" style="background:var(--bad)"></i>½× 弱效</span>
+      <span><i class="lg" style="background:#3a3f66"></i>0 免疫</span>
+      <span><i class="lg" style="background:rgba(255,255,255,.08)"></i>1× 普通</span>
+    </div>
+    <div class="tc-wrap"><table class="tc" id="tcTable"></table></div>
+    <div class="tc-note">读法示例：「火」行 ×「草」列 = 2×，表示火系攻击草系伤害翻倍；「龙」行 ×「光」列 = 0，表示龙系无法伤害光系。</div>
   </div>
 </section>
 
@@ -218,7 +256,7 @@
     <div class="sec-head">
       <div class="kicker">Catch</div>
       <h2>野外捕捉</h2>
-      <p>点击「遭遇精灵」生成一只野生精灵，削弱它的体力后投掷精灵球。体力越低，收服成功率越高！</p>
+      <p>点击「遭遇精灵」生成一只野生精灵，削弱它的体力后投掷精灵球。体力越低，收服成功率越高！遭遇时会提示其属性弱点。</p>
     </div>
     <div class="arena">
       <div class="wild-stage" id="wildStage">
@@ -285,16 +323,36 @@ const TYPES = {
   grass:{name:'草',color:'var(--type-grass)'}, electric:{name:'电',color:'var(--type-electric)'},
   light:{name:'光',color:'var(--type-light)'}, dark:{name:'暗',color:'var(--type-dark)'},
   rock:{name:'岩',color:'var(--type-rock)'}, ice:{name:'冰',color:'var(--type-ice)'},
-  wind:{name:'风',color:'var(--type-wind)'}, psychic:{name:'超',color:'var(--type-psychic)'}
+  wind:{name:'风',color:'var(--type-wind)'}, psychic:{name:'超',color:'var(--type-psychic)'},
+  dragon:{name:'龙',color:'var(--type-dragon)'}
 };
+
+/* 攻击方 → 防守方 伤害倍率（未列出 = 1×） */
+const TYPE_CHART = {
+  fire:    {grass:2, ice:2, fire:.5, water:.5, rock:.5, dragon:.5},
+  water:   {fire:2, rock:2, water:.5, grass:.5, dragon:.5},
+  grass:   {water:2, rock:2, fire:.5, grass:.5, wind:.5, dragon:.5},
+  electric:{water:2, wind:2, electric:.5, grass:.5, dragon:.5},
+  ice:     {grass:2, wind:2, dragon:2, fire:.5, water:.5, ice:.5},
+  rock:    {fire:2, ice:2, wind:2},
+  dark:    {psychic:2, dark:.5, light:.5},
+  light:   {dragon:2, dark:2, fire:.5},
+  psychic: {psychic:.5, dark:0},
+  wind:    {grass:2, electric:.5, rock:.5},
+  dragon:  {dragon:2, light:0}
+};
+function mult(atk,def){
+  const row=TYPE_CHART[atk];
+  return (row && row[def]!==undefined) ? row[def] : 1;
+}
 
 const SPIRITS = [
   {id:'s1',name:'火苗鼠',type:'fire',emoji:['🐭','🦊','🐲'],stages:['火苗鼠','烈焰狐','焰王兽'],
    base:{hp:45,atk:62,def:40,spd:72},desc:'尾尖跳动着不灭的火花，越战斗越炽热。'},
   {id:'s2',name:'水珠蛙',type:'water',emoji:['🐸','🐊','🐉'],stages:['水珠蛙','潮汐鳄','深海龙'],
    base:{hp:55,atk:50,def:55,spd:48},desc:'皮肤能分泌治愈水露，是可靠的伙伴。'},
-  {id:'s3',name:'草芽兔',type:'grass',emoji:['🐰','🦌','🌳'],stages:['草芽兔','森灵鹿','世界树灵'],
-   base:{hp:60,atk:48,def:58,spd:52},desc:'头顶嫩芽随心情生长，安宁的象征。'},
+  {id:'s3',name:'草芽兔',type:'grass',emoji:['🐰','🐇','🌙'],stages:['草芽兔','苔原兔','月影兔王'],
+   base:{hp:60,atk:46,def:58,spd:54},desc:'头顶嫩芽随心情生长，月夜下跃动如影。'},
   {id:'s4',name:'电光鼠',type:'electric',emoji:['🐹','🦅','🐉'],stages:['电光鼠','雷霆鹰','风暴龙'],
    base:{hp:42,atk:66,def:38,spd:85},desc:'颊囊蓄满电能，速度冠绝同族。'},
   {id:'s5',name:'光羽鸟',type:'light',emoji:['🐤','🕊️','🦅'],stages:['光羽鸟','圣光鹤','日向神鸟'],
@@ -308,7 +366,17 @@ const SPIRITS = [
   {id:'s9',name:'风灵蝶',type:'wind',emoji:['🐛','🦋','🦅'],stages:['风灵蝶','疾风隼','天穹鹏'],
    base:{hp:46,atk:60,def:42,spd:80},desc:'乘风而行，踪迹难觅。'},
   {id:'s10',name:'心灵枭',type:'psychic',emoji:['🐣','🦉','👁️'],stages:['心灵枭','幻念枭','梦界主宰'],
-   base:{hp:54,atk:68,def:48,spd:64},desc:'能读取微弱的心声，通晓梦境。'}
+   base:{hp:54,atk:68,def:48,spd:64},desc:'能读取微弱的心声，通晓梦境。'},
+  {id:'s11',name:'烈焰虎',type:'fire',emoji:['🐯','🐅','🦁'],stages:['小火虎','烈焰虎','焚天虎王'],
+   base:{hp:56,atk:80,def:48,spd:66},desc:'虎啸生风，每根毛发都燃烧着战意。'},
+  {id:'s12',name:'幼叶鹿',type:'grass',emoji:['🦌','🦌','🌳'],stages:['幼叶鹿','森灵鹿','世界树灵'],
+   base:{hp:58,atk:50,def:56,spd:62},desc:'踏入森林便与草木共鸣，角上生花。'},
+  {id:'s13',name:'岩甲蜥',type:'rock',emoji:['🦎','🦎','🐊'],stages:['幼岩蜥','岩甲蜥','熔岩巨蜥'],
+   base:{hp:64,atk:58,def:70,spd:38},desc:'坚硬鳞甲能抵挡滚石，栖息在火山口。'},
+  {id:'s14',name:'大地龙',type:'dragon',emoji:['🦕','🦖','🐉'],stages:['幼土龙','岩甲龙','大地龙王'],
+   base:{hp:72,atk:76,def:64,spd:48},desc:'沉睡于大地深处，苏醒时山岳为之震动。'},
+  {id:'s15',name:'苍穹龙',type:'dragon',emoji:['🐲','🦅','🐉'],stages:['翼龙崽','风翼龙','苍穹龙王'],
+   base:{hp:62,atk:78,def:54,spd:78},desc:'展开遮天巨翼，翱翔于云海之上。'}
 ];
 
 const EVO_BOND = [0, 4, 9];   // 进化所需亲密度：阶段0->1 需4，1->2 需9
@@ -331,7 +399,7 @@ function toast(msg){
 /* ---------- 背景漂浮精灵 ---------- */
 (function(){
   const f=document.getElementById('floaters');
-  const emo=['🔥','💧','🌿','⚡','✨','🌑','🪨','❄️','🌪️','🔮','🐭','🦊','🐉'];
+  const emo=['🔥','💧','🌿','⚡','✨','🌑','🪨','❄️','🌪️','🔮','🐭','🦊','🐉','🐯','🦌','🦎'];
   for(let i=0;i<18;i++){
     const s=document.createElement('span'); s.textContent=emo[Math.floor(Math.random()*emo.length)];
     s.style.left=Math.random()*100+'%'; s.style.fontSize=(20+Math.random()*30)+'px';
@@ -359,6 +427,8 @@ function renderDex(filter='all'){
   grid.innerHTML=list.map(s=>{
     const ty=TYPES[s.type];
     const stats=s.base;
+    const strong=Object.keys(TYPES).filter(d=>mult(s.type,d)===2).map(k=>TYPES[k].name);
+    const weak=Object.keys(TYPES).filter(a=>mult(a,s.type)===2).map(k=>TYPES[k].name);
     return `<div class="card">
       <div class="glow" style="background:${ty.color}"></div>
       <div class="emoji">${s.emoji[0]}</div>
@@ -371,8 +441,32 @@ function renderDex(filter='all'){
         <div><small>速</small><b>${stats.spd}</b></div>
       </div>
       <div class="ds">${s.desc}</div>
+      <div class="thint"><span class="g">克制 ${strong.join('/')||'—'}</span><span class="w">弱于 ${weak.join('/')||'—'}</span></div>
     </div>`;
   }).join('');
+}
+
+/* ---------- 属性克制矩阵 ---------- */
+function renderMatrix(){
+  const types=Object.keys(TYPES);
+  const t=document.getElementById('tcTable');
+  let html='<thead><tr><th class="corner">攻↓ 防→</th>';
+  types.forEach(d=>{ html+=`<th><span class="hbadge" style="background:${TYPES[d].color}">${TYPES[d].name}</span></th>`; });
+  html+='</tr></thead><tbody>';
+  types.forEach(a=>{
+    html+=`<tr><th><span class="hbadge" style="background:${TYPES[a].color}">${TYPES[a].name}</span></th>`;
+    types.forEach(d=>{
+      const m=mult(a,d);
+      let cls='c1',txt='·';
+      if(m===2){cls='c2';txt='2';}
+      else if(m===0.5){cls='ch';txt='½';}
+      else if(m===0){cls='c0';txt='0';}
+      html+=`<td class="${cls}">${txt}</td>`;
+    });
+    html+='</tr>';
+  });
+  html+='</tbody>';
+  t.innerHTML=html;
 }
 
 /* ---------- 捕捉 ---------- */
@@ -384,14 +478,15 @@ function log(msg,cls='info'){
 function encounter(){
   const s=SPIRITS[Math.floor(Math.random()*SPIRITS.length)];
   const ty=TYPES[s.type];
+  const weak=Object.keys(TYPES).filter(a=>mult(a,s.type)===2).map(k=>TYPES[k].name);
   wild={spirit:s, hp:100, max:100};
   document.getElementById('wildSpirit').textContent=s.emoji[0];
   document.getElementById('wildSpirit').className='wild-spirit';
   document.getElementById('wildName').textContent=`野生 ${s.stages[0]} 出现了！`;
-  document.getElementById('wildMeta').innerHTML=`属性 <span class="ty" style="background:${ty.color};padding:1px 8px;border-radius:999px;color:#0b1026;font-weight:700">${ty.name}</span> · 小心应对`;
+  document.getElementById('wildMeta').innerHTML=`属性 <span class="ty" style="background:${ty.color};padding:1px 8px;border-radius:999px;color:#0b1026;font-weight:700">${ty.name}</span> · 弱点：${weak.join('/')||'无'}`;
   setHp(100);
   document.getElementById('throwBtn').disabled=false;
-  log(`<span class="info">[遭遇] 一只野生的 ${s.stages[0]}（${ty.name}系）闯入视野！</span>`);
+  log(`<span class="info">[遭遇] 一只野生的 ${s.stages[0]}（${ty.name}系）闯入视野！弱点是 ${weak.join('/')||'无'}。</span>`);
 }
 function setHp(v){
   v=Math.max(0,Math.min(100,v));
@@ -412,18 +507,15 @@ function throwBall(){
   const sp=document.getElementById('wildSpirit');
 
   setTimeout(()=>{
-    // 削弱体力
     const dmg=12+Math.floor(Math.random()*16);
     wild.hp=Math.max(0,wild.hp-dmg); setHp(wild.hp);
     sp.classList.add('shake'); setTimeout(()=>sp.classList.remove('shake'),500);
 
-    // 成功率：体力越低越高 + 随机
     const base=0.18; const hpFactor=(100-wild.hp)/100*0.6; const r=Math.random();
     const chance=base+hpFactor;
     log(`<span class="info">[抛球] 命中！造成 ${dmg} 点削弱，当前体力 ${wild.hp}。捕获率≈${Math.round(chance*100)}%</span>`);
 
     if(r<chance){
-      // 捕获成功
       sp.classList.add('caught');
       log(`<span class="ok">[成功] 太棒了！${wild.spirit.stages[0]} 被收服了！</span>`);
       capture(wild.spirit);
@@ -464,6 +556,7 @@ function renderColl(){
   }
   grid.innerHTML=collection.map((c,idx)=>{
     const s=SPIRITS.find(x=>x.id===c.id);
+    if(!s) return '';
     const ty=TYPES[s.type];
     const canEvolve = c.stage<2 && c.bond>=EVO_BOND[c.stage+1];
     const need=EVO_BOND[c.stage+1];
@@ -501,10 +594,12 @@ function evolve(idx){
 /* ---------- 统计 ---------- */
 function updateStats(){
   document.getElementById('statCaught').textContent=collection.reduce((a,c)=>a+c.count,0);
+  const st=document.getElementById('statTotal'); if(st) st.textContent=SPIRITS.length;
+  const sy=document.getElementById('statTypes'); if(sy) sy.textContent=Object.keys(TYPES).length;
 }
 
 /* ---------- 初始化 ---------- */
-renderFilters(); renderDex(); renderColl(); updateStats();
+renderFilters(); renderDex(); renderColl(); updateStats(); renderMatrix();
 </script>
 </body>
 </html>
