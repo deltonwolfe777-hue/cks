@@ -3,22 +3,21 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>灵契大陆 · SpiriRealm — 探索 · 捕捉 · 羁绊 · 对战 · 进化</title>
+<title>灵契大陆 · SpiriRealm — 探索 · 遇敌 · 捕捉 · 对战 · 进化</title>
 <style>
   :root{
     --bg-0:#0b1026; --bg-1:#141a3a; --bg-2:#1d2752;
     --card:rgba(255,255,255,.06); --card-border:rgba(255,255,255,.12);
     --txt:#eef2ff; --txt-dim:#9aa6d6; --accent:#7c5cff; --accent-2:#22d3ee;
     --gold:#ffd166; --good:#34d399; --bad:#fb7185;
-    --shadow:0 18px 50px rgba(0,0,0,.45);
-    --r:18px;
+    --r:16px;
     --type-fire:#ff6b35; --type-water:#4d96ff; --type-grass:#5fd068;
     --type-electric:#ffd93d; --type-light:#ffe27a; --type-dark:#9b6dff;
     --type-rock:#c08552; --type-ice:#7fd8e8; --type-wind:#76e0a8; --type-psychic:#ff8fd0;
     --type-dragon:#6b5cff;
   }
   *{box-sizing:border-box}
-  html{scroll-behavior:smooth}
+  html,body{height:100%}
   body{
     margin:0; font-family:"PingFang SC","Microsoft YaHei",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
     color:var(--txt); background:
@@ -27,480 +26,300 @@
       linear-gradient(180deg,var(--bg-0),var(--bg-1) 45%,var(--bg-2));
     background-attachment:fixed; min-height:100vh; overflow-x:hidden;
   }
-  a{color:inherit;text-decoration:none}
-  .wrap{max-width:1140px;margin:0 auto;padding:0 22px}
-  .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;
-    background:var(--card);border:1px solid var(--card-border);color:var(--txt-dim);font-size:13px}
-  .ty{padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700;color:#0b1026;white-space:nowrap}
+  button{font-family:inherit}
+  .ty{padding:2px 9px;border-radius:999px;font-size:11px;font-weight:800;color:#0b1026;white-space:nowrap}
 
-  /* NAV */
-  nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(14px);
-    background:rgba(8,11,30,.55);border-bottom:1px solid var(--card-border)}
-  .nav-in{display:flex;align-items:center;justify-content:space-between;height:64px}
-  .logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;letter-spacing:.5px}
-  .logo .mark{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;
-    background:linear-gradient(135deg,var(--accent),var(--accent-2));font-size:18px;box-shadow:0 6px 18px rgba(124,92,255,.5)}
-  .nav-links{display:flex;gap:18px;font-size:14px;color:var(--txt-dim)}
-  .nav-links a:hover{color:var(--txt)}
-  .nav-cta{padding:9px 18px;border-radius:12px;font-weight:700;font-size:14px;
-    background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#0b1026;box-shadow:0 8px 22px rgba(124,92,255,.45)}
-  @media(max-width:980px){.nav-links{display:none}}
+  /* ===== TOP BAR ===== */
+  header.top{position:sticky;top:0;z-index:80;backdrop-filter:blur(14px);
+    background:rgba(8,11,30,.72);border-bottom:1px solid var(--card-border)}
+  .top-in{max-width:1240px;margin:0 auto;padding:0 16px;height:60px;display:flex;align-items:center;gap:16px}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:900;font-size:17px;white-space:nowrap}
+  .brand .mark{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));font-size:17px;box-shadow:0 6px 16px rgba(124,92,255,.45)}
+  .brand small{color:var(--txt-dim);font-weight:600;font-size:12px}
+  .top-stats{display:flex;gap:14px;font-size:13px;color:var(--txt-dim);margin-left:auto;flex-wrap:wrap}
+  .top-stats b{color:var(--txt);font-size:14px}
+  .top-btns{display:flex;gap:8px;margin-left:8px}
+  .top-btns button{background:var(--card);border:1px solid var(--card-border);color:var(--txt);
+    padding:7px 12px;border-radius:10px;font-size:13px;cursor:pointer;font-weight:600}
+  .top-btns button:hover{border-color:var(--accent)}
+  @media(max-width:900px){ .top-stats{display:none} }
+  @media(max-width:640px){ .brand small{display:none} .top-btns button{padding:6px 9px;font-size:12px} }
 
-  /* HERO */
-  header.hero{position:relative;padding:74px 0 56px;text-align:center}
-  .hero h1{font-size:clamp(34px,6vw,62px);margin:18px 0 8px;line-height:1.05;font-weight:900;
-    background:linear-gradient(120deg,#fff 10%,#c9b8ff 45%,#8be9ff 90%);-webkit-background-clip:text;background-clip:text;color:transparent}
-  .hero p.sub{color:var(--txt-dim);font-size:clamp(15px,2.2vw,19px);max-width:720px;margin:0 auto 26px;line-height:1.7}
-  .hero-cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:8px}
-  .btn{padding:13px 26px;border-radius:14px;font-weight:700;font-size:15px;cursor:pointer;border:none;transition:transform .15s ease,box-shadow .15s ease}
-  .btn:active{transform:translateY(1px)}
-  .btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#0b1026;box-shadow:0 12px 30px rgba(124,92,255,.5)}
-  .btn-ghost{background:var(--card);border:1px solid var(--card-border);color:var(--txt)}
-  .btn:disabled{opacity:.45;cursor:not-allowed}
-  .hero-stats{display:flex;gap:30px;justify-content:center;margin-top:42px;flex-wrap:wrap}
-  .hero-stats .s{text-align:center}
-  .hero-stats .s b{display:block;font-size:30px;font-weight:900;background:linear-gradient(120deg,#fff,#9fd9ff);-webkit-background-clip:text;background-clip:text;color:transparent}
-  .hero-stats .s span{font-size:13px;color:var(--txt-dim)}
+  /* ===== LAYOUT ===== */
+  .game-wrap{max-width:1240px;margin:0 auto;padding:16px;display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:start}
+  @media(max-width:960px){ .game-wrap{grid-template-columns:1fr} }
 
-  .floaters{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:-1}
-  .floaters span{position:absolute;font-size:30px;opacity:.16;animation:rise linear infinite}
-  @keyframes rise{from{transform:translateY(110vh) rotate(0)}to{transform:translateY(-20vh) rotate(360deg)}}
+  /* ===== VIEWPORT / MAP ===== */
+  .viewport{position:relative;width:100%;height:min(66vh,600px);min-height:380px;border-radius:18px;overflow:hidden;
+    border:1px solid var(--card-border);background:#243b2a;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  @media(max-width:640px){ .viewport{height:52vh;min-height:320px} }
+  .map-world{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
+  .tile-layer,.entity-layer{position:absolute;left:0;top:0}
+  .tile{position:absolute;width:32px;height:32px}
+  .t-grass{background:#4e9a55}
+  .t-tall{background:#33753c;background-image:repeating-linear-gradient(118deg,rgba(255,255,255,.10) 0 2px,transparent 2px 8px)}
+  .t-path{background:#c9a86a}
+  .t-tree{background:#2c6b3a;display:grid;place-items:center;font-size:19px;line-height:1}
+  .t-water{background:linear-gradient(180deg,#2f6fb0,#255a94)}
+  .t-rock{background:#7b7688}
+  .t-snow{background:#dbeaf3}
+  .t-sand{background:#e3c483}
+  .t-lava{background:linear-gradient(180deg,#ef6a12,#a8320a);box-shadow:inset 0 0 10px rgba(255,190,60,.55)}
+  .t-ruin{background:#6a6379}
+  .entity{position:absolute;width:32px;height:32px;display:grid;place-items:center;font-size:21px;z-index:4;transition:transform .12s}
+  .entity.item{font-size:16px;animation:itemBob 1.6s ease-in-out infinite}
+  @keyframes itemBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+  .entity.trainer::after{content:'';position:absolute;bottom:-2px;left:50%;transform:translateX(-50%);width:20px;height:5px;border-radius:50%;background:rgba(0,0,0,.35)}
+  .player{position:absolute;width:32px;height:32px;display:grid;place-items:center;font-size:22px;z-index:6;
+    transition:transform .11s linear;filter:drop-shadow(0 6px 6px rgba(0,0,0,.45))}
+  .biome-tag{position:absolute;left:12px;top:12px;z-index:20;background:rgba(8,11,30,.7);border:1px solid var(--card-border);
+    padding:6px 12px;border-radius:999px;font-size:12.5px;font-weight:700;backdrop-filter:blur(6px)}
+  .flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:30}
+  .flash.on{animation:flashAnim .45s ease-out}
+  @keyframes flashAnim{0%{opacity:.85}100%{opacity:0}}
 
-  /* SECTIONS */
-  section{padding:60px 0}
-  .sec-head{text-align:center;margin-bottom:38px}
-  .sec-head .kicker{color:var(--accent-2);font-weight:800;letter-spacing:3px;font-size:13px;text-transform:uppercase}
-  .sec-head h2{font-size:clamp(26px,4vw,40px);margin:10px 0 8px;font-weight:900}
-  .sec-head p{color:var(--txt-dim);max-width:680px;margin:0 auto;line-height:1.7}
+  /* ===== DPAD ===== */
+  .controls{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-top:12px;flex-wrap:wrap}
+  .dpad{display:grid;grid-template-columns:repeat(3,46px);grid-template-rows:repeat(3,46px);gap:5px}
+  .dpad button{background:var(--card);border:1px solid var(--card-border);border-radius:12px;color:var(--txt);
+    font-size:18px;cursor:pointer;user-select:none;-webkit-user-select:none}
+  .dpad button:active{background:rgba(124,92,255,.35)}
+  .dpad .up{grid-area:1/2} .dpad .left{grid-area:2/1} .dpad .right{grid-area:2/3} .dpad .down{grid-area:3/2}
+  .hint-box{font-size:12.5px;color:var(--txt-dim);line-height:1.8;flex:1;min-width:220px}
+  .kbd{display:inline-block;padding:1px 6px;border-radius:5px;background:rgba(255,255,255,.1);border:1px solid var(--card-border);font-size:11px}
 
-  .features{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
-  .feature{background:var(--card);border:1px solid var(--card-border);border-radius:var(--r);padding:24px;transition:transform .2s,border-color .2s}
-  .feature:hover{transform:translateY(-6px);border-color:var(--accent)}
-  .feature .ic{width:50px;height:50px;border-radius:14px;display:grid;place-items:center;font-size:24px;background:linear-gradient(135deg,rgba(124,92,255,.3),rgba(34,211,238,.3));margin-bottom:14px}
-  .feature h3{margin:0 0 8px;font-size:19px}
-  .feature p{margin:0;color:var(--txt-dim);font-size:14px;line-height:1.65}
+  /* ===== SIDE PANELS ===== */
+  .side{display:flex;flex-direction:column;gap:12px}
+  .panel{background:var(--card);border:1px solid var(--card-border);border-radius:var(--r);padding:14px}
+  .panel h3{margin:0 0 10px;font-size:14px;display:flex;align-items:center;justify-content:space-between;color:var(--txt)}
+  .panel h3 span{font-size:11.5px;color:var(--txt-dim);font-weight:600}
+  .party-row{display:flex;align-items:center;gap:9px;padding:8px;border-radius:11px;cursor:pointer;transition:.15s;border:1px solid transparent}
+  .party-row:hover{background:rgba(255,255,255,.05)}
+  .party-row.active{border-color:var(--accent);background:rgba(124,92,255,.14)}
+  .party-row.fainted{opacity:.45}
+  .party-emo{font-size:22px;width:26px;text-align:center}
+  .party-mid{flex:1;min-width:0}
+  .party-nm{font-size:13px;font-weight:700;display:flex;gap:6px;align-items:center}
+  .hpbar{height:6px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden;margin-top:4px}
+  .hpbar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#34d399,#a3e635);transition:width .35s}
+  .hpbar i.mid{background:linear-gradient(90deg,#fbbf24,#f59e0b)}
+  .hpbar i.low{background:linear-gradient(90deg,#fb7185,#ef4444)}
+  .party-sub{font-size:11px;color:var(--txt-dim);margin-top:3px}
+  .bag-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;font-size:13.5px;border-bottom:1px dashed rgba(255,255,255,.08)}
+  .bag-row:last-child{border-bottom:none}
+  .bag-row .use{padding:5px 10px;border-radius:8px;border:1px solid var(--card-border);background:rgba(255,255,255,.06);color:var(--txt);font-size:12px;cursor:pointer;font-weight:600}
+  .bag-row .use:disabled{opacity:.35;cursor:not-allowed}
+  .prog-row{font-size:12.5px;color:var(--txt-dim);line-height:2}
+  .prog-row b{color:var(--txt)}
+  .pbar{height:8px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden;margin:4px 0 10px}
+  .pbar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .4s}
+  .tips{font-size:12px;color:var(--txt-dim);line-height:1.9}
+  .tips b{color:var(--gold)}
 
-  /* WORLD MAP */
-  .world-grid{display:grid;grid-template-columns:1.45fr .9fr;gap:24px;align-items:stretch}
-  @media(max-width:880px){.world-grid{grid-template-columns:1fr}}
-  .map{position:relative;width:100%;aspect-ratio:16/11;border-radius:24px;overflow:hidden;
-    background:
-      radial-gradient(120% 120% at 72% 22%, #3a1f4d 0%, transparent 55%),
-      radial-gradient(120% 120% at 18% 82%, #0e3a4d 0%, transparent 55%),
-      radial-gradient(90% 90% at 50% 50%, #1a2350 0%, transparent 70%),
-      linear-gradient(160deg,#0f1430,#1b1140);
-    border:1px solid var(--card-border);box-shadow:inset 0 0 60px rgba(0,0,0,.55)}
-  .map .grid-bg{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);background-size:42px 42px;opacity:.6}
-  .map svg{position:absolute;inset:0;width:100%;height:100%}
-  .map .node{position:absolute;transform:translate(-50%,-50%);width:62px;height:62px;border-radius:50%;border:2px solid rgba(255,255,255,.5);
-    display:grid;place-items:center;font-size:28px;cursor:pointer;transition:transform .15s, box-shadow .2s,background .2s;
-    background:rgba(10,14,30,.55);z-index:3;color:#fff}
-  .map .node:hover{transform:translate(-50%,-50%) scale(1.12);box-shadow:0 0 26px var(--nc)}
-  .map .node.visited{box-shadow:0 0 0 2px var(--nc),0 0 18px var(--nc)}
-  .map .node.sel{box-shadow:0 0 0 3px #fff,0 0 26px var(--nc);background:rgba(20,26,58,.7)}
-  .map .node .lbl{position:absolute;top:106%;left:50%;transform:translateX(-50%);font-size:11px;white-space:nowrap;color:#dbe2ff;text-shadow:0 1px 4px #000;pointer-events:none}
-  .map .node .badge{position:absolute;bottom:-6px;right:-6px;font-size:10px;background:var(--nc);color:#0b1026;border-radius:999px;padding:1px 5px;font-weight:800}
-  .map .me{position:absolute;transform:translate(-50%,-50%);font-size:20px;z-index:2;animation:bob 3s ease-in-out infinite;filter:drop-shadow(0 4px 6px rgba(0,0,0,.6));transition:left .4s,top .4s}
-  @keyframes bob{0%,100%{transform:translate(-50%,-50%) translateY(0)}50%{transform:translate(-50%,-50%) translateY(-6px)}}
+  /* ===== BATTLE ===== */
+  .battle{position:absolute;inset:0;z-index:60;display:flex;flex-direction:column;
+    background:linear-gradient(180deg,#1a2450 0%,#2c3d78 55%,#42558f 100%)}
+  .battle[hidden]{display:none}
+  .b-scene{flex:1;position:relative;padding:14px;overflow:hidden}
+  .b-scene::after{content:'';position:absolute;left:0;right:0;bottom:0;height:38%;
+    background:linear-gradient(180deg,transparent,rgba(120,160,110,.35))}
+  .b-side{position:absolute;z-index:2}
+  .b-side.enemy{right:5%;top:6%;text-align:center}
+  .b-side.player{left:5%;bottom:5%;text-align:center}
+  .b-sprite{font-size:64px;line-height:1;filter:drop-shadow(0 10px 10px rgba(0,0,0,.45));display:inline-block}
+  @media(max-width:640px){ .b-sprite{font-size:50px} }
+  .b-sprite.hit{animation:shakeX .4s}
+  @keyframes shakeX{0%,100%{transform:translateX(0)}25%{transform:translateX(-9px)}50%{transform:translateX(9px)}75%{transform:translateX(-5px)}}
+  .b-hpbox{background:rgba(8,12,28,.78);border:1px solid rgba(255,255,255,.22);border-radius:12px;padding:8px 11px;min-width:170px;
+    box-shadow:0 6px 18px rgba(0,0,0,.4);text-align:left}
+  .b-name{display:flex;justify-content:space-between;gap:8px;font-size:13px;font-weight:800}
+  .b-lv{font-size:11px;color:var(--gold);font-weight:700}
+  .b-hp{height:8px;border-radius:999px;background:rgba(255,255,255,.15);overflow:hidden;margin-top:6px}
+  .b-hp i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#34d399,#a3e635);transition:width .4s}
+  .b-hp i.mid{background:linear-gradient(90deg,#fbbf24,#f59e0b)}
+  .b-hp i.low{background:linear-gradient(90deg,#fb7185,#ef4444)}
+  .b-hptext{font-size:11px;color:var(--txt-dim);margin-top:4px;text-align:right}
+  .b-bottom{flex:none;background:rgba(6,9,22,.94);border-top:2px solid rgba(255,255,255,.16);padding:12px 14px;min-height:150px}
+  .b-msg{font-size:14px;line-height:1.6;min-height:42px;color:var(--txt)}
+  .b-menu{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .b-btn{background:rgba(255,255,255,.07);border:1px solid var(--card-border);color:var(--txt);padding:11px 12px;
+    border-radius:11px;font-size:13.5px;font-weight:700;cursor:pointer;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .b-btn:hover:not(:disabled){border-color:var(--accent);background:rgba(124,92,255,.18)}
+  .b-btn:disabled{opacity:.4;cursor:not-allowed}
+  .b-btn small{font-size:10.5px;color:var(--txt-dim);font-weight:600;white-space:nowrap}
+  .b-btn.cur{border-color:var(--accent-2)}
+  .b-btn.back{grid-column:1/-1;justify-content:center;color:var(--txt-dim)}
+  .b-ball{position:absolute;left:50%;bottom:20%;font-size:34px;opacity:0;z-index:5;pointer-events:none}
+  .b-ball.throw{animation:ballThrow .9s ease-out}
+  @keyframes ballThrow{0%{opacity:1;transform:translate(-50%,0) scale(1)}45%{opacity:1;transform:translate(-50%,-160px) scale(.85)}70%{opacity:1;transform:translate(-50%,-190px) scale(.8)}100%{opacity:0;transform:translate(-50%,-200px) scale(.6)}}
+  .float-dmg{position:fixed;transform:translate(-50%,-50%);font-weight:900;font-size:26px;pointer-events:none;z-index:120;
+    animation:floatUp .85s ease-out forwards;text-shadow:0 2px 8px rgba(0,0,0,.8)}
+  @keyframes floatUp{0%{opacity:0;transform:translate(-50%,-50%) scale(.6)}25%{opacity:1;transform:translate(-50%,-64%) scale(1.2)}100%{opacity:0;transform:translate(-50%,-160%) scale(1)}}
 
-  .region-panel{background:var(--card);border:1px solid var(--card-border);border-radius:24px;padding:22px;display:flex;flex-direction:column;min-height:100%}
-  .region-panel .rp-head{display:flex;align-items:center;gap:12px}
-  .region-panel .rp-icon{width:56px;height:56px;border-radius:16px;display:grid;place-items:center;font-size:28px;flex:none}
-  .region-panel h3{margin:0;font-size:22px}
-  .region-panel .rp-type{font-size:12px;color:var(--txt-dim)}
-  .rp-desc{color:var(--txt-dim);font-size:13px;line-height:1.7;margin:12px 0}
-  .rp-list{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 14px}
-  .rp-spirit{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.05);border:1px solid var(--card-border);border-radius:12px;padding:6px 10px;font-size:13px;cursor:pointer;transition:border-color .2s}
-  .rp-spirit:hover{border-color:var(--accent)}
-  .rp-spirit.rare{border-color:var(--gold);box-shadow:0 0 12px rgba(255,209,102,.35)}
-  .explore-btn{margin-top:auto}
-  .world-bottom{display:grid;grid-template-columns:1fr 1.3fr;gap:18px;margin-top:20px}
-  @media(max-width:760px){.world-bottom{grid-template-columns:1fr}}
-  .inv{display:flex;gap:10px;flex-wrap:wrap;align-content:flex-start}
-  .inv-item{background:var(--card);border:1px solid var(--card-border);border-radius:14px;padding:10px 12px;font-size:12px;display:flex;flex-direction:column;gap:8px;min-width:128px;flex:1}
-  .inv-item b{font-size:14px}
-  .inv-item .mini{padding:6px 10px;border-radius:9px;border:1px solid var(--card-border);background:rgba(255,255,255,.06);color:var(--txt);font-size:12px;cursor:pointer;font-weight:600}
-  .inv-item .mini:disabled{opacity:.4;cursor:not-allowed}
-  .world-log{height:160px;overflow:auto;background:rgba(0,0,0,.28);border-radius:14px;padding:12px 14px;font-size:13px;line-height:1.75;color:var(--txt-dim)}
-  .world-log .ok{color:var(--good)} .world-log .no{color:var(--bad)} .world-log .info{color:var(--accent-2)} .world-log .warn{color:var(--gold)} .world-log .rare{color:#ffd166;font-weight:700}
+  /* ===== MODAL ===== */
+  .overlay{position:fixed;inset:0;background:rgba(4,6,20,.8);backdrop-filter:blur(6px);display:none;z-index:200;padding:18px;overflow:auto}
+  .overlay.show{display:block}
+  .modal{max-width:880px;margin:24px auto;background:linear-gradient(160deg,#161c3e,#0e1430);border:1px solid var(--card-border);
+    border-radius:20px;padding:22px;box-shadow:0 30px 80px rgba(0,0,0,.6);position:relative}
+  .modal .close{position:absolute;top:12px;right:14px;background:none;border:none;color:var(--txt-dim);font-size:20px;cursor:pointer}
+  .modal .close:hover{color:var(--txt)}
+  .modal h2{margin:0 0 4px;font-size:22px}
+  .modal .sub{color:var(--txt-dim);font-size:13px;margin-bottom:16px;line-height:1.7}
+  .dex-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .dex-cell{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:10px;cursor:pointer;transition:.15s;text-align:center;position:relative}
+  .dex-cell:hover{border-color:var(--accent);transform:translateY(-2px)}
+  .dex-cell .dm{font-size:30px}
+  .dex-cell .dn{font-size:13px;font-weight:800;margin-top:4px;display:flex;justify-content:center;align-items:center;gap:5px;flex-wrap:wrap}
+  .dex-cell .dc{font-size:11px;color:var(--txt-dim);margin-top:3px}
+  .dex-cell.owned{border-color:var(--good);box-shadow:0 0 0 1px rgba(52,211,153,.35)}
+  .dex-cell.owned::after{content:'✓';position:absolute;top:6px;right:8px;color:var(--good);font-weight:900;font-size:12px}
 
-  /* DEX */
-  .filters{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:26px}
-  .chip{padding:7px 15px;border-radius:999px;border:1px solid var(--card-border);background:var(--card);color:var(--txt-dim);font-size:13px;cursor:pointer;transition:.15s}
-  .chip.active{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#0b1026;border-color:transparent;font-weight:700}
-  .chip:hover{color:var(--txt)}
-  .dex{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
-  .card{background:var(--card);border:1px solid var(--card-border);border-radius:var(--r);padding:18px;position:relative;overflow:hidden;transition:transform .2s}
-  .card:hover{transform:translateY(-4px)}
-  .card .glow{position:absolute;width:140px;height:140px;border-radius:50%;filter:blur(40px);opacity:.4;top:-40px;right:-30px}
-  .card .nm{font-weight:800;font-size:18px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-  .card .chain{display:flex;align-items:center;gap:4px;color:var(--txt-dim);font-size:12px;margin:8px 0;flex-wrap:wrap}
-  .card .chain b{color:var(--txt)}
-  .card .st{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px}
-  .card .st div{text-align:center;background:rgba(255,255,255,.05);border-radius:10px;padding:6px 2px}
-  .card .st small{display:block;color:var(--txt-dim);font-size:10px}
-  .card .st b{font-size:14px}
-  .card .ds{color:var(--txt-dim);font-size:12px;margin-top:10px;line-height:1.55;min-height:34px}
-  .card .thint{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:11px;border-top:1px dashed var(--card-border);padding-top:8px}
-  .card .thint .g{color:var(--good)} .card .thint .w{color:var(--bad)}
-  .card-btns{display:flex;gap:8px;margin-top:10px}
-
-  /* MODEL */
-  .model{position:relative;display:inline-grid;place-items:center;isolation:isolate}
-  .model::before{content:'';position:absolute;left:50%;top:50%;width:150%;height:150%;transform:translate(-50%,-50%);
-    border-radius:50%;background:radial-gradient(circle,var(--aura,#7c5cff) 0%,transparent 65%);
-    opacity:.35;filter:blur(6px);animation:pulse 3s ease-in-out infinite;z-index:0}
-  .model .emo{position:relative;z-index:1;display:inline-block;animation:bob 3s ease-in-out infinite;filter:drop-shadow(0 8px 12px rgba(0,0,0,.42))}
-  @keyframes pulse{0%,100%{opacity:.28;transform:translate(-50%,-50%) scale(1)}50%{opacity:.5;transform:translate(-50%,-50%) scale(1.12)}}
-  .card-model{font-size:54px;margin:6px auto 8px;display:grid}
-
-  /* TYPE CHART */
-  .tc-legend{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;margin-bottom:18px;font-size:13px;color:var(--txt-dim)}
-  .tc-legend .lg{display:inline-block;width:14px;height:14px;border-radius:4px;margin-right:6px;vertical-align:-2px}
-  .tc-wrap{overflow-x:auto;border:1px solid var(--card-border);border-radius:16px;background:var(--card);padding:10px}
-  table.tc{border-collapse:separate;border-spacing:4px;margin:0 auto}
-  table.tc th{font-weight:700;font-size:12px;padding:2px;text-align:center}
-  table.tc th .hbadge{display:inline-block;padding:3px 7px;border-radius:8px;color:#0b1026;font-weight:800;font-size:11px;white-space:nowrap;transition:box-shadow .2s,transform .2s}
-  .tc-type-btn{cursor:pointer}
-  .tc-type-btn:hover .hbadge{transform:translateY(-2px)}
-  table.tc th.hl .hbadge{box-shadow:0 0 0 2px #fff,0 0 14px rgba(255,255,255,.6)}
-  table.tc td{width:28px;height:28px;text-align:center;border-radius:8px;font-weight:800;font-size:12px;transition:opacity .2s}
+  .tc-legend{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;font-size:12.5px;color:var(--txt-dim)}
+  .tc-legend .lg{display:inline-block;width:13px;height:13px;border-radius:4px;margin-right:5px;vertical-align:-2px}
+  .tc-wrap{overflow-x:auto;border:1px solid var(--card-border);border-radius:14px;background:var(--card);padding:8px}
+  table.tc{border-collapse:separate;border-spacing:3px;margin:0 auto}
+  table.tc th{font-size:11px;padding:1px;text-align:center}
+  .hbadge{display:inline-block;padding:3px 6px;border-radius:7px;color:#0b1026;font-weight:800;font-size:10.5px;white-space:nowrap;cursor:pointer;transition:.15s}
+  .hbadge:hover{transform:translateY(-2px)}
+  table.tc th.hl .hbadge{box-shadow:0 0 0 2px #fff,0 0 12px rgba(255,255,255,.5)}
+  table.tc td{width:26px;height:26px;text-align:center;border-radius:7px;font-weight:800;font-size:11px;transition:opacity .2s}
   td.c2{background:rgba(52,211,153,.9);color:#052e1a}
   td.ch{background:rgba(251,113,133,.85);color:#3a0a12}
   td.c0{background:#3a3f66;color:#9aa6d6}
   td.c1{background:rgba(255,255,255,.05);color:#586094}
-  td.dim{opacity:.15}
-  td.hl{box-shadow:inset 0 0 0 2px var(--accent-2)}
-  table.tc .corner{font-size:11px;color:var(--txt-dim);white-space:nowrap;cursor:pointer}
-  .tc-note{text-align:center;color:var(--txt-dim);font-size:12px;margin-top:14px}
-  .tc-summary{margin-top:16px;background:var(--card);border:1px solid var(--card-border);border-radius:14px;padding:16px 18px;font-size:13px;line-height:1.9;color:var(--txt-dim);min-height:44px}
+  td.dim{opacity:.15} td.hl{box-shadow:inset 0 0 0 2px var(--accent-2)}
+  .tc-summary{margin-top:12px;background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:12px 14px;font-size:12.5px;line-height:1.9;color:var(--txt-dim)}
   .tc-summary b{color:var(--txt)}
-  .tc-summary .hl-name{color:var(--accent-2);font-weight:800}
 
-  /* CATCH */
-  .arena{background:linear-gradient(160deg,rgba(124,92,255,.16),rgba(34,211,238,.08));
-    border:1px solid var(--card-border);border-radius:26px;padding:30px;display:grid;grid-template-columns:1.1fr .9fr;gap:26px;align-items:center}
-  @media(max-width:820px){.arena{grid-template-columns:1fr}}
-  .wild-stage{position:relative;height:300px;border-radius:20px;background:radial-gradient(circle at 50% 70%,rgba(255,255,255,.08),transparent 60%),linear-gradient(180deg,#0e1430,#1a2350);
-    display:grid;place-items:center;overflow:hidden;border:1px solid var(--card-border)}
-  .wild-spirit{font-size:120px;filter:drop-shadow(0 14px 20px rgba(0,0,0,.5));transition:transform .3s;cursor:pointer;user-select:none;line-height:1}
-  .wild-spirit.shake{animation:shake .5s}
-  .wild-spirit.caught{animation:caught .8s forwards}
-  @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-14px) rotate(-6deg)}40%{transform:translateX(14px) rotate(6deg)}60%{transform:translateX(-10px)}80%{transform:translateX(10px)}}
-  @keyframes caught{to{transform:scale(.1) translateY(40px);opacity:0}}
-  .ball{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);font-size:40px;opacity:0}
-  .ball.throw{animation:throw .7s ease-out forwards}
-  @keyframes throw{0%{opacity:1;bottom:18px;left:50%;transform:translate(-50%,0) scale(1)}60%{opacity:1;bottom:60%;left:50%;transform:translate(-50%,-60px) scale(.6)}100%{opacity:0;bottom:60%;left:50%;transform:translate(-50%,-70px) scale(.4)}}
-  .hp-wrap{margin-top:14px}
-  .hp-bar{height:14px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden;position:relative}
-  .hp-fill{height:100%;width:100%;border-radius:999px;background:linear-gradient(90deg,#34d399,#a3e635);transition:width .4s}
-  .hp-fill.mid{background:linear-gradient(90deg,#fbbf24,#f59e0b)}
-  .hp-fill.low{background:linear-gradient(90deg,#fb7185,#ef4444)}
-  .hp-label{display:flex;justify-content:space-between;font-size:12px;color:var(--txt-dim);margin-top:6px}
-  .catch-panel h3{margin:0 0 4px;font-size:22px}
-  .catch-panel .meta{color:var(--txt-dim);font-size:13px;margin-bottom:6px;line-height:1.6}
-  .catch-meta{font-size:12px;color:var(--txt-dim);margin-top:8px}
-  .catch-log{height:96px;overflow:auto;background:rgba(0,0,0,.25);border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.7;color:var(--txt-dim)}
-  .catch-log .ok{color:var(--good)} .catch-log .no{color:var(--bad)} .catch-log .info{color:var(--accent-2)}
-  .catch-btns{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+  .detail-top{display:flex;gap:16px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+  .detail-sprite{width:110px;height:110px;display:grid;place-items:center;font-size:64px;border-radius:20px;position:relative;isolation:isolate}
+  .detail-sprite::before{content:'';position:absolute;inset:0;border-radius:20px;background:radial-gradient(circle,var(--aura,#7c5cff),transparent 70%);opacity:.35;filter:blur(8px);z-index:-1}
+  .stat-row{display:flex;align-items:center;gap:9px;margin:6px 0;font-size:12.5px}
+  .stat-row .lbl{width:40px;color:var(--txt-dim)}
+  .stat-bar{flex:1;height:9px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden}
+  .stat-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2))}
+  .stat-row .val{width:30px;text-align:right;font-weight:700}
+  .iblock{margin-top:12px}
+  .iblock h4{margin:0 0 3px;font-size:13px;color:var(--accent-2)}
+  .iblock p{margin:0;color:var(--txt-dim);font-size:12.5px;line-height:1.65}
+  .moves{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+  .mchip{background:rgba(255,255,255,.05);border:1px solid var(--card-border);border-radius:9px;padding:8px 10px;font-size:12px}
+  .mchip b{font-size:12.5px}
 
-  /* COLLECTION */
-  .coll-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
-  .coll-card{background:var(--card);border:1px solid var(--card-border);border-radius:var(--r);padding:18px;text-align:center;position:relative}
-  .bond{height:10px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden;margin:12px 0 6px}
-  .bond-fill{height:100%;background:linear-gradient(90deg,var(--gold),#ff9f1c);width:0;transition:width .4s}
-  .bond-label{font-size:12px;color:var(--txt-dim);line-height:1.7}
-  .mini-btns{display:flex;gap:8px;margin-top:12px}
-  .mini{padding:8px 12px;border-radius:10px;border:1px solid var(--card-border);background:rgba(255,255,255,.05);color:var(--txt);font-size:13px;cursor:pointer;flex:1;font-weight:600}
-  .mini:disabled{opacity:.4;cursor:not-allowed}
-  .mini.evo{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#0b1026;border:none}
-  .empty{text-align:center;color:var(--txt-dim);padding:40px;background:var(--card);border:1px dashed var(--card-border);border-radius:var(--r)}
+  .starters{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  @media(max-width:600px){ .starters{grid-template-columns:1fr} }
+  .starter{background:var(--card);border:1px solid var(--card-border);border-radius:16px;padding:16px;text-align:center;cursor:pointer;transition:.18s}
+  .starter:hover{border-color:var(--accent);transform:translateY(-4px)}
+  .starter .sm{font-size:52px}
+  .starter .sn{font-weight:800;margin-top:6px}
+  .starter .sd{font-size:12px;color:var(--txt-dim);line-height:1.6;margin-top:6px}
 
-  /* BATTLE */
-  .battle-top{display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:center;
-    background:linear-gradient(160deg,rgba(124,92,255,.14),rgba(34,211,238,.07));
-    border:1px solid var(--card-border);border-radius:24px;padding:24px}
-  @media(max-width:640px){.battle-top{grid-template-columns:1fr;gap:8px}}
-  .fighter{text-align:center}
-  .fighter .model{font-size:84px;margin:0 auto 4px}
-  .fname{font-weight:800;margin-top:4px;font-size:16px}
-  .ftype{font-size:11px;color:var(--txt-dim);margin-top:2px}
-  .hpbar{height:12px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden;margin:10px auto 4px;max-width:240px}
-  .hpfill{height:100%;width:100%;background:linear-gradient(90deg,#34d399,#a3e635);transition:width .45s}
-  .hpfill.mid{background:linear-gradient(90deg,#fbbf24,#f59e0b)}
-  .hpfill.low{background:linear-gradient(90deg,#fb7185,#ef4444)}
-  .hptxt{font-size:12px;color:var(--txt-dim)}
-  .vsbadge{font-weight:900;font-size:26px;color:var(--accent-2);text-shadow:0 0 22px rgba(34,211,238,.7);text-align:center}
-  .battle-setup{display:flex;gap:12px;justify-content:center;margin-top:18px;flex-wrap:wrap;align-items:center}
-  select{background:rgba(255,255,255,.06);border:1px solid var(--card-border);color:var(--txt);padding:11px 14px;border-radius:12px;font-size:14px;font-family:inherit;cursor:pointer}
-  select option{background:#141a3a;color:var(--txt)}
-  .move-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:18px}
-  @media(max-width:600px){.move-grid{grid-template-columns:1fr}}
-  .move-btn{text-align:left;background:var(--card);border:1px solid var(--card-border);border-radius:14px;padding:12px 14px;cursor:pointer;color:var(--txt);transition:transform .15s,border-color .15s;font-family:inherit}
-  .move-btn:hover:not(:disabled){transform:translateY(-2px);border-color:var(--accent)}
-  .move-btn:disabled{opacity:.45;cursor:not-allowed}
-  .move-btn .mname{font-weight:800;font-size:15px;display:block}
-  .move-btn .mmeta{font-size:12px;color:var(--txt-dim);margin-top:4px;display:flex;gap:8px;align-items:center}
-  .battle-log{height:130px;overflow:auto;background:rgba(0,0,0,.25);border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.75;color:var(--txt-dim);margin-top:16px}
-  .battle-log .ok{color:var(--good)} .battle-log .no{color:var(--bad)} .battle-log .info{color:var(--accent-2)} .battle-log .warn{color:var(--gold)}
-
-  /* COOP */
-  .coop{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
-  @media(max-width:760px){.coop{grid-template-columns:1fr}}
-  .coop .box{background:var(--card);border:1px solid var(--card-border);border-radius:var(--r);padding:24px}
-  .coop .box h3{margin:0 0 10px;display:flex;align-items:center;gap:10px}
-  .coop .box p{color:var(--txt-dim);line-height:1.7;font-size:14px;margin:0}
-  .tag{font-size:11px;padding:3px 9px;border-radius:999px;background:rgba(124,92,255,.25);color:#c9b8ff;margin-right:6px}
-
-  /* MODAL */
-  .modal-overlay{position:fixed;inset:0;background:rgba(4,6,20,.78);backdrop-filter:blur(6px);display:none;place-items:center;z-index:200;padding:18px}
-  .modal-overlay.show{display:grid}
-  .modal{background:linear-gradient(160deg,#161c3e,#0e1430);border:1px solid var(--card-border);border-radius:22px;max-width:640px;width:100%;max-height:88vh;overflow:auto;padding:26px;box-shadow:var(--shadow);position:relative}
-  .modal .close{position:absolute;top:14px;right:16px;cursor:pointer;font-size:20px;color:var(--txt-dim);background:none;border:none}
-  .modal .close:hover{color:var(--txt)}
-  .detail-model{position:relative;display:grid;place-items:center;height:170px;margin:0 auto 4px;isolation:isolate}
-  .detail-model .emo{position:relative;z-index:2;font-size:110px;display:inline-block;animation:bob 3.2s ease-in-out infinite;filter:drop-shadow(0 12px 18px rgba(0,0,0,.5))}
-  .detail-model::before{content:'';position:absolute;left:50%;top:50%;width:160px;height:160px;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle,var(--aura,#7c5cff),transparent 70%);opacity:.4;filter:blur(8px);z-index:1}
-  .detail-model .ring{position:absolute;border-radius:50%;border:2px dashed rgba(124,92,255,.35);z-index:0}
-  .ring.r1{width:150px;height:150px;animation:spin 14s linear infinite}
-  .ring.r2{width:205px;height:205px;animation:spin 22s linear infinite reverse;border-color:rgba(34,211,238,.25)}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  .stat-row{display:flex;align-items:center;gap:10px;margin:7px 0;font-size:13px}
-  .stat-row .lbl{width:44px;color:var(--txt-dim)}
-  .stat-bar{flex:1;height:10px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden}
-  .stat-bar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--accent),var(--accent-2))}
-  .stat-row .val{width:34px;text-align:right;font-weight:700}
-  .info-block{margin-top:14px}
-  .info-block h4{margin:0 0 4px;font-size:14px;color:var(--accent-2)}
-  .info-block p{margin:0;color:var(--txt-dim);font-size:13px;line-height:1.65}
-  .move-list{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
-  @media(max-width:520px){.move-list{grid-template-columns:1fr}}
-  .move-chip{background:rgba(255,255,255,.05);border:1px solid var(--card-border);border-radius:10px;padding:8px 10px;font-size:12px;line-height:1.5}
-  .move-chip b{font-size:13px}
-
-  /* EFFECTS */
-  .float-dmg{position:fixed;transform:translate(-50%,-50%);font-weight:900;font-size:28px;pointer-events:none;z-index:999;animation:floatUp .9s ease-out forwards;text-shadow:0 2px 8px rgba(0,0,0,.7)}
-  @keyframes floatUp{0%{opacity:0;transform:translate(-50%,-50%) scale(.6)}20%{opacity:1;transform:translate(-50%,-62%) scale(1.25)}100%{opacity:0;transform:translate(-50%,-165%) scale(1)}}
-  .burst{position:fixed;width:130px;height:130px;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:998;animation:burstAnim .6s ease-out forwards;mix-blend-mode:screen}
-  @keyframes burstAnim{0%{opacity:.95;transform:translate(-50%,-50%) scale(.15)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.7)}}
-  .hit{animation:shake .45s}
-
-  footer{border-top:1px solid var(--card-border);padding:40px 0 60px;text-align:center;color:var(--txt-dim);font-size:13px}
-  footer .logo{justify-content:center;margin-bottom:10px}
-  .toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%) translateY(40px);background:#0b1026;border:1px solid var(--accent);
-    color:#fff;padding:12px 22px;border-radius:14px;box-shadow:var(--shadow);opacity:0;transition:.3s;z-index:300;font-size:14px}
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(40px);background:#0b1026;border:1px solid var(--accent);
+    color:#fff;padding:11px 20px;border-radius:13px;box-shadow:0 18px 50px rgba(0,0,0,.5);opacity:0;transition:.3s;z-index:300;font-size:13.5px}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body>
 
-<nav>
-  <div class="wrap nav-in">
-    <div class="logo"><span class="mark">🔮</span> 灵契大陆</div>
-    <div class="nav-links">
-      <a href="#world">探索世界</a>
-      <a href="#dex">精灵图鉴</a>
-      <a href="#typechart">属性克制</a>
-      <a href="#catch">捕捉</a>
-      <a href="#battle">对战</a>
-      <a href="#mine">我的精灵</a>
-      <a href="#coop">羁绊</a>
+<header class="top">
+  <div class="top-in">
+    <div class="brand"><span class="mark">🔮</span> 灵契大陆 <small>SpiriRealm</small></div>
+    <div class="top-stats">
+      <span>🎒 精灵球 <b id="hudBalls">5</b></span>
+      <span>🏅 训练家 <b id="hudBadges">0</b>/8</span>
+      <span>📖 图鉴 <b id="hudDex">0</b>/15</span>
     </div>
-    <a href="#world" class="nav-cta">🗺️ 探索世界</a>
-  </div>
-</nav>
-
-<header class="hero">
-  <div class="floaters" id="floaters"></div>
-  <div class="wrap">
-    <span class="pill">🌟 探索 · 捕捉 · 羁绊 · 属性对战 · 进化</span>
-    <h1>灵契大陆<br>SpiriRealm</h1>
-    <p class="sub">展开世界地图，踏入 11 处属性秘境：在火山深处惊扰火之精灵，于龙脊山脉邂逅传说之龙。探索、捕捉、培养羁绊，用属性克制击溃强敌，见证进化。</p>
-    <div class="hero-cta">
-      <button class="btn btn-primary" onclick="document.getElementById('world').scrollIntoView()">🗺️ 探索世界</button>
-      <button class="btn btn-ghost" onclick="document.getElementById('dex').scrollIntoView()">📖 浏览图鉴</button>
-    </div>
-    <div class="hero-stats">
-      <div class="s"><b id="statTotal">15</b><span>种可收服精灵</span></div>
-      <div class="s"><b id="statRegions">11</b><span>处可探索秘境</span></div>
-      <div class="s"><b>3</b><span>阶进化形态</span></div>
-      <div class="s"><b id="statTypes">11</b><span>属性相克体系</span></div>
-      <div class="s"><b id="statCaught">0</b><span>你已收服</span></div>
+    <div class="top-btns">
+      <button onclick="openDex()">📖 图鉴</button>
+      <button onclick="openTypes()">⚔️ 属性克制</button>
+      <button onclick="openHelp()">❓ 玩法</button>
     </div>
   </div>
 </header>
 
-<section id="features-sec">
-  <div class="wrap">
-    <div class="features">
-      <div class="feature"><div class="ic">🗺️</div><h3>秘境探索</h3><p>世界地图散布 11 处属性秘境，点击进入即可探索。每一步都可能遭遇精灵、捡到道具、遇见稀有传说，或撞上训练家。</p></div>
-      <div class="feature"><div class="ic">🔍</div><h3>自由捕捉</h3><p>野外随机遭遇精灵，削弱体力后投掷精灵球。体力越低成功率越高，稀有精灵更难捕获。</p></div>
-      <div class="feature"><div class="ic">⚔️</div><h3>属性对战</h3><p>回合制战斗，速度决定出手顺序，用克制倍率计算伤害，享受效果拔群的快感。</p></div>
-      <div class="feature"><div class="ic">🧬</div><h3>性格与天赋</h3><p>每只精灵拥有种族特性、随机性格与特殊天赋，数值各不相同，养成独一无二的伙伴。</p></div>
-      <div class="feature"><div class="ic">🦋</div><h3>三段进化</h3><p>亲密度达标即可进化，外形与数值全面飞跃，解锁专属进化形态。</p></div>
-    </div>
-  </div>
-</section>
-
-<section id="world">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="kicker">Overworld Map</div>
-      <h2>灵契大陆 · 世界地图</h2>
-      <p>点击地图上的任意秘境节点进入区域，再点「探索」触发事件。精灵球在探索中获得，捕捉时消耗；糖果与进化石可提升精灵亲密度。</p>
-    </div>
-    <div class="world-grid">
-      <div class="map-col">
-        <div class="map" id="map">
-          <div class="grid-bg"></div>
-          <svg id="mapEdges"></svg>
-          <div id="mapNodes"></div>
-          <div class="me" id="playerMarker" style="left:50%;top:14%">🧭</div>
-        </div>
+<main class="game-wrap">
+  <section>
+    <div class="viewport" id="viewport">
+      <div class="map-world" id="mapWorld">
+        <div class="tile-layer" id="tileLayer"></div>
+        <div class="entity-layer" id="entityLayer"></div>
+        <div class="player" id="player">🧙</div>
       </div>
-      <div class="region-panel" id="regionPanel"></div>
-    </div>
-    <div class="world-bottom">
-      <div class="inv" id="invBox"></div>
-      <div class="world-log" id="worldLog"><span class="info">[系统] 选择一处秘境开始你的冒险吧。</span></div>
-    </div>
-  </div>
-</section>
+      <div class="biome-tag" id="biomeTag">📍 灵契镇</div>
+      <div class="flash" id="flash"></div>
 
-<section id="dex">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="kicker">Pokédex</div>
-      <h2>精灵图鉴</h2>
-      <p>十一系精灵栖息于大陆各处，从灵动的兔、鹿到咆哮的虎与巨龙。点击「详情」查看数值、特性、天赋与技能表。</p>
-    </div>
-    <div class="filters" id="filters"></div>
-    <div class="dex" id="dexGrid"></div>
-  </div>
-</section>
-
-<section id="typechart">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="kicker">Type Matchup</div>
-      <h2>属性克制</h2>
-      <p>行是攻击方、列是防守方。<span style="color:var(--good)">绿色 2× 效果拔群</span>，<span style="color:var(--bad)">橙色 ½× 效果不佳</span>，<span style="color:var(--txt-dim)">灰色 0 完全免疫</span>。</p>
-    </div>
-    <div class="tc-legend">
-      <span><i class="lg" style="background:var(--good)"></i>2× 克制</span>
-      <span><i class="lg" style="background:var(--bad)"></i>½× 弱效</span>
-      <span><i class="lg" style="background:#3a3f66"></i>0 免疫</span>
-      <span><i class="lg" style="background:rgba(255,255,255,.08)"></i>1× 普通</span>
-    </div>
-    <div class="tc-wrap"><table class="tc" id="tcTable"></table></div>
-    <div class="tc-summary" id="tcSummary">💡 点击表格的行 / 列标题（或任意属性徽章），即可高亮该属性的克制关系。</div>
-  </div>
-</section>
-
-<section id="catch">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="kicker">Catch</div>
-      <h2>野外捕捉</h2>
-      <p>在「探索世界」中会遇到野生精灵，也可点下方按钮随机遭遇。削弱体力后投掷精灵球，遭遇时会提示其属性弱点。</p>
-    </div>
-    <div class="arena">
-      <div class="wild-stage" id="wildStage">
-        <div class="wild-spirit" id="wildSpirit" onclick="tapWild()">❔</div>
-        <div class="ball" id="ball">🔴</div>
-      </div>
-      <div class="catch-panel">
-        <h3 id="wildName">等待遭遇…</h3>
-        <div class="meta" id="wildMeta">点击下方按钮开始你的第一次冒险</div>
-        <div class="hp-wrap">
-          <div class="hp-bar"><div class="hp-fill" id="hpFill" style="width:100%"></div></div>
-          <div class="hp-label"><span>体力 HP</span><span id="hpText">100 / 100</span></div>
+      <div class="battle" id="battleScreen" hidden>
+        <div class="b-scene">
+          <div class="b-side enemy">
+            <div class="b-hpbox">
+              <div class="b-name"><span id="bEnemyName">野生精灵</span><span class="b-lv" id="bEnemyLv">Lv.5</span></div>
+              <div class="b-hp"><i id="bEnemyHp" style="width:100%"></i></div>
+            </div>
+            <div class="b-sprite" id="bEnemySprite">🐭</div>
+          </div>
+          <div class="b-side player">
+            <div class="b-sprite" id="bPlayerSprite">🧙</div>
+            <div class="b-hpbox">
+              <div class="b-name"><span id="bPlayerName">我的精灵</span><span class="b-lv" id="bPlayerLv">Lv.5</span></div>
+              <div class="b-hp"><i id="bPlayerHp" style="width:100%"></i></div>
+              <div class="b-hptext" id="bPlayerHpText">—</div>
+            </div>
+          </div>
+          <div class="b-ball" id="bBall">🔴</div>
         </div>
-        <div class="catch-meta">🎒 精灵球：<b id="ballCount">5</b> · 体力越低越易捕获</div>
-        <div class="catch-log" id="catchLog"><span class="info">[系统] 欢迎，灵契师。准备好你的精灵球了吗？</span></div>
-        <div class="catch-btns">
-          <button class="btn btn-ghost" onclick="encounter()">🌿 随机遭遇</button>
-          <button class="btn btn-primary" id="throwBtn" onclick="throwBall()" disabled>🔴 投掷精灵球</button>
+        <div class="b-bottom">
+          <div class="b-msg" id="bMsg"></div>
+          <div class="b-menu" id="bMenu"></div>
         </div>
       </div>
     </div>
-  </div>
-</section>
 
-<section id="battle">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="kicker">Battle</div>
-      <h2>属性对战</h2>
-      <p>选择你的精灵出战。速度高者先手，用属性克制与技能威力击倒对手。胜利可提升出战精灵的亲密度。</p>
-    </div>
-    <div class="battle-top">
-      <div class="fighter">
-        <div class="model" id="pModel" style="--aura:#7c5cff"><span class="emo">🐭</span></div>
-        <div class="fname" id="pName">你的精灵</div>
-        <div class="ftype" id="pType">—</div>
-        <div class="hpbar"><div class="hpfill" id="pHpBar"></div></div>
-        <div class="hptxt" id="pHpTxt">—</div>
+    <div class="controls">
+      <div class="dpad">
+        <button class="up" onmousedown="tryMove(0,-1)" ontouchstart="event.preventDefault();tryMove(0,-1)">▲</button>
+        <button class="left" onmousedown="tryMove(-1,0)" ontouchstart="event.preventDefault();tryMove(-1,0)">◀</button>
+        <button class="right" onmousedown="tryMove(1,0)" ontouchstart="event.preventDefault();tryMove(1,0)">▶</button>
+        <button class="down" onmousedown="tryMove(0,1)" ontouchstart="event.preventDefault();tryMove(0,1)">▼</button>
       </div>
-      <div class="vsbadge">VS</div>
-      <div class="fighter">
-        <div class="model" id="eModel" style="--aura:#ff6b35"><span class="emo">🐉</span></div>
-        <div class="fname" id="eName">野生精灵</div>
-        <div class="ftype" id="eType">—</div>
-        <div class="hpbar"><div class="hpfill" id="eHpBar"></div></div>
-        <div class="hptxt" id="eHpTxt">—</div>
+      <div class="hint-box">
+        <span class="kbd">方向键</span> / <span class="kbd">WASD</span> 移动 · 走进 <b>高草</b>会遇敌 · 撞到 <b>训练家</b>开战 · 走进 <b>🏥</b> 回复 · 战斗中可用 <b>精灵球</b> 捕捉
       </div>
     </div>
-    <div class="battle-setup" id="battleSetup">
-      <select id="battleSel"></select>
-      <button class="btn btn-primary" onclick="startBattle()">⚔️ 开始对战</button>
-    </div>
-    <div class="move-grid" id="moveGrid"></div>
-    <div class="battle-log" id="battleLog"><span class="info">[系统] 选择出战精灵，点击「开始对战」。</span></div>
-  </div>
-</section>
+  </section>
 
-<section id="mine">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="kicker">Your Team</div>
-      <h2>我的精灵</h2>
-      <p>你收服的伙伴都在这里。每只都拥有独立的性格。培养提升亲密度，达标即可进化。</p>
+  <aside class="side">
+    <div class="panel">
+      <h3>我的队伍 <span id="partyCount">0/6</span></h3>
+      <div id="partyList"></div>
     </div>
-    <div id="collGrid" class="coll-grid"></div>
-  </div>
-</section>
-
-<section id="coop">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="kicker">Bond System</div>
-      <h2>玩家与精灵的羁绊</h2>
-      <p>真正的力量源自信任。每一项机制，都让「你」与「精灵」不再是主从，而是战友。</p>
+    <div class="panel">
+      <h3>背包</h3>
+      <div id="bagList"></div>
     </div>
-    <div class="coop">
-      <div class="box"><h3>💞 亲密度</h3><p><span class="tag">培养</span><span class="tag">并肩</span>通过战斗与互动提升亲密度，它是进化的核心门槛。亲密度越高，精灵在关键时刻越可能为你拼命。</p></div>
-      <div class="box"><h3>⚔️ 协力技</h3><p><span class="tag">合体</span><span class="tag">爆发</span>当羁绊槽充满，玩家可与精灵释放专属协力技，造成远超单体的爆发伤害。</p></div>
-      <div class="box"><h3>🛡️ 替身守护</h3><p><span class="tag">守护</span><span class="tag">信赖</span>高羁绊下，精灵有几率替你抵挡致命一击——它们愿意用自己的身体保护你。</p></div>
-      <div class="box"><h3>🌱 共鸣进化</h3><p><span class="tag">进化</span><span class="tag">羁绊</span>单纯升级不足以进化，唯有与玩家建立深厚羁绊的精灵，才能突破界限完成最终进化。</p></div>
+    <div class="panel">
+      <h3>冒险进度</h3>
+      <div id="progress"></div>
     </div>
-  </div>
-</section>
+  </aside>
+</main>
 
-<footer>
-  <div class="wrap">
-    <div class="logo"><span class="mark">🔮</span> 灵契大陆 SpiriRealm</div>
-    <p>© 2026 SpiriRealm Studio · 原创精灵冒险游戏主页 · 探索 · 捕捉 · 羁绊 · 属性对战 · 进化</p>
-  </div>
-</footer>
-
-<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeDetail()">
+<div class="overlay" id="overlay" onclick="if(event.target===this)closeModal()">
   <div class="modal" id="modalBody"></div>
 </div>
+
+<div class="overlay" id="starterOverlay">
+  <div class="modal" style="max-width:720px">
+    <h2>选择你的初始伙伴</h2>
+    <p class="sub">每位灵契师都要有一位并肩的伙伴。它会陪你踏入草丛、迎战训练家，并在羁绊足够时进化。</p>
+    <div class="starters" id="starterChoices"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
-/* ================= 数据 ================= */
+/* ===================== 基础数据 ===================== */
 const TYPES = {
   fire:{name:'火',color:'var(--type-fire)'}, water:{name:'水',color:'var(--type-water)'},
   grass:{name:'草',color:'var(--type-grass)'}, electric:{name:'电',color:'var(--type-electric)'},
@@ -510,7 +329,8 @@ const TYPES = {
   dragon:{name:'龙',color:'var(--type-dragon)'}
 };
 const TYPE_NONE={name:'普',color:'#9aa6d6'};
-function typeInfo(t){ return t==='none'?TYPE_NONE:TYPES[t]; }
+function typeInfo(t){ return t==='none'?TYPE_NONE:(TYPES[t]||TYPE_NONE); }
+function typeName(t){ return typeInfo(t).name; }
 
 const TYPE_CHART = {
   fire:    {grass:2, ice:2, fire:.5, water:.5, rock:.5, dragon:.5},
@@ -525,10 +345,7 @@ const TYPE_CHART = {
   wind:    {grass:2, electric:.5, rock:.5},
   dragon:  {dragon:2, light:0}
 };
-function mult(atk,def){
-  const row=TYPE_CHART[atk];
-  return (row && row[def]!==undefined) ? row[def] : 1;
-}
+function mult(atk,def){ const row=TYPE_CHART[atk]; return (row&&row[def]!==undefined)?row[def]:1; }
 
 const TYPE_MOVES = {
   fire:[{name:'火花',power:40,acc:100},{name:'喷射火焰',power:90,acc:95},{name:'烈焰冲撞',power:120,acc:85}],
@@ -545,154 +362,207 @@ const TYPE_MOVES = {
 };
 
 const ABILITIES = {
-  fire:{name:'烈焰之躯',kind:'boost',desc:'火系招式威力提升 10%。'},
-  water:{name:'激流',kind:'boost',desc:'水系招式威力提升 10%。'},
-  grass:{name:'茂盛',kind:'boost',desc:'草系招式威力提升 10%。'},
-  electric:{name:'蓄电',kind:'boost',desc:'电系招式威力提升 10%。'},
-  ice:{name:'雪隐',kind:'boost',desc:'冰系招式威力提升 10%。'},
-  light:{name:'闪耀',kind:'boost',desc:'光系招式威力提升 10%。'},
+  fire:{name:'烈焰之躯',kind:'boost',desc:'火系招式威力 +10%。'},
+  water:{name:'激流',kind:'boost',desc:'水系招式威力 +10%。'},
+  grass:{name:'茂盛',kind:'boost',desc:'草系招式威力 +10%。'},
+  electric:{name:'蓄电',kind:'boost',desc:'电系招式威力 +10%。'},
+  ice:{name:'雪隐',kind:'boost',desc:'冰系招式威力 +10%。'},
+  light:{name:'闪耀',kind:'boost',desc:'光系招式威力 +10%。'},
   dark:{name:'威吓',kind:'intimidate',desc:'登场时降低对手攻击 10%。'},
-  rock:{name:'坚硬',kind:'bulk',desc:'防御力提升 10%。'},
-  psychic:{name:'同步',kind:'boost',desc:'超能系招式威力提升 10%。'},
-  wind:{name:'疾风',kind:'swift',desc:'速度提升 10%。'},
-  dragon:{name:'龙鳞',kind:'bulk',desc:'防御力提升 10%。'}
+  rock:{name:'坚硬',kind:'bulk',desc:'防御力 +10%。'},
+  psychic:{name:'同步',kind:'boost',desc:'超能系招式威力 +10%。'},
+  wind:{name:'疾风',kind:'swift',desc:'速度 +10%。'},
+  dragon:{name:'龙鳞',kind:'bulk',desc:'防御力 +10%。'}
 };
 
 const TALENTS = {
-  atk:{name:'天生神力',kind:'stat',stat:'atk',mult:1.12,desc:'攻击力提升 12%。'},
-  def:{name:'铁壁之躯',kind:'stat',stat:'def',mult:1.12,desc:'防御力提升 12%。'},
-  spd:{name:'疾风之足',kind:'stat',stat:'spd',mult:1.12,desc:'速度提升 12%。'},
-  hp:{name:'生命洪流',kind:'stat',stat:'hp',mult:1.15,desc:'最大体力提升 15%。'},
-  crit:{name:'强运',kind:'crit',desc:'招式有 15% 几率造成 1.5 倍暴击。'},
-  elem:{name:'元素亲和',kind:'elem',desc:'属性克制时额外提升 10% 伤害。'}
+  atk:{name:'天生神力',kind:'stat',stat:'atk',mult:1.12,desc:'攻击力 +12%。'},
+  def:{name:'铁壁之躯',kind:'stat',stat:'def',mult:1.12,desc:'防御力 +12%。'},
+  spd:{name:'疾风之足',kind:'stat',stat:'spd',mult:1.12,desc:'速度 +12%。'},
+  hp:{name:'生命洪流',kind:'stat',stat:'hp',mult:1.15,desc:'最大体力 +15%。'},
+  crit:{name:'强运',kind:'crit',desc:'15% 几率造成 1.5 倍暴击。'},
+  elem:{name:'元素亲和',kind:'elem',desc:'属性克制时额外 +10% 伤害。'}
 };
 
 const NATURES = [
-  {name:'坦率',up:null,down:null},
-  {name:'固执',up:'atk',down:'spd'},
-  {name:'勇敢',up:'atk',down:'def'},
-  {name:'大胆',up:'def',down:'atk'},
-  {name:'淘气',up:'def',down:'spd'},
-  {name:'胆小',up:'spd',down:'atk'},
+  {name:'坦率',up:null,down:null},{name:'固执',up:'atk',down:'spd'},{name:'勇敢',up:'atk',down:'def'},
+  {name:'大胆',up:'def',down:'atk'},{name:'淘气',up:'def',down:'spd'},{name:'胆小',up:'spd',down:'atk'},
   {name:'开朗',up:'spd',down:'def'}
 ];
 const STAT_CN={hp:'体力',atk:'攻击',def:'防御',spd:'速度'};
-function natureDesc(n){ if(!n||(!n.up&&!n.down)) return '均衡型性格，不增不减。';
-  let s=''; if(n.up) s+=STAT_CN[n.up]+' +10%'; if(n.down){ if(s)s+='，'; s+=STAT_CN[n.down]+' -10%'; } return s+'。'; }
+function natureDesc(n){ if(!n||(!n.up&&!n.down)) return '均衡型性格。'; let s=''; if(n.up)s+=STAT_CN[n.up]+' +10%'; if(n.down){ if(s)s+='，'; s+=STAT_CN[n.down]+' -10%'; } return s+'。'; }
 function randomNature(){ return NATURES[Math.floor(Math.random()*NATURES.length)]; }
 function findNature(name){ return NATURES.find(n=>n.name===name)||NATURES[0]; }
 
 const SPIRITS = [
-  {id:'s1',name:'火苗鼠',type:'fire',emoji:['🐭','🦊','🐲'],stages:['火苗鼠','烈焰狐','焰王兽'],
-   base:{hp:45,atk:62,def:40,spd:72},talent:'atk',desc:'尾尖跳动着不灭的火花，越战斗越炽热。'},
-  {id:'s2',name:'水珠蛙',type:'water',emoji:['🐸','🐊','🐉'],stages:['水珠蛙','潮汐鳄','深海龙'],
-   base:{hp:55,atk:50,def:55,spd:48},talent:'hp',desc:'皮肤能分泌治愈水露，是可靠的伙伴。'},
-  {id:'s3',name:'草芽兔',type:'grass',emoji:['🐰','🐇','🌙'],stages:['草芽兔','苔原兔','月影兔王'],
-   base:{hp:60,atk:46,def:58,spd:54},talent:'spd',desc:'头顶嫩芽随心情生长，月夜下跃动如影。'},
-  {id:'s4',name:'电光鼠',type:'electric',emoji:['🐹','🦅','🐉'],stages:['电光鼠','雷霆鹰','风暴龙'],
-   base:{hp:42,atk:66,def:38,spd:85},talent:'spd',desc:'颊囊蓄满电能，速度冠绝同族。'},
-  {id:'s5',name:'光羽鸟',type:'light',emoji:['🐤','🕊️','🦅'],stages:['光羽鸟','圣光鹤','日向神鸟'],
-   base:{hp:50,atk:58,def:46,spd:70},talent:'spd',desc:'羽翼洒落暖光，为队伍驱散阴霾。'},
-  {id:'s6',name:'暗影猫',type:'dark',emoji:['🐱','🐆','😈'],stages:['暗影猫','夜行豹','虚空魔'],
-   base:{hp:48,atk:64,def:44,spd:74},talent:'atk',desc:'潜行于夜色，眼神能看穿谎言。'},
-  {id:'s7',name:'岩石龟',type:'rock',emoji:['🐢','🐢','🗿'],stages:['岩石龟','山岳龜','巨岩神'],
-   base:{hp:70,atk:52,def:75,spd:30},talent:'def',desc:'背甲坚不可摧，是团队的壁垒。'},
-  {id:'s8',name:'冰晶狐',type:'ice',emoji:['🦊','🐺','🐻'],stages:['冰晶狐','寒霜狼','极地霸主'],
-   base:{hp:52,atk:56,def:50,spd:66},talent:'atk',desc:'呼出的白雾能冻结空气。'},
-  {id:'s9',name:'风灵蝶',type:'wind',emoji:['🐛','🦋','🦅'],stages:['风灵蝶','疾风隼','天穹鹏'],
-   base:{hp:46,atk:60,def:42,spd:80},talent:'spd',desc:'乘风而行，踪迹难觅。'},
-  {id:'s10',name:'心灵枭',type:'psychic',emoji:['🐣','🦉','👁️'],stages:['心灵枭','幻念枭','梦界主宰'],
-   base:{hp:54,atk:68,def:48,spd:64},talent:'crit',desc:'能读取微弱的心声，通晓梦境。'},
-  {id:'s11',name:'烈焰虎',type:'fire',emoji:['🐯','🐅','🦁'],stages:['小火虎','烈焰虎','焚天虎王'],
-   base:{hp:56,atk:80,def:48,spd:66},talent:'atk',desc:'虎啸生风，每根毛发都燃烧着战意。'},
-  {id:'s12',name:'幼叶鹿',type:'grass',emoji:['🦌','🦌','🌳'],stages:['幼叶鹿','森灵鹿','世界树灵'],
-   base:{hp:58,atk:50,def:56,spd:62},talent:'hp',desc:'踏入森林便与草木共鸣，角上生花。'},
-  {id:'s13',name:'岩甲蜥',type:'rock',emoji:['🦎','🦎','🐊'],stages:['幼岩蜥','岩甲蜥','熔岩巨蜥'],
-   base:{hp:64,atk:58,def:70,spd:38},talent:'def',desc:'坚硬鳞甲能抵挡滚石，栖息在火山口。'},
-  {id:'s14',name:'大地龙',type:'dragon',emoji:['🦕','🦖','🐉'],stages:['幼土龙','岩甲龙','大地龙王'],
-   base:{hp:72,atk:76,def:64,spd:48},talent:'elem',desc:'沉睡于大地深处，苏醒时山岳为之震动。'},
-  {id:'s15',name:'苍穹龙',type:'dragon',emoji:['🐲','🦅','🐉'],stages:['翼龙崽','风翼龙','苍穹龙王'],
-   base:{hp:62,atk:78,def:54,spd:78},talent:'spd',desc:'展开遮天巨翼，翱翔于云海之上。'}
+  {id:'s1',name:'火苗鼠',type:'fire',emoji:['🐭','🦊','🐲'],stages:['火苗鼠','烈焰狐','焰王兽'],base:{hp:45,atk:62,def:40,spd:72},talent:'atk',desc:'尾尖跳动着不灭的火花，越战斗越炽热。'},
+  {id:'s2',name:'水珠蛙',type:'water',emoji:['🐸','🐊','🐉'],stages:['水珠蛙','潮汐鳄','深海龙'],base:{hp:55,atk:50,def:55,spd:48},talent:'hp',desc:'皮肤能分泌治愈水露，是可靠的伙伴。'},
+  {id:'s3',name:'草芽兔',type:'grass',emoji:['🐰','🐇','🌙'],stages:['草芽兔','苔原兔','月影兔王'],base:{hp:60,atk:46,def:58,spd:54},talent:'spd',desc:'头顶嫩芽随心情生长，月夜下跃动如影。'},
+  {id:'s4',name:'电光鼠',type:'electric',emoji:['🐹','🦅','🐉'],stages:['电光鼠','雷霆鹰','风暴龙'],base:{hp:42,atk:66,def:38,spd:85},talent:'spd',desc:'颊囊蓄满电能，速度冠绝同族。'},
+  {id:'s5',name:'光羽鸟',type:'light',emoji:['🐤','🕊️','🦅'],stages:['光羽鸟','圣光鹤','日向神鸟'],base:{hp:50,atk:58,def:46,spd:70},talent:'spd',desc:'羽翼洒落暖光，为队伍驱散阴霾。'},
+  {id:'s6',name:'暗影猫',type:'dark',emoji:['🐱','🐆','😈'],stages:['暗影猫','夜行豹','虚空魔'],base:{hp:48,atk:64,def:44,spd:74},talent:'atk',desc:'潜行于夜色，眼神能看穿谎言。'},
+  {id:'s7',name:'岩石龟',type:'rock',emoji:['🐢','🐢','🗿'],stages:['岩石龟','山岳龜','巨岩神'],base:{hp:70,atk:52,def:75,spd:30},talent:'def',desc:'背甲坚不可摧，是团队的壁垒。'},
+  {id:'s8',name:'冰晶狐',type:'ice',emoji:['🦊','🐺','🐻'],stages:['冰晶狐','寒霜狼','极地霸主'],base:{hp:52,atk:56,def:50,spd:66},talent:'atk',desc:'呼出的白雾能冻结空气。'},
+  {id:'s9',name:'风灵蝶',type:'wind',emoji:['🐛','🦋','🦅'],stages:['风灵蝶','疾风隼','天穹鹏'],base:{hp:46,atk:60,def:42,spd:80},talent:'spd',desc:'乘风而行，踪迹难觅。'},
+  {id:'s10',name:'心灵枭',type:'psychic',emoji:['🐣','🦉','👁️'],stages:['心灵枭','幻念枭','梦界主宰'],base:{hp:54,atk:68,def:48,spd:64},talent:'crit',desc:'能读取微弱的心声，通晓梦境。'},
+  {id:'s11',name:'烈焰虎',type:'fire',emoji:['🐯','🐅','🦁'],stages:['小火虎','烈焰虎','焚天虎王'],base:{hp:56,atk:80,def:48,spd:66},talent:'atk',desc:'虎啸生风，每根毛发都燃烧着战意。'},
+  {id:'s12',name:'幼叶鹿',type:'grass',emoji:['🦌','🦌','🌳'],stages:['幼叶鹿','森灵鹿','世界树灵'],base:{hp:58,atk:50,def:56,spd:62},talent:'hp',desc:'踏入森林便与草木共鸣，角上生花。'},
+  {id:'s13',name:'岩甲蜥',type:'rock',emoji:['🦎','🦎','🐊'],stages:['幼岩蜥','岩甲蜥','熔岩巨蜥'],base:{hp:64,atk:58,def:70,spd:38},talent:'def',desc:'坚硬鳞甲能抵挡滚石，栖息在火山口。'},
+  {id:'s14',name:'大地龙',type:'dragon',emoji:['🦕','🦖','🐉'],stages:['幼土龙','岩甲龙','大地龙王'],base:{hp:72,atk:76,def:64,spd:48},talent:'elem',desc:'沉睡于大地深处，苏醒时山岳为之震动。'},
+  {id:'s15',name:'苍穹龙',type:'dragon',emoji:['🐲','🦅','🐉'],stages:['翼龙崽','风翼龙','苍穹龙王'],base:{hp:62,atk:78,def:54,spd:78},talent:'spd',desc:'展开遮天巨翼，翱翔于云海之上。'}
 ];
 SPIRITS.forEach(s=>{ s.ability=ABILITIES[s.type]; s.talentObj=TALENTS[s.talent]; });
+const EVO_BOND=[0,4,9];
+const MAX_BOND=12;
+const MAX_PARTY=6;
 
-const EVO_BOND = [0, 4, 9];
-const MAX_BOND = 12;
+/* ===================== 地图 ===================== */
+const TILE=32, MAP_W=48, MAP_H=34;
+const T={GRASS:0,TALL:1,PATH:2,TREE:3,WATER:4,ROCK:5,SNOW:6,SAND:7,LAVA:8,RUIN:9};
+const TILE_CLASS=['t-grass','t-tall','t-path','t-tree','t-water','t-rock','t-snow','t-sand','t-lava','t-ruin'];
+const WALKABLE=new Set([T.GRASS,T.TALL,T.PATH,T.SNOW,T.SAND,T.RUIN]);
+const ENC_CHANCE={}; ENC_CHANCE[T.TALL]=.16; ENC_CHANCE[T.SNOW]=.16; ENC_CHANCE[T.SAND]=.10; ENC_CHANCE[T.RUIN]=.07;
 
-/* 世界地图：11 处属性秘境 */
-const REGION_ICON = {fire:'🌋',water:'🌊',grass:'🌲',electric:'⚡',light:'🌅',dark:'🌑',rock:'⛰️',ice:'❄️',wind:'🌪️',psychic:'🔮',dragon:'🐉'};
-const REGIONS = [
-  {id:'r_fire',name:'烈焰熔渊',type:'fire',x:80,y:22,desc:'喷涌的岩浆孕育火之精灵，传闻深处沉睡着焚天之兽。',pool:['s1','s11','s13'],rare:'s14',rareDesc:'大地龙王偶尔在此现身'},
-  {id:'r_water',name:'碧澜深湖',type:'water',x:22,y:30,desc:'澄澈湖水倒映星空，水栖精灵在涟漪间嬉戏。',pool:['s2','s9','s4'],rare:'s15',rareDesc:'苍穹龙王掠过湖面'},
-  {id:'r_grass',name:'苏生密林',type:'grass',x:40,y:44,desc:'古木参天，新芽破土，草系精灵在此生生不息。',pool:['s3','s12','s1'],rare:'s14',rareDesc:'世界树灵低语'},
-  {id:'r_elec',name:'雷霆台地',type:'electric',x:64,y:16,desc:'终年雷云笼罩，电光在岩柱间跳跃不息。',pool:['s4','s9','s13'],rare:'s11',rareDesc:'风暴龙隐于雷暴'},
-  {id:'r_light',name:'曙光圣殿',type:'light',x:50,y:12,desc:'晨光洒落的神殿，光之精灵在此祈颂黎明。',pool:['s5','s10'],rare:'s15',rareDesc:'日向神鸟巡礼'},
-  {id:'r_dark',name:'幽冥裂谷',type:'dark',x:30,y:62,desc:'不见天日的深谷，暗影在裂隙中缓缓流动。',pool:['s6','s10'],rare:'s14',rareDesc:'虚空魔盘踞'},
-  {id:'r_rock',name:'磐石峡谷',type:'rock',x:60,y:54,desc:'巨岩耸立，坚硬的鳞甲与甲壳在此磨砺成钢。',pool:['s7','s13','s4'],rare:'s14',rareDesc:'熔岩巨蜥镇守'},
-  {id:'r_ice',name:'永冻冰原',type:'ice',x:16,y:48,desc:'终年不化的雪原，呼出的白雾瞬间成霜。',pool:['s8','s13'],rare:'s15',rareDesc:'极地霸主出没'},
-  {id:'r_wind',name:'长风草原',type:'wind',x:76,y:46,desc:'无垠草浪随风起伏，风之精灵乘气流漫游。',pool:['s9','s3','s4'],rare:'s15',rareDesc:'天穹鹏翱翔'},
-  {id:'r_psy',name:'灵渊回廊',type:'psychic',x:46,y:70,desc:'回响着低语的迷宫，心灵在此照见真实。',pool:['s10','s6'],rare:'s14',rareDesc:'梦界主宰凝视'},
-  {id:'r_dragon',name:'苍穹龙脊',type:'dragon',x:88,y:62,desc:'横亘天际的龙形山脉，传说龙王于此加冕。',pool:['s14','s15','s7'],rare:'s15',rareDesc:'苍穹龙王盘踞峰顶'}
+const HUB={x:25,y:17};
+const BIOMES=[
+  {key:'plains', name:'微风草原', cx:8,  cy:8,  r:7, pools:['s1','s3','s11','s9'], rare:'s15'},
+  {key:'forest', name:'低语森林', cx:8,  cy:26, r:7, pools:['s3','s12','s1','s10'], rare:'s14'},
+  {key:'lake',   name:'碧波湖',   cx:22, cy:7,  r:7, pools:['s2','s9','s4'],       rare:'s15'},
+  {key:'volcano',name:'灰烬火山', cx:41, cy:8,  r:7, pools:['s1','s11','s13','s7'],rare:'s14'},
+  {key:'snow',   name:'霜白雪原', cx:41, cy:26, r:7, pools:['s8','s13','s7'],      rare:'s15'},
+  {key:'desert', name:'流沙荒漠', cx:22, cy:27, r:6, pools:['s7','s13','s4'],      rare:'s13'},
+  {key:'ruins',  name:'遗忘遗迹', cx:13, cy:17, r:4, pools:['s10','s6','s14'],     rare:'s14'},
+  {key:'ridge',  name:'龙脊山道', cx:35, cy:17, r:4, pools:['s14','s15','s7'],     rare:'s15'}
 ];
-const EDGES=[['r_light','r_elec'],['r_elec','r_fire'],['r_fire','r_wind'],['r_wind','r_grass'],
-  ['r_grass','r_water'],['r_water','r_ice'],['r_ice','r_rock'],['r_rock','r_fire'],
-  ['r_grass','r_dark'],['r_dark','r_psy'],['r_psy','r_dragon'],['r_dragon','r_wind'],
-  ['r_rock','r_dragon'],['r_water','r_psy']];
+const BIOME_BY_KEY={}; BIOMES.forEach(b=>BIOME_BY_KEY[b.key]=b);
 
-/* ================= 状态 ================= */
-let collection = loadColl();
-let exploreState = loadExplore();
-let inventory = loadInv();
-let currentRegion = null;
-let wild = null;
-let battle = null;
-let battleBusy = false;
-let hlType = null;
+const TRAINER_DEFS=[
+  {key:'plains', name:'草原少年 阿澈',  emoji:'🧑‍🌾', pool:['s3','s1'],   stage:1},
+  {key:'forest', name:'巡林人 苔',      emoji:'🧝',   pool:['s12','s3'],  stage:1},
+  {key:'lake',   name:'湖畔钓手 澜',    emoji:'🎣',   pool:['s2','s9'],   stage:1},
+  {key:'volcano',name:'熔岩使 炎',      emoji:'🔥',   pool:['s11','s13'], stage:2},
+  {key:'snow',   name:'冰晶使 霜',      emoji:'❄️',   pool:['s8','s13'],  stage:2},
+  {key:'desert', name:'沙盗 漠',        emoji:'🥷',   pool:['s13','s4'],  stage:1},
+  {key:'ruins',  name:'守夜人 冥',      emoji:'🕯️',   pool:['s10','s6'],  stage:2},
+  {key:'ridge',  name:'龙骑士 玦',      emoji:'🐲',   pool:['s15','s14'], stage:2}
+];
 
-function loadColl(){
-  let c=[];
-  try{ c=JSON.parse(localStorage.getItem('spiriColl'))||[]; }catch(e){ c=[]; }
-  c.forEach(x=>{ if(!x.nature) x.nature=randomNature().name; });
-  return c;
+let map=[], biomeMap=[];
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+
+function inBounds(x,y){ return x>=0&&y>=0&&x<MAP_W&&y<MAP_H; }
+function tileAt(x,y){ return inBounds(x,y)?map[y][x]:T.TREE; }
+function walkable(x,y){ return WALKABLE.has(tileAt(x,y)) && !blockingEntityAt(x,y); }
+function biomeAt(x,y){
+  if(inBounds(x,y) && biomeMap[y][x]) return biomeMap[y][x];
+  let best=null,bd=1e9;
+  for(const b of BIOMES){ const d=Math.hypot(x-b.cx,y-b.cy); if(d<bd){bd=d;best=b;} }
+  return best;
 }
-function saveColl(){ localStorage.setItem('spiriColl', JSON.stringify(collection)); }
-function loadExplore(){ try{ return JSON.parse(localStorage.getItem('spiriExplore'))||{}; }catch(e){ return {}; } }
-function saveExplore(){ localStorage.setItem('spiriExplore', JSON.stringify(exploreState)); }
-function loadInv(){ try{ const v=JSON.parse(localStorage.getItem('spiriInv')); return (v&&typeof v.balls==='number')?v:{balls:5,candy:0,stone:0}; }catch(e){ return {balls:5,candy:0,stone:0}; } }
-function saveInv(){ localStorage.setItem('spiriInv', JSON.stringify(inventory)); }
+
+function buildWorld(){
+  const rng=mulberry32(20261104);
+  map=[]; biomeMap=[];
+  for(let y=0;y<MAP_H;y++){ map.push(new Array(MAP_W).fill(T.GRASS)); biomeMap.push(new Array(MAP_W).fill(null)); }
+
+  for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++){
+    if(x<2||y<2||x>=MAP_W-2||y>=MAP_H-2) map[y][x]=T.TREE;
+  }
+
+  for(let y=2;y<MAP_H-2;y++)for(let x=2;x<MAP_W-2;x++){
+    let best=null,bd=1e9;
+    for(const b of BIOMES){ const d=Math.hypot(x-b.cx,y-b.cy); if(d<bd){bd=d;best=b;} }
+    if(!best) continue;
+    if(bd>best.r){ biomeMap[y][x]=null; continue; }
+    biomeMap[y][x]=best;
+    const rel=bd/best.r;
+    const r=rng();
+    switch(best.key){
+      case 'plains': map[y][x]= r<.72?T.TALL:T.GRASS; break;
+      case 'forest': map[y][x]= (rel>.72||r<.38)?T.TREE:T.TALL; break;
+      case 'lake':   map[y][x]= rel<.55?T.WATER : rel<.78?T.SAND : T.TALL; break;
+      case 'volcano':map[y][x]= rel<.34?T.LAVA : rel<.6?T.ROCK : (r<.28?T.ROCK:T.TALL); break;
+      case 'snow':   map[y][x]= rel<.85?T.SNOW:T.TALL; break;
+      case 'desert': map[y][x]= r<.18?T.TALL:T.SAND; break;
+      case 'ruins':  map[y][x]= r<.2?T.ROCK:T.RUIN; break;
+      case 'ridge':  map[y][x]= r<.4?T.ROCK : (r<.62?T.TALL:T.PATH); break;
+    }
+  }
+
+  for(let y=HUB.y-4;y<=HUB.y+4;y++)for(let x=HUB.x-4;x<=HUB.x+4;x++){
+    if(!inBounds(x,y)) continue;
+    if(x<2||y<2||x>=MAP_W-2||y>=MAP_H-2) continue;
+    map[y][x]=T.PATH; biomeMap[y][x]=null;
+  }
+
+  const carveTo=(tx,ty)=>{
+    let x=HUB.x, y=HUB.y;
+    while(x!==tx){ x+=Math.sign(tx-x); if(inBounds(x,y)&&x>=2&&x<MAP_W-2&&y>=2&&y<MAP_H-2){ map[y][x]=T.PATH; biomeMap[y][x]=null; } }
+    while(y!==ty){ y+=Math.sign(ty-y); if(inBounds(x,y)&&x>=2&&x<MAP_W-2&&y>=2&&y<MAP_H-2){ map[y][x]=T.PATH; biomeMap[y][x]=null; } }
+  };
+  BIOMES.forEach(b=>carveTo(b.cx,b.cy));
+}
+
+/* ===================== 状态 ===================== */
+let collection=[];
+let activeIdx=0;
+let game={balls:5,candy:0,stone:0,defeated:[],pos:null};
+let player={x:HUB.x,y:HUB.y+2};
+let moving=false, mode='overworld', B=null;
+let entities={trainers:[],items:[],heal:null};
+let occupied=new Set();
+const keyOf=(x,y)=>x+','+y;
+
+function loadAll(){
+  try{ const c=JSON.parse(localStorage.getItem('sr_coll_v2')); if(Array.isArray(c)) collection=c; }catch(e){ collection=[]; }
+  collection.forEach(x=>{ if(!x.nature) x.nature=randomNature().name; });
+  try{ const g=JSON.parse(localStorage.getItem('sr_game_v2')); if(g&&typeof g.balls==='number'){ game=Object.assign(game,g); if(!Array.isArray(game.defeated)) game.defeated=[]; } }catch(e){}
+  if(game.pos&&typeof game.pos.x==='number'){ player.x=game.pos.x; player.y=game.pos.y; }
+}
+function saveColl(){ localStorage.setItem('sr_coll_v2',JSON.stringify(collection)); }
+function saveGame(){ game.pos={x:player.x,y:player.y}; localStorage.setItem('sr_game_v2',JSON.stringify(game)); }
 
 function toast(msg){
   const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
-  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2400);
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2300);
 }
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
-function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+const pick=a=>a[Math.floor(Math.random()*a.length)];
 
-/* ================= 数值计算 ================= */
-function stageScale(stage){ return 1 + stage*0.18; }
+/* ===================== 数值 ===================== */
+function stageScale(stage){ return 1+stage*0.18; }
 function movesFor(s){
   const pool=TYPE_MOVES[s.type]||[];
-  const mv=pool.map(m=>({name:m.name,power:m.power,acc:m.acc,type:s.type}));
-  mv.push({name:'撞击',power:40,acc:100,type:'none'});
-  return mv;
+  return [...pool.map(m=>({name:m.name,power:m.power,acc:m.acc,type:s.type})),
+          {name:'撞击',power:40,acc:100,type:'none'}];
 }
 function buildStats(species,nature,stage){
   const sc=stageScale(stage);
   let hp=species.base.hp*2*sc+60, atk=species.base.atk*sc, def=species.base.def*sc, spd=species.base.spd*sc;
-  const apply=(stat,m)=>{ if(stat==='atk')atk*=m; else if(stat==='def')def*=m; else if(stat==='spd')spd*=m; else if(stat==='hp')hp*=m; };
-  if(nature.up) apply(nature.up,1.1);
-  if(nature.down) apply(nature.down,0.9);
+  const apply=(s,m)=>{ if(s==='atk')atk*=m; else if(s==='def')def*=m; else if(s==='spd')spd*=m; else if(s==='hp')hp*=m; };
+  if(nature.up)apply(nature.up,1.1);
+  if(nature.down)apply(nature.down,0.9);
   const t=species.talentObj;
-  if(t.kind==='stat') apply(t.stat,t.mult);
-  const ab=species.ability;
-  if(ab.kind==='bulk') def*=1.1;
-  if(ab.kind==='swift') spd*=1.1;
+  if(t.kind==='stat')apply(t.stat,t.mult);
+  if(species.ability.kind==='bulk')def*=1.1;
+  if(species.ability.kind==='swift')spd*=1.1;
   return {hp:Math.floor(hp),atk:Math.floor(atk),def:Math.floor(def),spd:Math.floor(spd)};
 }
 function buildFighter(species,stage,nature){
   const stats=buildStats(species,nature,stage);
   return {species,stage,nature,name:species.stages[stage],stats,hp:stats.hp,maxHp:stats.hp,moves:movesFor(species)};
+}
+function maxHpOf(inst){
+  const s=SPIRITS.find(x=>x.id===inst.id); if(!s) return 1;
+  return buildStats(s,findNature(inst.nature),inst.stage).hp;
+}
+function hpOf(inst){ return (inst.hp==null)?maxHpOf(inst):Math.max(0,Math.min(inst.hp,maxHpOf(inst))); }
+function fighterFromInstance(inst){
+  const s=SPIRITS.find(x=>x.id===inst.id);
+  const f=buildFighter(s,inst.stage,findNature(inst.nature));
+  if(inst.hp==null||inst.hp>f.maxHp) inst.hp=f.maxHp;
+  f.hp=inst.hp;
+  return f;
 }
 function calcDamage(atk,def,move){
   const lvl=50;
@@ -700,554 +570,700 @@ function calcDamage(atk,def,move){
   const stab=(move.type===atk.species.type)?1.5:1;
   const tm=mult(move.type,def.species.type);
   let boost=1;
-  if(atk.species.ability.kind==='boost' && move.type===atk.species.type) boost*=1.1;
-  if(atk.species.talentObj.kind==='elem' && tm===2) boost*=1.1;
+  if(atk.species.ability.kind==='boost'&&move.type===atk.species.type)boost*=1.1;
+  if(atk.species.talentObj.kind==='elem'&&tm===2)boost*=1.1;
   let crit=1;
-  if(atk.species.talentObj.kind==='crit' && Math.random()<0.15) crit=1.5;
-  const rand=0.85+Math.random()*0.15;
-  let dmg=Math.floor(base*stab*tm*boost*crit*rand);
-  if(tm===0) dmg=0;
+  if(atk.species.talentObj.kind==='crit'&&Math.random()<.15)crit=1.5;
+  const rnd=.85+Math.random()*.15;
+  let dmg=Math.floor(base*stab*tm*boost*crit*rnd);
+  if(tm===0)dmg=0;
   return {dmg:Math.max(0,dmg),tm,crit:crit>1};
 }
 
-/* ================= 背景漂浮 ================= */
-(function(){
-  const f=document.getElementById('floaters');
-  const emo=['🔥','💧','🌿','⚡','✨','🌑','🪨','❄️','🌪️','🔮','🐭','🦊','🐉','🐯','🦌','🦎'];
-  for(let i=0;i<18;i++){
-    const s=document.createElement('span'); s.textContent=emo[Math.floor(Math.random()*emo.length)];
-    s.style.left=Math.random()*100+'%'; s.style.fontSize=(20+Math.random()*30)+'px';
-    s.style.animationDuration=(14+Math.random()*16)+'s'; s.style.animationDelay=(-Math.random()*20)+'s';
-    f.appendChild(s);
+/* ===================== 地图实体 ===================== */
+function snapWalkable(x,y){
+  if(!inBounds(x,y)) return {x:HUB.x,y:HUB.y};
+  for(let r=0;r<16;r++){
+    for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
+      const nx=x+dx, ny=y+dy;
+      if(nx<2||ny<2||nx>=MAP_W-2||ny>=MAP_H-2) continue;
+      if(!WALKABLE.has(tileAt(nx,ny))) continue;
+      if(occupied.has(keyOf(nx,ny))) continue;
+      if(reachable.size && !reachable.has(keyOf(nx,ny))) continue;
+      return {x:nx,y:ny};
+    }
   }
-})();
-
-/* ================= 世界地图 ================= */
-function renderMap(){
-  const nodes=document.getElementById('mapNodes');
-  nodes.innerHTML=REGIONS.map(r=>{
-    const ty=TYPES[r.type];
-    const st=exploreState[r.id];
-    const visited=st&&st.times>0;
-    return `<button class="node" data-id="${r.id}" style="left:${r.x}%;top:${r.y}%;--nc:${ty.color}" onclick="selectRegion('${r.id}')">
-       ${REGION_ICON[r.type]}<span class="lbl">${r.name}</span>${visited?`<span class="badge">${st.times}</span>`:''}
-    </button>`;
-  }).join('');
-  const svg=document.getElementById('mapEdges');
-  svg.innerHTML=EDGES.map(([a,b])=>{
-    const ra=REGIONS.find(x=>x.id===a), rb=REGIONS.find(x=>x.id===b);
-    return `<line x1="${ra.x}%" y1="${ra.y}%" x2="${rb.x}%" y2="${rb.y}%" stroke="rgba(255,255,255,.16)" stroke-width="1.5" stroke-dasharray="4 6"/>`;
-  }).join('');
+  return {x:HUB.x,y:HUB.y};
 }
-function selectRegion(regionId){
-  currentRegion=regionId;
-  document.querySelectorAll('.map .node').forEach(n=>{
-    n.classList.toggle('sel', n.dataset.id===regionId);
-    const st=exploreState[n.dataset.id];
-    n.classList.toggle('visited', !!(st&&st.times>0));
+/* 从城镇出生点做 BFS，标记所有可行走且连通的格子 */
+let reachable=new Set();
+function computeReachable(){
+  reachable=new Set();
+  const sx=HUB.x, sy=HUB.y+2;
+  if(!WALKABLE.has(tileAt(sx,sy))) return;
+  const q=[{x:sx,y:sy}]; reachable.add(keyOf(sx,sy));
+  while(q.length){
+    const {x,y}=q.shift();
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const nx=x+dx, ny=y+dy, k=keyOf(nx,ny);
+      if(reachable.has(k)) continue;
+      if(!inBounds(nx,ny)) continue;
+      if(!WALKABLE.has(tileAt(nx,ny))) continue;
+      reachable.add(k); q.push({x:nx,y:ny});
+    }
+  }
+}
+function buildEntities(){
+  occupied=new Set(); entities={trainers:[],items:[],heal:null};
+  computeReachable();
+  const healPos=snapWalkable(HUB.x-1,HUB.y-1); occupied.add(keyOf(healPos.x,healPos.y));
+  entities.heal={x:healPos.x,y:healPos.y,emoji:'🏥'};
+  TRAINER_DEFS.forEach(def=>{
+    const b=BIOME_BY_KEY[def.key];
+    const p=snapWalkable(b.cx+2,b.cy+2); occupied.add(keyOf(p.x,p.y));
+    entities.trainers.push({key:def.key,name:def.name,emoji:def.emoji,pool:def.pool,stage:def.stage,
+      x:p.x,y:p.y,defeated:game.defeated.includes(def.key)});
   });
-  const r=REGIONS.find(x=>x.id===regionId);
-  const mk=document.getElementById('playerMarker');
-  mk.style.left=r.x+'%'; mk.style.top=r.y+'%';
-  renderRegionPanel(regionId);
+  const spots=[];
+  BIOMES.forEach(b=>{ spots.push([b.cx-2,b.cy-2]); spots.push([b.cx+2,b.cy-3]); });
+  spots.push([HUB.x+3,HUB.y+2]); spots.push([HUB.x-3,HUB.y+3]);
+  const kinds=['balls','candy','stone','balls','candy','stone','balls','candy','stone','balls','candy','stone','balls','candy','stone','balls','candy','stone'];
+  entities.items=[];
+  spots.forEach((sp,i)=>{
+    const p=snapWalkable(sp[0],sp[1]); occupied.add(keyOf(p.x,p.y));
+    entities.items.push({x:p.x,y:p.y,kind:kinds[i%kinds.length],taken:false,emoji:'🔴'});
+  });
 }
-function renderRegionPanel(regionId){
-  const region=REGIONS.find(r=>r.id===regionId); if(!region) return;
-  const ty=TYPES[region.type];
-  const st=exploreState[regionId]||{times:0,found:[]};
-  const poolHtml=region.pool.map(id=>{
-    const s=SPIRITS.find(x=>x.id===id); const c=TYPES[s.type];
-    return `<div class="rp-spirit" onclick="openDetail('${id}',null)">${s.emoji[0]} ${s.stages[0]} <span class="ty" style="background:${c.color};font-size:10px;padding:1px 6px;border-radius:999px">${c.name}</span></div>`;
-  }).join('');
-  const rareS=SPIRITS.find(x=>x.id===region.rare);
-  document.getElementById('regionPanel').innerHTML=`
-    <div class="rp-head">
-      <div class="rp-icon" style="background:${ty.color}33;border:1px solid ${ty.color}">${REGION_ICON[region.type]}</div>
-      <div><h3>${region.name}</h3><div class="rp-type">${ty.name}系秘境 · 已探索 ${st.times} 次 · 已发现 ${st.found.length} 种</div></div>
-    </div>
-    <div class="rp-desc">${region.desc}</div>
-    <div style="font-size:12px;color:var(--txt-dim);margin-bottom:2px">可遇见精灵（点击查看详情）：</div>
-    <div class="rp-list">${poolHtml}
-      <div class="rp-spirit rare" onclick="openDetail('${region.rare}',null)">✨ ${rareS.stages[2]} <span style="color:var(--gold)">稀有</span></div>
-    </div>
-    <button class="btn btn-primary explore-btn" onclick="explore('${region.id}')">🧭 探索 ${region.name}</button>
-  `;
-}
-function wlog(msg,cls='info'){ const l=document.getElementById('worldLog'); if(!l)return; const d=document.createElement('div'); d.className=cls; d.innerHTML=msg; l.appendChild(d); l.scrollTop=l.scrollHeight; }
-
-function explore(regionId){
-  const region=REGIONS.find(r=>r.id===regionId); if(!region) return;
-  const st=exploreState[regionId]||(exploreState[regionId]={times:0,found:[]});
-  st.times++; saveExplore(); selectRegion(regionId);
-  const r=Math.random();
-  if(r<0.38){
-    const typed=region.pool.filter(id=>SPIRITS.find(s=>s.id===id).type===region.type);
-    const id = (typed.length && Math.random()<0.6)?pick(typed):pick(region.pool);
-    const sp=SPIRITS.find(s=>s.id===id);
-    wlog(`<span class="info">[探索 ${region.name}] 草丛晃动……一只 ${sp.stages[0]} 探出头来！</span>`,'info');
-    encounter(sp,{fromRegion:region});
-    document.getElementById('catch').scrollIntoView();
-    return;
-  }
-  if(r<0.52){
-    const k=Math.random();
-    if(k<0.6){ inventory.balls+=3; wlog(`<span class="ok">[探索] 你捡到 精灵球 ×3！</span>`,'ok'); }
-    else if(k<0.85){ inventory.candy++; wlog(`<span class="warn">[探索] 发现 亲密度糖果 ×1！</span>`,'warn'); }
-    else { inventory.stone++; wlog(`<span class="warn">[探索] 挖到 进化石 ×1！</span>`,'warn'); }
-    saveInv(); renderInv(); updateBallCount();
-    return;
-  }
-  if(r<0.66){
-    const sp=SPIRITS.find(s=>s.id===region.rare);
-    wlog(`<span class="rare">[★稀有] ${region.rareDesc}！${sp.stages[2]} 出现了！</span>`,'rare');
-    encounter(sp,{rare:true,fromRegion:region});
-    document.getElementById('catch').scrollIntoView();
-    return;
-  }
-  if(r<0.80){
-    wlog(`<span class="warn">[探索] ${region.name} 的守护训练家拦住了去路！</span>`,'warn');
-    launchTrainer(region);
-    return;
-  }
-  wlog(`<span class="info">[探索] 你欣赏了一会儿 ${region.name} 的风景，什么也没发生。</span>`,'info');
+function blockingEntityAt(x,y){
+  return entities.trainers.some(t=>!t.defeated&&t.x===x&&t.y===y);
 }
 
-/* 道具 */
-function renderInv(){
-  const box=document.getElementById('invBox'); if(!box) return;
-  const canUse=collection.length>0;
-  box.innerHTML=`
-    <div class="inv-item"><b>🎒 精灵球 ×${inventory.balls}</b><span>探索获取 · 捕捉消耗</span></div>
-    <div class="inv-item"><b>🍬 亲密度糖果 ×${inventory.candy}</b><button class="mini" onclick="useItem('candy')" ${inventory.candy>0&&canUse?'':'disabled'}>使用 +2</button></div>
-    <div class="inv-item"><b>💎 进化石 ×${inventory.stone}</b><button class="mini" onclick="useItem('stone')" ${inventory.stone>0&&canUse?'':'disabled'}>使用 +3</button></div>
-  `;
+/* ===================== 渲染 ===================== */
+let tilesBuilt=false;
+function buildTileDOM(){
+  if(tilesBuilt) return;
+  const layer=document.getElementById('tileLayer');
+  layer.style.width=(MAP_W*TILE)+'px'; layer.style.height=(MAP_H*TILE)+'px';
+  const frag=document.createDocumentFragment();
+  for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++){
+    const d=document.createElement('div');
+    d.className='tile '+TILE_CLASS[map[y][x]];
+    d.style.left=(x*TILE)+'px'; d.style.top=(y*TILE)+'px';
+    if(map[y][x]===T.TREE) d.textContent='🌲';
+    frag.appendChild(d);
+  }
+  layer.appendChild(frag);
+  document.getElementById('mapWorld').style.width=(MAP_W*TILE)+'px';
+  document.getElementById('mapWorld').style.height=(MAP_H*TILE)+'px';
+  document.getElementById('entityLayer').style.width=(MAP_W*TILE)+'px';
+  document.getElementById('entityLayer').style.height=(MAP_H*TILE)+'px';
+  tilesBuilt=true;
 }
-function useItem(kind){
-  if(kind==='candy'){ if(inventory.candy<=0) return toast('没有亲密度糖果'); }
-  else { if(inventory.stone<=0) return toast('没有进化石'); }
-  if(collection.length===0) return toast('先收服精灵才能使用');
-  let best=0;
-  collection.forEach((c,i)=>{ if(c.bond<MAX_BOND && c.bond<collection[best].bond) best=i; });
-  const c=collection[best];
-  if(c.bond>=MAX_BOND) return toast('所有精灵亲密度已满');
-  const amt = kind==='candy'?2:3;
-  if(kind==='candy') inventory.candy--; else inventory.stone--;
-  c.bond=Math.min(MAX_BOND,c.bond+amt);
-  saveInv(); saveColl(); renderColl(); updateStats(); populateBattleSel(); renderInv();
-  const s=SPIRITS.find(x=>x.id===c.id);
-  toast(`🍬 ${s.stages[c.stage]} 亲密度 +${amt}`);
-  wlog(`<span class="ok">[道具] 使用 ${kind==='candy'?'亲密度糖果':'进化石'}，<b>${s.stages[c.stage]}</b> 亲密度 +${amt}。</span>`,'ok');
+function renderEntities(){
+  const layer=document.getElementById('entityLayer');
+  layer.innerHTML='';
+  const add=(x,y,cls,emoji)=>{
+    const d=document.createElement('div'); d.className='entity '+cls;
+    d.style.transform=`translate(${x*TILE}px,${y*TILE}px)`; d.textContent=emoji;
+    layer.appendChild(d);
+  };
+  if(entities.heal) add(entities.heal.x,entities.heal.y,'heal','🏥');
+  entities.trainers.forEach(t=>{ if(!t.defeated) add(t.x,t.y,'trainer',t.emoji); });
+  entities.items.forEach(it=>{ if(!it.taken) add(it.x,it.y,'item',it.emoji); });
 }
-function updateBallCount(){ const el=document.getElementById('ballCount'); if(el) el.textContent=inventory.balls; }
+function renderPlayer(){
+  document.getElementById('player').style.transform=`translate(${player.x*TILE}px,${player.y*TILE}px)`;
+}
+function updateCamera(){
+  const vp=document.getElementById('viewport'), world=document.getElementById('mapWorld');
+  const vw=vp.clientWidth, vh=vp.clientHeight;
+  const mw=MAP_W*TILE, mh=MAP_H*TILE;
+  const px=player.x*TILE+TILE/2, py=player.y*TILE+TILE/2;
+  let tx=px-vw/2, ty=py-vh/2;
+  tx = (mw<=vw) ? (mw-vw)/2 : Math.max(0,Math.min(mw-vw,tx));
+  ty = (mh<=vh) ? (mh-vh)/2 : Math.max(0,Math.min(mh-vh,ty));
+  world.style.transform=`translate(${-tx}px,${-ty}px)`;
+}
+function updateBiomeTag(){
+  const b=biomeAt(player.x,player.y);
+  const nearTown=Math.abs(player.x-HUB.x)<=4&&Math.abs(player.y-HUB.y)<=4;
+  document.getElementById('biomeTag').textContent='📍 '+(nearTown?'灵契镇':(b?b.name:'灵契大陆'));
+}
 
-/* ================= 图鉴 ================= */
-function renderFilters(){
-  const box=document.getElementById('filters');
-  const all=['all',...Object.keys(TYPES)];
-  box.innerHTML=all.map(t=>{
-    const label=t==='all'?'全部':TYPES[t].name+'系';
-    return `<span class="chip ${t==='all'?'active':''}" data-t="${t}" onclick="filterDex('${t}')">${label}</span>`;
-  }).join('');
+/* ===================== HUD ===================== */
+function updateHUD(){
+  document.getElementById('hudBalls').textContent=game.balls;
+  document.getElementById('hudBadges').textContent=game.defeated.length;
+  document.getElementById('hudDex').textContent=new Set(collection.map(c=>c.id)).size;
+  renderParty(); renderBag(); renderProgress();
 }
-function filterDex(t){
-  document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('active',c.dataset.t===t));
-  renderDex(t);
-}
-function renderDex(filter='all'){
-  const grid=document.getElementById('dexGrid');
-  const list=SPIRITS.filter(s=>filter==='all'||s.type===filter);
-  grid.innerHTML=list.map(s=>{
-    const ty=TYPES[s.type];
-    const stats=s.base;
-    const strong=Object.keys(TYPES).filter(d=>mult(s.type,d)===2).map(k=>TYPES[k].name);
-    const weak=Object.keys(TYPES).filter(a=>mult(a,s.type)===2).map(k=>TYPES[k].name);
-    return `<div class="card">
-      <div class="glow" style="background:${ty.color}"></div>
-      <div class="model card-model" style="--aura:${ty.color}"><span class="emo">${s.emoji[0]}</span></div>
-      <div class="nm">${s.name}<span class="ty" style="background:${ty.color}">${ty.name}</span></div>
-      <div class="chain">${s.stages.map((st,i)=>`<b>${st}</b>${i<s.stages.length-1?'<span>→</span>':''}`).join('')}</div>
-      <div class="st">
-        <div><small>HP</small><b>${stats.hp}</b></div>
-        <div><small>攻</small><b>${stats.atk}</b></div>
-        <div><small>防</small><b>${stats.def}</b></div>
-        <div><small>速</small><b>${stats.spd}</b></div>
+function renderParty(){
+  const box=document.getElementById('partyList');
+  document.getElementById('partyCount').textContent=`${collection.length}/${MAX_PARTY}`;
+  if(collection.length===0){ box.innerHTML='<div style="color:var(--txt-dim);font-size:12.5px;line-height:1.8">暂无精灵。选择初始伙伴后开始冒险。</div>'; return; }
+  box.innerHTML=collection.map((c,i)=>{
+    const s=SPIRITS.find(x=>x.id===c.id);
+    const mh=maxHpOf(c), hp=hpOf(c), pct=Math.round(hp/mh*100);
+    const cls=pct<=25?'low':pct<=55?'mid':'';
+    const fainted=hp<=0;
+    return `<div class="party-row ${i===activeIdx?'active':''} ${fainted?'fainted':''}" onclick="setActive(${i})">
+      <div class="party-emo">${fainted?'💤':s.emoji[c.stage]}</div>
+      <div class="party-mid">
+        <div class="party-nm">${s.stages[c.stage]} <span class="ty" style="background:${TYPES[s.type].color};font-size:10px">${TYPES[s.type].name}</span></div>
+        <div class="hpbar"><i class="${cls}" style="width:${pct}%"></i></div>
+        <div class="party-sub">HP ${hp}/${mh} · 羁绊 ${c.bond}/${MAX_BOND}${c.stage<2?'':' · 最终形态'}</div>
       </div>
-      <div class="ds">${s.desc}</div>
-      <div class="thint"><span class="g">克制 ${strong.join('/')||'—'}</span><span class="w">弱于 ${weak.join('/')||'—'}</span></div>
-      <div class="card-btns"><button class="mini" onclick="openDetail('${s.id}',null)">🔍 详情</button></div>
     </div>`;
   }).join('');
 }
+function renderBag(){
+  const box=document.getElementById('bagList');
+  const canUse=collection.some(c=>hpOf(c)>0);
+  box.innerHTML=`
+    <div class="bag-row"><span>🔴 精灵球</span><b>×${game.balls}</b></div>
+    <div class="bag-row"><span>🍬 亲密度糖果</span><span style="display:flex;align-items:center;gap:8px"><b>×${game.candy}</b><button class="use" onclick="useItem('candy')" ${game.candy>0&&canUse?'':'disabled'}>使用</button></span></div>
+    <div class="bag-row"><span>💎 进化石</span><span style="display:flex;align-items:center;gap:8px"><b>×${game.stone}</b><button class="use" onclick="useItem('stone')" ${game.stone>0&&canUse?'':'disabled'}>使用</button></span></div>
+  `;
+}
+function renderProgress(){
+  const trainers=entities.trainers.length||8;
+  const def=game.defeated.length;
+  const dex=new Set(collection.map(c=>c.id)).size;
+  document.getElementById('progress').innerHTML=`
+    <div class="prog-row">🏅 击败训练家 <b>${def}/${trainers}</b></div>
+    <div class="pbar"><i style="width:${def/trainers*100}%"></i></div>
+    <div class="prog-row">📖 图鉴收集 <b>${dex}/${SPIRITS.length}</b></div>
+    <div class="pbar"><i style="width:${dex/SPIRITS.length*100}%"></i></div>
+    <div class="tips">走进 <b>高草</b> 遇敌 · 战斗中投球捕捉 · 打赢训练家获得进化石</div>
+  `;
+}
 
-/* ================= 属性克制矩阵 ================= */
+/* ===================== 移动 ===================== */
+function tryMove(dx,dy){
+  if(mode!=='overworld'||moving) return;
+  if(!collection.length){ toast('先选择你的初始伙伴'); return; }
+  const nx=player.x+dx, ny=player.y+dy;
+  if(!inBounds(nx,ny)) return;
+  if(!WALKABLE.has(tileAt(nx,ny))) return;
+  const trainer=entities.trainers.find(t=>!t.defeated&&t.x===nx&&t.y===ny);
+  if(trainer){ startTrainerBattle(trainer); return; }
+  moveTo(nx,ny);
+}
+function moveTo(nx,ny){
+  moving=true;
+  player.x=nx; player.y=ny;
+  renderPlayer(); updateCamera(); updateBiomeTag();
+  setTimeout(()=>{ moving=false; onStep(); },110);
+}
+function onStep(){
+  saveGame();
+  const it=entities.items.find(o=>!o.taken&&o.x===player.x&&o.y===player.y);
+  if(it){
+    it.taken=true; renderEntities();
+    if(it.kind==='balls'){ game.balls+=3; toast('🎒 捡到 精灵球 ×3'); }
+    else if(it.kind==='candy'){ game.candy++; toast('🍬 捡到 亲密度糖果 ×1'); }
+    else { game.stone++; toast('💎 捡到 进化石 ×1'); }
+    saveGame(); updateHUD();
+    return;
+  }
+  if(entities.heal&&entities.heal.x===player.x&&entities.heal.y===player.y){
+    healParty(); toast('🏥 队伍已完全恢复！'); return;
+  }
+  const code=tileAt(player.x,player.y);
+  const chance=ENC_CHANCE[code]||0;
+  if(chance>0 && Math.random()<chance){ startWildBattle(); return; }
+}
+function healParty(){
+  collection.forEach(c=>{ c.hp=maxHpOf(c); });
+  saveColl(); updateHUD();
+}
+function setActive(i){
+  if(!collection[i]) return;
+  if(hpOf(collection[i])<=0){ toast('这只精灵已经失去战斗力，去 🏥 恢复吧'); return; }
+  activeIdx=i; renderParty();
+}
+
+/* ===================== 战斗 ===================== */
+function bSetMsg(t){ document.getElementById('bMsg').textContent=t; }
+function setHpBar(el,pct){ el.style.width=pct+'%'; el.className = pct<=25?'low':pct<=55?'mid':''; }
+function updateBattleUI(){
+  if(!B) return;
+  const e=B.enemy, p=B.player;
+  document.getElementById('bEnemyName').textContent=e.name;
+  document.getElementById('bEnemyLv').textContent='Lv.'+(12+e.stage*9);
+  document.getElementById('bEnemySprite').textContent=e.species.emoji[e.stage];
+  setHpBar(document.getElementById('bEnemyHp'), Math.max(0,e.hp/e.maxHp*100));
+  document.getElementById('bPlayerName').textContent=p.name;
+  document.getElementById('bPlayerLv').textContent='Lv.'+(12+p.stage*9);
+  document.getElementById('bPlayerSprite').textContent=p.species.emoji[p.stage];
+  setHpBar(document.getElementById('bPlayerHp'), Math.max(0,p.hp/p.maxHp*100));
+  document.getElementById('bPlayerHpText').textContent=`${Math.max(0,p.hp)} / ${p.maxHp}`;
+}
+function renderBattleMenu(){
+  const menu=document.getElementById('bMenu');
+  if(!B||B.over||(B.busy&&!B.force)){ menu.innerHTML=''; return; }
+  const st=B.menuState||'root';
+  if(st==='root'){
+    menu.innerHTML=`
+      <button class="b-btn" onclick="bMenu('moves')">⚔️ 战斗</button>
+      <button class="b-btn" onclick="bMenu('bag')">🎒 背包</button>
+      <button class="b-btn" onclick="bMenu('party')">🐾 精灵</button>
+      <button class="b-btn" onclick="bFlee()">🏃 逃跑</button>`;
+  } else if(st==='moves'){
+    menu.innerHTML=B.player.moves.map((m,i)=>
+      `<button class="b-btn" onclick="bMove(${i})">${m.name}<small>${typeName(m.type)} · 威力${m.power}</small></button>`).join('')
+      +`<button class="b-btn back" onclick="bMenu('root')">返回</button>`;
+  } else if(st==='bag'){
+    menu.innerHTML=`
+      <button class="b-btn" onclick="bCatch()">🔴 精灵球<small>×${game.balls}</small></button>
+      <button class="b-btn" disabled>🍬 糖果<small>战斗中不可用</small></button>
+      <button class="b-btn back" onclick="bMenu('root')">返回</button>`;
+  } else if(st==='party'){
+    menu.innerHTML=collection.map((c,i)=>{
+      const s=SPIRITS.find(x=>x.id===c.id);
+      const hp=hpOf(c), alive=hp>0;
+      return `<button class="b-btn ${i===B.activeIdx?'cur':''}" onclick="bSwitch(${i})" ${alive&&i!==B.activeIdx?'':'disabled'}>
+        ${s.emoji[c.stage]} ${s.stages[c.stage]}<small>${hp}/${maxHpOf(c)}</small></button>`;
+    }).join('')+`<button class="b-btn back" onclick="bMenu('root')">返回</button>`;
+  }
+}
+function bMenu(st){ if(!B||B.over||B.busy) return; B.menuState=st; renderBattleMenu(); }
+
+function startWildBattle(){
+  const b=biomeAt(player.x,player.y)||BIOME_BY_KEY.plains;
+  const sid = Math.random()<0.06 ? b.rare : pick(b.pools);
+  const sp=SPIRITS.find(x=>x.id===sid);
+  const stage=(sid===b.rare)?2:(Math.random()<.55?0:1);
+  openBattle({enemy:buildFighter(sp,stage,randomNature()),enemyTeam:null,isTrainer:false,trainerName:null});
+}
+function startTrainerBattle(t){
+  const team=t.pool.map(id=>buildFighter(SPIRITS.find(x=>x.id===id),t.stage,findNature('固执')));
+  openBattle({enemy:team[0],enemyTeam:team,isTrainer:true,trainerName:t.name,trainerRef:t});
+}
+function openBattle(cfg){
+  if(!collection.length){ toast('先选择初始伙伴！'); return; }
+  if(hpOf(collection[activeIdx])<=0){
+    const alt=collection.findIndex(c=>hpOf(c)>0);
+    if(alt<0){ toast('队伍全部失去战斗力，去 🏥 恢复吧'); return; }
+    activeIdx=alt;
+  }
+  const pf=fighterFromInstance(collection[activeIdx]);
+  B={player:pf,enemy:cfg.enemy,enemyTeam:cfg.enemyTeam,enemyIdx:0,isTrainer:cfg.isTrainer,
+     trainerName:cfg.trainerName,trainerRef:cfg.trainerRef||null,activeIdx,
+     over:false,busy:false,force:false,menuState:'root'};
+  if(B.enemy.species.ability.kind==='intimidate') B.player.stats.atk=Math.floor(B.player.stats.atk*0.9);
+  if(B.player.species.ability.kind==='intimidate') B.enemy.stats.atk=Math.floor(B.enemy.stats.atk*0.9);
+  mode='battle';
+  document.getElementById('battleScreen').hidden=false;
+  document.getElementById('player').style.opacity='0';
+  updateBattleUI();
+  bSetMsg(cfg.isTrainer?`${cfg.trainerName} 向你发起了对战！`:`野生的 ${B.enemy.name} 出现了！`);
+  B.busy=true;
+  setTimeout(()=>{ if(!B) return; B.busy=false; bSetMsg(`去吧，${B.player.name}！`); renderBattleMenu(); },700);
+}
+function closeBattle(){
+  if(B){
+    const inst=collection[B.activeIdx];
+    if(inst) inst.hp=B.player.hp;
+    saveColl();
+  }
+  B=null;
+  document.getElementById('battleScreen').hidden=true;
+  document.getElementById('player').style.opacity='1';
+  mode='overworld'; moving=false;
+  updateHUD();
+  if(!WALKABLE.has(tileAt(player.x,player.y))){ player.x=HUB.x; player.y=HUB.y+2; }
+  renderPlayer(); updateCamera(); updateBiomeTag();
+}
+async function bMove(idx){
+  if(!B||B.over||B.busy) return;
+  B.busy=true; B.menuState='moves'; renderBattleMenu();
+  const pm=B.player.moves[idx];
+  const em=pick(B.enemy.moves);
+  const first=B.player.stats.spd>=B.enemy.stats.spd;
+  const seq=first?[['p',pm],['e',em]]:[['e',em],['p',pm]];
+  for(const [who,mv] of seq){
+    if(!B||B.over||B.force) break;
+    if(who==='p') await execMove(B.player,B.enemy,mv,true);
+    else if(B) await execMove(B.enemy,B.player,mv,false);
+  }
+  if(B && !B.over && !B.force){ B.busy=false; B.menuState='root'; renderBattleMenu(); }
+}
+async function execMove(atk,def,mv,isPlayer){
+  if(Math.random()*100>mv.acc){ bSetMsg(`${atk.name} 的「${mv.name}」没有命中！`); await sleep(520); return; }
+  const r=calcDamage(atk,def,mv);
+  def.hp=Math.max(0,def.hp-r.dmg);
+  const el=document.getElementById(isPlayer?'bEnemySprite':'bPlayerSprite');
+  el.classList.add('hit'); setTimeout(()=>el.classList.remove('hit'),400);
+  floatText(el, r.dmg===0?'MISS':'-'+r.dmg, r.tm===2?'#ffd166':r.crit?'#fb7185':'#fff');
+  let msg=`${atk.name} 使用「${mv.name}」，造成 ${r.dmg} 伤害`;
+  if(r.tm===2)msg+=' · 效果拔群！';
+  else if(r.tm===0.5)msg+=' · 效果不佳…';
+  else if(r.tm===0)msg+=' · 没有效果…';
+  if(r.crit)msg+=' · 暴击！';
+  bSetMsg(msg);
+  updateBattleUI();
+  await sleep(760);
+  if(def.hp<=0) await onFaint(isPlayer?'enemy':'player');
+}
+function floatText(el,text,color){
+  const rc=el.getBoundingClientRect();
+  const d=document.createElement('div'); d.className='float-dmg'; d.textContent=text; d.style.color=color;
+  d.style.left=(rc.left+rc.width/2)+'px'; d.style.top=(rc.top+rc.height/2)+'px';
+  document.body.appendChild(d); setTimeout(()=>d.remove(),850);
+}
+async function onFaint(who){
+  if(!B) return;
+  if(who==='enemy'){
+    if(B.isTrainer && B.enemyTeam && B.enemyIdx<B.enemyTeam.length-1){
+      B.enemyIdx++;
+      bSetMsg(`${B.enemy.name} 倒下了！${B.trainerName} 派出了 ${B.enemyTeam[B.enemyIdx].name}！`);
+      await sleep(950);
+      if(!B) return;
+      B.enemy=B.enemyTeam[B.enemyIdx];
+      updateBattleUI();
+      return;
+    }
+    await winBattle();
+  } else {
+    const inst=collection[B.activeIdx];
+    if(inst) inst.hp=0;
+    saveColl();
+    const alive=collection.map((c,i)=>i).filter(i=>i!==B.activeIdx&&hpOf(collection[i])>0);
+    if(alive.length>0){
+      B.busy=true; B.force=true; B.menuState='party';
+      bSetMsg(`${B.player.name} 倒下了！请选择下一只精灵。`);
+      renderParty(); renderBattleMenu();
+    } else {
+      await loseBattle();
+    }
+  }
+}
+function bSwitch(i){
+  if(!B||B.over) return;
+  if(B.busy&&!B.force) return;
+  if(i===B.activeIdx) return;
+  const inst=collection[i]; if(!inst) return;
+  if(hpOf(inst)<=0){ bSetMsg('这只精灵已经没有战斗力了！'); return; }
+  const cur=collection[B.activeIdx]; if(cur) cur.hp=B.player.hp;
+  B.activeIdx=i; activeIdx=i;
+  B.player=fighterFromInstance(inst);
+  updateBattleUI();
+  if(B.force){
+    B.force=false; B.busy=false; B.menuState='root';
+    bSetMsg(`上吧，${B.player.name}！`); renderBattleMenu(); renderParty();
+  } else {
+    B.busy=true; bSetMsg(`回来吧！上吧，${B.player.name}！`);
+    setTimeout(async()=>{
+      if(!B) return;
+      await enemyFreeAttack();
+      if(B && !B.over){ B.busy=false; B.menuState='root'; renderBattleMenu(); }
+    },650);
+  }
+}
+async function enemyFreeAttack(){
+  if(!B||B.over) return;
+  await execMove(B.enemy,B.player,pick(B.enemy.moves),false);
+}
+async function bCatch(){
+  if(!B||B.over||B.busy) return;
+  if(B.isTrainer){ bSetMsg('不能捕捉别人的精灵！'); return; }
+  if(game.balls<=0){ bSetMsg('精灵球用完了！去草丛或道具球找找吧。'); return; }
+  const owned=collection.some(c=>c.id===B.enemy.species.id);
+  if(!owned && collection.length>=MAX_PARTY){ bSetMsg('队伍已满（6 只），无法再捕捉！'); return; }
+  B.busy=true; B.menuState='root';
+  game.balls--; saveGame(); updateHUD();
+  const ball=document.getElementById('bBall');
+  ball.classList.remove('throw'); void ball.offsetWidth; ball.classList.add('throw');
+  bSetMsg('你投出了精灵球！');
+  renderBattleMenu();
+  await sleep(850);
+  if(!B||B.over) return;
+  const ratio=B.enemy.hp/B.enemy.maxHp;
+  let chance=0.20+(1-ratio)*0.62;
+  if(B.enemy.stage>=2) chance*=0.85;
+  if(Math.random()<chance){
+    B.over=true;
+    const nm=B.enemy.name;
+    const inst={id:B.enemy.species.id,stage:B.enemy.stage,bond:1,count:1,nature:B.enemy.nature.name,hp:B.enemy.hp};
+    const ex=collection.find(c=>c.id===inst.id);
+    if(ex){ ex.count++; ex.bond=Math.min(MAX_BOND,ex.bond+1); }
+    else collection.push(inst);
+    saveColl();
+    bSetMsg(`太好了！${nm} 被抓住了！`);
+    await sleep(1200);
+    if(B) closeBattle();
+    toast(`🎉 收服了 ${nm}`);
+  } else {
+    bSetMsg('可恶！它从精灵球里挣脱了！');
+    await sleep(850);
+    if(!B||B.over) return;
+    await enemyFreeAttack();
+    if(B&&!B.over){ B.busy=false; renderBattleMenu(); }
+  }
+}
+async function bFlee(){
+  if(!B||B.over||B.busy) return;
+  if(B.isTrainer){ bSetMsg('不能从训练家对战中逃走！'); return; }
+  B.busy=true;
+  const chance=Math.min(.95, Math.max(.3, .5+(B.player.stats.spd-B.enemy.stats.spd)/160));
+  if(Math.random()<chance){
+    bSetMsg('成功逃走了！');
+    await sleep(700);
+    if(B) closeBattle();
+  } else {
+    bSetMsg('没能逃掉！');
+    await sleep(650);
+    if(!B||B.over) return;
+    await enemyFreeAttack();
+    if(B&&!B.over){ B.busy=false; renderBattleMenu(); }
+  }
+}
+async function winBattle(){
+  if(!B) return;
+  B.over=true; B.busy=true;
+  const inst=collection[B.activeIdx];
+  if(inst){ inst.hp=B.player.hp; inst.bond=Math.min(MAX_BOND,(inst.bond||0)+2); }
+  saveColl();
+  bSetMsg('战斗胜利！羁绊提升了。');
+  if(B.isTrainer){
+    const t=B.trainerRef;
+    if(t){
+      t.defeated=true;
+      if(!game.defeated.includes(t.key)) game.defeated.push(t.key);
+    }
+    game.stone++;
+    saveGame();
+    renderEntities();
+    toast('🏆 战胜训练家！获得 进化石 ×1');
+  }
+  await sleep(1200);
+  if(B) closeBattle();
+  updateHUD();
+}
+async function loseBattle(){
+  if(!B) return;
+  B.over=true; B.busy=true;
+  bSetMsg('你的精灵全部失去了战斗力…眼前一黑！');
+  await sleep(1200);
+  collection.forEach(c=>{ c.hp=maxHpOf(c); });
+  saveColl();
+  B=null;
+  document.getElementById('battleScreen').hidden=true;
+  document.getElementById('player').style.opacity='1';
+  mode='overworld';
+  player.x=HUB.x; player.y=HUB.y+2;
+  renderPlayer(); updateCamera(); updateBiomeTag();
+  updateHUD();
+  toast('你被送回了灵契镇，队伍已恢复');
+}
+
+/* ===================== 道具 ===================== */
+function useItem(kind){
+  if(kind==='candy'&&game.candy<=0) return toast('没有亲密度糖果');
+  if(kind==='stone'&&game.stone<=0) return toast('没有进化石');
+  if(!collection.some(c=>hpOf(c)>0)) return toast('没有可使用的精灵');
+  let target=null,minBond=999;
+  collection.forEach(c=>{ if(hpOf(c)>0&&c.bond<MAX_BOND&&c.bond<minBond){ minBond=c.bond; target=c; } });
+  if(!target) return toast('所有精灵羁绊已满');
+  const amt=kind==='candy'?2:3;
+  if(kind==='candy')game.candy--; else game.stone--;
+  target.bond=Math.min(MAX_BOND,target.bond+amt);
+  saveGame(); saveColl(); updateHUD();
+  const s=SPIRITS.find(x=>x.id===target.id);
+  toast(`✨ ${s.stages[target.stage]} 羁绊 +${amt}（${target.bond}/${MAX_BOND}）`);
+}
+
+/* ===================== 进化 ===================== */
+function evolveInst(idx){
+  const inst=collection[idx]; if(!inst) return;
+  if(inst.stage>=2){ toast('已是最终形态'); return; }
+  const need=EVO_BOND[inst.stage+1];
+  if(inst.bond<need){ toast(`羁绊不足，需要 ${need}`); return; }
+  const s=SPIRITS.find(x=>x.id===inst.id);
+  inst.stage++;
+  inst.hp=maxHpOf(inst);
+  saveColl(); updateHUD();
+  toast(`🦋 进化！${s.stages[inst.stage-1]} → ${s.stages[inst.stage]}`);
+  closeModal(); openDetail(s.id, idx);
+}
+
+/* ===================== 模态 ===================== */
+function openModal(html){
+  document.getElementById('modalBody').innerHTML=html;
+  document.getElementById('overlay').classList.add('show');
+}
+function closeModal(){ document.getElementById('overlay').classList.remove('show'); }
+
+function openDex(){
+  const owned=new Set(collection.map(c=>c.id));
+  openModal(`
+    <button class="close" onclick="closeModal()">✕</button>
+    <h2>精灵图鉴</h2>
+    <div class="sub">已收集 ${owned.size}/${SPIRITS.length}。点击任意精灵查看详情、数值、特性与技能。</div>
+    <div class="dex-grid">
+      ${SPIRITS.map(s=>{
+        const t=TYPES[s.type];
+        return `<div class="dex-cell ${owned.has(s.id)?'owned':''}" onclick="openDetail('${s.id}',null)">
+          <div class="dm">${s.emoji[0]}</div>
+          <div class="dn">${s.name}<span class="ty" style="background:${t.color};font-size:10px">${t.name}</span></div>
+          <div class="dc">${s.stages[0]} → ${s.stages[2]}</div>
+        </div>`;
+      }).join('')}
+    </div>
+  `);
+}
+function openDetail(sid,instIdx){
+  const s=SPIRITS.find(x=>x.id===sid); if(!s) return;
+  const inst=(instIdx!=null&&collection[instIdx])?collection[instIdx]:null;
+  const stage=inst?inst.stage:0;
+  const t=TYPES[s.type];
+  const nat=inst?findNature(inst.nature):null;
+  const moves=movesFor(s);
+  let statsHtml='';
+  [['hp','HP',s.base.hp],['atk','攻击',s.base.atk],['def','防御',s.base.def],['spd','速度',s.base.spd]].forEach(([k,l,v])=>{
+    statsHtml+=`<div class="stat-row"><span class="lbl">${l}</span><div class="stat-bar"><i style="width:${Math.min(100,v/90*100)}%"></i></div><span class="val">${v}</span></div>`;
+  });
+  const strong=Object.keys(TYPES).filter(d=>mult(s.type,d)===2).map(x=>TYPES[x].name);
+  const weak=Object.keys(TYPES).filter(a=>mult(a,s.type)===2).map(x=>TYPES[x].name);
+  const evolveHtml = inst
+    ? (inst.stage<2
+        ? `<button class="b-btn" style="margin-top:10px" onclick="evolveInst(${instIdx})" ${inst.bond>=EVO_BOND[inst.stage+1]?'':'disabled'}>🦋 进化（需羁绊 ${EVO_BOND[inst.stage+1]}，当前 ${inst.bond}）</button>`
+        : `<div class="iblock"><p>已是最终形态。</p></div>`)
+    : '';
+  openModal(`
+    <button class="close" onclick="closeModal()">✕</button>
+    <div class="detail-top">
+      <div class="detail-sprite" style="--aura:${t.color}">${s.emoji[stage]}</div>
+      <div style="flex:1;min-width:200px">
+        <h2 style="margin:0">${s.stages[stage]} <span class="ty" style="background:${t.color};font-size:12px">${t.name}系</span></h2>
+        <div style="color:var(--txt-dim);font-size:13px;margin-top:6px;line-height:1.6">${s.desc}</div>
+        <div style="font-size:12px;color:var(--txt-dim);margin-top:8px">进化链：${s.stages.join(' → ')}</div>
+      </div>
+    </div>
+    ${statsHtml}
+    <div class="iblock"><h4>种族特性 · ${s.ability.name}</h4><p>${s.ability.desc}</p></div>
+    <div class="iblock"><h4>特殊天赋 · ${s.talentObj.name}</h4><p>${s.talentObj.desc}</p></div>
+    <div class="iblock"><h4>性格</h4><p>${inst?`${inst.nature} — ${natureDesc(nat)}`:'捕获时随机觉醒，会强化一项能力、削弱另一项。'}</p></div>
+    <div class="iblock"><h4>属性克制</h4><p>克制：${strong.join(' / ')||'无'} · 弱于：${weak.join(' / ')||'无'}</p></div>
+    <div class="iblock"><h4>技能表</h4><div class="moves">${moves.map(m=>`<div class="mchip"><b>${m.name}</b><br><span class="ty" style="background:${typeInfo(m.type).color};font-size:10px">${typeName(m.type)}</span> 威力 ${m.power} · 命中 ${m.acc}</div>`).join('')}</div></div>
+    <div class="iblock"><h4>出没地区</h4><p>${BIOMES.filter(b=>b.pools.includes(s.id)||b.rare===s.id).map(b=>b.name).join('、')||'未知'}</p></div>
+    ${evolveHtml}
+  `);
+}
+
+let hlType=null;
+function openTypes(){
+  openModal(`
+    <button class="close" onclick="closeModal()">✕</button>
+    <h2>属性克制</h2>
+    <div class="sub">行是攻击方、列是防守方。点击行/列标题可高亮该属性。</div>
+    <div class="tc-legend">
+      <span><i class="lg" style="background:var(--good)"></i>2× 克制</span>
+      <span><i class="lg" style="background:var(--bad)"></i>½× 弱效</span>
+      <span><i class="lg" style="background:#3a3f66"></i>0 免疫</span>
+      <span><i class="lg" style="background:rgba(255,255,255,.08)"></i>1× 普通</span>
+    </div>
+    <div class="tc-wrap"><table class="tc" id="tcTable"></table></div>
+    <div class="tc-summary" id="tcSummary"></div>
+  `);
+  renderMatrix();
+}
+const typesWhere=fn=>Object.keys(TYPES).filter(fn);
+const nmList=arr=>arr.map(k=>TYPES[k].name).join(' / ')||'无';
 function renderMatrix(){
-  const types=Object.keys(TYPES);
-  const t=document.getElementById('tcTable');
-  let html='<thead><tr><th class="corner" onclick="highlightType(null)">攻↓ 防→</th>';
-  types.forEach(d=>{ html+=`<th class="tc-type-btn ${hlType===d?'hl':''}" onclick="highlightType('${d}')"><span class="hbadge" style="background:${TYPES[d].color}">${TYPES[d].name}</span></th>`; });
+  const table=document.getElementById('tcTable'); if(!table) return;
+  const ts=Object.keys(TYPES);
+  let html='<thead><tr><th style="font-size:10px;color:var(--txt-dim)">攻↓ 防→</th>';
+  ts.forEach(d=>{ html+=`<th class="${hlType===d?'hl':''}"><span class="hbadge" style="background:${TYPES[d].color}" onclick="highlightType('${d}')">${TYPES[d].name}</span></th>`; });
   html+='</tr></thead><tbody>';
-  types.forEach(a=>{
-    html+=`<tr><th class="tc-type-btn ${hlType===a?'hl':''}" onclick="highlightType('${a}')"><span class="hbadge" style="background:${TYPES[a].color}">${TYPES[a].name}</span></th>`;
-    types.forEach(d=>{
+  ts.forEach(a=>{
+    html+=`<tr><th class="${hlType===a?'hl':''}"><span class="hbadge" style="background:${TYPES[a].color}" onclick="highlightType('${a}')">${TYPES[a].name}</span></th>`;
+    ts.forEach(d=>{
       const m=mult(a,d);
       let cls='c1',txt='·';
-      if(m===2){cls='c2';txt='2';}
-      else if(m===0.5){cls='ch';txt='½';}
-      else if(m===0){cls='c0';txt='0';}
-      const extra = hlType ? ((a===hlType||d===hlType)?' hl':' dim') : '';
+      if(m===2){cls='c2';txt='2';} else if(m===.5){cls='ch';txt='½';} else if(m===0){cls='c0';txt='0';}
+      const extra=hlType?((a===hlType||d===hlType)?' hl':' dim'):'';
       html+=`<td class="${cls}${extra}">${txt}</td>`;
     });
     html+='</tr>';
   });
-  html+='</tbody>';
-  t.innerHTML=html;
-}
-const typesWhere=fn=>Object.keys(TYPES).filter(fn);
-const nm=arr=>arr.map(k=>TYPES[k].name).join(' / ')||'无';
-function highlightType(t){
-  hlType=(hlType===t)?null:t;
-  renderMatrix(); renderTcSummary();
-}
-function renderTcSummary(){
-  const box=document.getElementById('tcSummary');
-  if(!hlType){ box.innerHTML='💡 点击表格的行 / 列标题（或任意属性徽章），即可高亮该属性的克制关系。'; return; }
+  table.innerHTML=html+'</tbody>';
+  const sum=document.getElementById('tcSummary');
+  if(!hlType){ sum.innerHTML='💡 点击任意属性徽章，查看它的克制与被克关系。'; return; }
   const t=hlType,n=TYPES[t].name;
-  const aS=typesWhere(d=>mult(t,d)===2), aW=typesWhere(d=>mult(t,d)===0.5), aN=typesWhere(d=>mult(t,d)===0);
-  const dW=typesWhere(a=>mult(a,t)===2), dR=typesWhere(a=>mult(a,t)===0.5), dI=typesWhere(a=>mult(a,t)===0);
-  box.innerHTML=`<span class="hl-name">${n}系</span><br>
-    ⚔️ 攻击时：克制 <b>${nm(aS)}</b>；弱效 <b>${nm(aW)}</b>；无效 <b>${nm(aN)}</b><br>
-    🛡️ 防御时：被 <b>${nm(dW)}</b> 克制；抵抗 <b>${nm(dR)}</b>；免疫 <b>${nm(dI)}</b>`;
+  const aS=typesWhere(d=>mult(t,d)===2),aW=typesWhere(d=>mult(t,d)===.5),aN=typesWhere(d=>mult(t,d)===0);
+  const dW=typesWhere(a=>mult(a,t)===2),dR=typesWhere(a=>mult(a,t)===.5),dI=typesWhere(a=>mult(a,t)===0);
+  sum.innerHTML=`<b>${n}系</b><br>⚔️ 攻击：克制 <b>${nmList(aS)}</b> · 弱效 <b>${nmList(aW)}</b> · 无效 <b>${nmList(aN)}</b><br>🛡️ 防御：被 <b>${nmList(dW)}</b> 克制 · 抵抗 <b>${nmList(dR)}</b> · 免疫 <b>${nmList(dI)}</b>`;
+}
+function highlightType(t){ hlType=(hlType===t)?null:t; renderMatrix(); }
+
+function openHelp(){
+  openModal(`
+    <button class="close" onclick="closeModal()">✕</button>
+    <h2>怎么玩</h2>
+    <div class="sub">《火红／叶绿》式的一体化冒险：走路 → 遇敌 → 战斗 → 捕捉，全部在同一片大陆上完成。</div>
+    <div class="iblock"><h4>1. 走路探索</h4><p>用 <b>方向键 / WASD</b> 或屏幕左下方向键移动。地图分 8 个生物群系：微风草原、低语森林、碧波湖、灰烬火山、霜白雪原、流沙荒漠、遗忘遗迹、龙脊山道。</p></div>
+    <div class="iblock"><h4>2. 踩草遇敌</h4><p>走进深色<b>高草</b>（雪原是雪地、荒漠是沙地）有几率遇到野生精灵，遇敌直接切入战斗画面。</p></div>
+    <div class="iblock"><h4>3. 战斗与捕捉</h4><p>「战斗」出招，速度高者先手，属性克制伤害翻倍。「背包」→ 精灵球投球捕捉，对方 HP 越低越容易成功；训练家的精灵不能抓。</p></div>
+    <div class="iblock"><h4>4. 训练家与道具</h4><p>地图上的训练家撞上去就开战，打赢获得进化石。地上的 🔴 是道具球，走过去自动拾取。</p></div>
+    <div class="iblock"><h4>5. 回复与进化</h4><p>走到 🏥 完全恢复队伍。精灵在战斗与道具作用下提升羁绊，羁绊达标即可在详情页进化，三阶进化全部开放。</p></div>
+    <div class="iblock"><h4>6. 目标</h4><p>收集全部 15 种精灵，击败 8 位训练家，完成图鉴。</p></div>
+  `);
 }
 
-/* ================= 详情页 ================= */
-function openDetail(sid,instIdx){
-  const s=SPIRITS.find(x=>x.id===sid); if(!s) return;
-  const inst=(instIdx!=null && collection[instIdx])?collection[instIdx]:null;
-  const stage=inst?inst.stage:0;
-  const ty=TYPES[s.type];
-  const nat=inst?findNature(inst.nature):null;
-  const moves=movesFor(s);
-  const mx=90;
-  let statHtml='';
-  [['hp','HP',s.base.hp],['atk','攻击',s.base.atk],['def','防御',s.base.def],['spd','速度',s.base.spd]].forEach(([k,l,v])=>{
-    statHtml+=`<div class="stat-row"><span class="lbl">${l}</span><div class="stat-bar"><i style="width:${Math.min(100,v/mx*100)}%"></i></div><span class="val">${v}</span></div>`;
-  });
-  const moveHtml=moves.map(m=>{
-    const ti=typeInfo(m.type);
-    return `<div class="move-chip"><b>${m.name}</b><br><span style="display:inline-block;margin-top:4px;background:${ti.color};color:#0b1026;font-weight:800;font-size:10px;padding:1px 7px;border-radius:999px">${ti.name}</span> <small style="color:var(--txt-dim)">威力 ${m.power} · 命中 ${m.acc}</small></div>`;
-  }).join('');
-  const natureHtml = inst
-    ? `<div class="info-block"><h4>性格 · ${inst.nature}</h4><p>${natureDesc(nat)}</p></div>`
-    : `<div class="info-block"><h4>性格</h4><p>性格在捕获时随机觉醒，会提升一项能力、削弱另一项。</p></div>`;
-  document.getElementById('modalBody').innerHTML=`
-    <button class="close" onclick="closeDetail()">✕</button>
-    <div class="detail-model" style="--aura:${ty.color}">
-      <div class="ring r1"></div><div class="ring r2"></div>
-      <span class="emo">${s.emoji[stage]}</span>
-    </div>
-    <div style="text-align:center;margin-bottom:6px">
-      <div style="font-size:24px;font-weight:900">${s.stages[stage]} <span class="ty" style="background:${ty.color};font-size:13px;padding:2px 10px;border-radius:999px">${ty.name}系</span></div>
-      <div style="color:var(--txt-dim);font-size:13px;margin-top:6px">${s.desc}</div>
-    </div>
-    ${statHtml}
-    <div class="info-block"><h4>种族特性 · ${s.ability.name}</h4><p>${s.ability.desc}</p></div>
-    <div class="info-block"><h4>特殊天赋 · ${s.talentObj.name}</h4><p>${s.talentObj.desc}</p></div>
-    ${natureHtml}
-    <div class="info-block"><h4>技能表</h4><div class="move-list">${moveHtml}</div></div>
-    <div class="info-block"><h4>进化链</h4><p style="color:var(--txt)">${s.stages.join(' → ')}</p></div>
-    <div class="info-block"><h4>出没地区</h4><p style="color:var(--txt)">${REGIONS.filter(r=>r.pool.includes(s.id)||r.rare===s.id).map(r=>r.name).join('、')||'未知'}</p></div>
-  `;
-  document.getElementById('modalOverlay').classList.add('show');
-}
-function closeDetail(){ document.getElementById('modalOverlay').classList.remove('show'); }
-
-/* ================= 捕捉 ================= */
-function clog(msg,cls='info'){
-  const l=document.getElementById('catchLog');
-  const d=document.createElement('div'); d.className=cls; d.innerHTML=msg;
-  l.appendChild(d); l.scrollTop=l.scrollHeight;
-}
-function encounter(spirit, opts={}){
-  spirit = spirit || SPIRITS[Math.floor(Math.random()*SPIRITS.length)];
-  const ty=TYPES[spirit.type];
-  const weak=Object.keys(TYPES).filter(a=>mult(a,spirit.type)===2).map(k=>TYPES[k].name);
-  wild={spirit, hp:100, max:100, rare:!!opts.rare, fromRegionId: opts.fromRegion?opts.fromRegion.id:null};
-  document.getElementById('wildSpirit').textContent=spirit.emoji[0];
-  document.getElementById('wildSpirit').className='wild-spirit';
-  document.getElementById('wildName').textContent=`野生 ${spirit.stages[0]} 出现了！`;
-  document.getElementById('wildMeta').innerHTML=`属性 <span class="ty" style="background:${ty.color}">${ty.name}</span> · 弱点：${weak.join('/')||'无'}${wild.rare?' · <span style="color:var(--gold)">★稀有</span>':''}`;
-  setHp(100);
-  document.getElementById('throwBtn').disabled = inventory.balls<=0;
-  clog(`<span class="info">[遭遇] ${wild.rare?'★稀有 ':''}野生 ${spirit.stages[0]}（${ty.name}系）闯入视野！弱点是 ${weak.join('/')||'无'}。</span>`);
-}
-function setHp(v){
-  v=Math.max(0,Math.min(100,v));
-  const f=document.getElementById('hpFill'); f.style.width=v+'%';
-  f.className='hp-fill'+(v<=30?' low':v<=60?' mid':'');
-  document.getElementById('hpText').textContent=`${v} / 100`;
-}
-function tapWild(){
-  if(!wild) return;
-  wild.hp=Math.max(0,wild.hp-6); setHp(wild.hp);
-  const sp=document.getElementById('wildSpirit'); sp.style.transform='scale(1.15)';
-  setTimeout(()=>sp.style.transform='',150);
-}
-function throwBall(){
-  if(!wild) return;
-  if(inventory.balls<=0){ toast('没有精灵球了！去地图探索获取吧'); return; }
-  inventory.balls--; updateBallCount(); saveInv();
-  const btn=document.getElementById('throwBtn'); btn.disabled=true;
-  const ball=document.getElementById('ball'); ball.classList.remove('throw'); void ball.offsetWidth; ball.classList.add('throw');
-  const sp=document.getElementById('wildSpirit');
-  setTimeout(()=>{
-    const dmg=12+Math.floor(Math.random()*16);
-    wild.hp=Math.max(0,wild.hp-dmg); setHp(wild.hp);
-    sp.classList.add('shake'); setTimeout(()=>sp.classList.remove('shake'),500);
-    let chance=0.18+(100-wild.hp)/100*0.6;
-    if(wild.rare) chance*=0.7;
-    const r=Math.random();
-    clog(`<span class="info">[抛球] 命中！削弱 ${dmg}，当前体力 ${wild.hp}。捕获率≈${Math.round(chance*100)}%</span>`);
-    if(r<chance){
-      sp.classList.add('caught');
-      clog(`<span class="ok">[成功] 太棒了！${wild.spirit.stages[0]} 被收服了！</span>`);
-      capture(wild.spirit, wild.fromRegionId);
-      setTimeout(()=>{
-        document.getElementById('wildSpirit').textContent='❔';
-        document.getElementById('wildName').textContent='等待遭遇…';
-        document.getElementById('wildMeta').textContent='点击下方按钮开始下一次冒险';
-        wild=null;
-      },900);
-    } else if(wild.hp<=0){
-      clog(`<span class="no">[失败] 体力耗尽，${wild.spirit.stages[0]} 逃走了…</span>`);
-      document.getElementById('wildSpirit').textContent='💨';
-      setTimeout(()=>{ document.getElementById('wildSpirit').textContent='❔'; document.getElementById('wildName').textContent='等待遭遇…'; wild=null; },900);
-    } else {
-      clog(`<span class="no">[挣脱] 差一点！它挣脱了精灵球，再接再厉！</span>`);
-      btn.disabled = inventory.balls<=0;
-    }
-  },700);
-}
-function capture(spirit, regionId){
-  const ex=collection.find(c=>c.id===spirit.id);
-  if(ex){ ex.count++; ex.bond=Math.min(MAX_BOND,ex.bond+1); }
-  else { collection.push({id:spirit.id,stage:0,bond:1,count:1,nature:randomNature().name}); }
-  if(regionId && exploreState[regionId]){
-    const f=exploreState[regionId].found;
-    if(!f.includes(spirit.id)) f.push(spirit.id);
-  }
-  saveColl(); saveExplore(); renderColl(); updateStats(); populateBattleSel(); renderInv();
-  if(currentRegion) renderRegionPanel(currentRegion);
-  toast(`🎉 收服成功：${spirit.stages[0]}！`);
-}
-
-/* ================= 我的精灵 ================= */
-function renderColl(){
-  const grid=document.getElementById('collGrid');
-  if(collection.length===0){
-    grid.innerHTML=`<div class="empty" style="grid-column:1/-1">还没有收服任何精灵。<br>前往「探索世界」探索秘境，或点「随机遭遇」投掷你的第一颗精灵球吧！</div>`;
-    return;
-  }
-  grid.innerHTML=collection.map((c,idx)=>{
-    const s=SPIRITS.find(x=>x.id===c.id); if(!s) return '';
-    const ty=TYPES[s.type];
-    const canEvolve=c.stage<2 && c.bond>=EVO_BOND[c.stage+1];
-    const need=EVO_BOND[c.stage+1];
-    return `<div class="coll-card">
-      <div class="model card-model" style="--aura:${ty.color}"><span class="emo">${s.emoji[c.stage]}</span></div>
-      <div class="nm" style="font-weight:800;font-size:17px;display:flex;justify-content:center;align-items:center;gap:6px">
-        ${s.stages[c.stage]}<span class="ty" style="background:${ty.color};font-size:11px">${ty.name}</span></div>
-      <div style="font-size:12px;color:var(--txt-dim)">已收服 ×${c.count} · 性格 ${c.nature||'坦率'}</div>
-      <div class="bond"><div class="bond-fill" style="width:${c.bond/MAX_BOND*100}%"></div></div>
-      <div class="bond-label">亲密度 ${c.bond}/${MAX_BOND}${c.stage<2?` · 进化需 ${need}`:' · 已达最终形态'}</div>
-      <div class="mini-btns">
-        <button class="mini" onclick="train(${idx})">💞 培养</button>
-        <button class="mini evo" onclick="evolve(${idx})" ${canEvolve?'':'disabled'}>${c.stage<2?'🦋 进化':'★ 满阶'}</button>
-      </div>
-      <div class="mini-btns"><button class="mini" onclick="openDetail('${c.id}',${idx})">🔍 详情</button></div>
+/* ===================== 初始精灵 ===================== */
+function showStarter(){
+  const opts=[SPIRITS[0],SPIRITS[1],SPIRITS[2]];
+  document.getElementById('starterChoices').innerHTML=opts.map(s=>{
+    const t=TYPES[s.type];
+    return `<div class="starter" onclick="pickStarter('${s.id}')">
+      <div class="sm">${s.emoji[0]}</div>
+      <div class="sn">${s.stages[0]} <span class="ty" style="background:${t.color};font-size:10px">${t.name}</span></div>
+      <div class="sd">${s.desc}<br><span style="color:var(--txt-dim)">最终进化：${s.stages[2]}</span></div>
     </div>`;
   }).join('');
+  document.getElementById('starterOverlay').classList.add('show');
 }
-function train(idx){
-  const c=collection[idx];
-  if(c.bond>=MAX_BOND){ toast('亲密度已满，尝试进化吧！'); return; }
-  c.bond=Math.min(MAX_BOND,c.bond+1); saveColl(); renderColl(); updateStats();
-  toast(`💞 亲密度提升到 ${c.bond}`);
-}
-function evolve(idx){
-  const c=collection[idx];
-  if(c.stage>=2) return;
-  const need=EVO_BOND[c.stage+1];
-  if(c.bond<need){ toast(`亲密度不足，需达到 ${need}`); return; }
-  c.stage++; saveColl(); renderColl(); updateStats(); populateBattleSel();
-  const s=SPIRITS.find(x=>x.id===c.id);
-  toast(`🦋 进化！${s.stages[c.stage-1]} → ${s.stages[c.stage]}`);
-  clog(`<span class="ok">[进化] 你的 ${s.stages[c.stage-1]} 进化成了 ${s.stages[c.stage]}！</span>`);
+function pickStarter(id){
+  const s=SPIRITS.find(x=>x.id===id);
+  const inst={id,stage:0,bond:3,count:1,nature:randomNature().name,hp:null};
+  inst.hp=maxHpOf(inst);
+  collection.push(inst); activeIdx=collection.length-1;
+  saveColl(); updateHUD();
+  document.getElementById('starterOverlay').classList.remove('show');
+  toast(`✨ ${s.stages[0]} 加入了你的队伍！`);
+  renderPlayer(); updateCamera();
 }
 
-/* ================= 对战 ================= */
-function populateBattleSel(){
-  const sel=document.getElementById('battleSel');
-  if(!sel) return;
-  if(collection.length===0){ sel.innerHTML='<option value="">（无精灵 · 使用试用精灵）</option>'; return; }
-  sel.innerHTML=collection.map((c,i)=>{
-    const s=SPIRITS.find(x=>x.id===c.id);
-    return `<option value="${i}">${s.stages[c.stage]}（${c.nature||'坦率'} · 亲密度${c.bond}）</option>`;
-  }).join('');
-}
-function getPlayerFighter(){
-  const sel=document.getElementById('battleSel');
-  let instIdx=(sel && sel.value!=='')?parseInt(sel.value):-1;
-  if(instIdx>=0 && collection[instIdx]){
-    const c=collection[instIdx];
-    return {fighter:buildFighter(SPIRITS.find(x=>x.id===c.id),c.stage,findNature(c.nature)),instIdx};
+/* ===================== 输入 ===================== */
+window.addEventListener('keydown',e=>{
+  if(mode!=='overworld') return;
+  if(document.getElementById('overlay').classList.contains('show')) return;
+  if(document.getElementById('starterOverlay').classList.contains('show')) return;
+  let dx=0,dy=0; const k=e.key.toLowerCase();
+  if(k==='arrowup'||k==='w')dy=-1;
+  else if(k==='arrowdown'||k==='s')dy=1;
+  else if(k==='arrowleft'||k==='a')dx=-1;
+  else if(k==='arrowright'||k==='d')dx=1;
+  if(dx||dy){ e.preventDefault(); tryMove(dx,dy); }
+});
+window.addEventListener('resize',()=>{ if(map.length) updateCamera(); });
+
+/* ===================== 启动 ===================== */
+function boot(){
+  loadAll();
+  buildWorld();
+  buildEntities();
+  buildTileDOM();
+  if(!inBounds(player.x,player.y)||!WALKABLE.has(tileAt(player.x,player.y))||!reachable.has(keyOf(player.x,player.y))){
+    player.x=HUB.x; player.y=HUB.y+2;
   }
-  return {fighter:buildFighter(SPIRITS[0],0,NATURES[0]),instIdx:-1};
+  renderEntities(); renderPlayer(); updateCamera(); updateBiomeTag();
+  updateHUD();
+  if(!collection.length) showStarter();
 }
-function doBattle(enemyCfg, opts={}){
-  const {fighter:pf,instIdx}=getPlayerFighter();
-  const ef=buildFighter(enemyCfg.species,enemyCfg.stage,enemyCfg.nature||NATURES[0]);
-  battle={player:pf,enemy:ef,instIdx,over:false,isTrainer:!!opts.isTrainer,enemyLabel:opts.enemyLabel};
-  if(battle.enemy.species.ability.kind==='intimidate') battle.player.stats.atk=Math.floor(battle.player.stats.atk*0.9);
-  if(battle.player.species.ability.kind==='intimidate') battle.enemy.stats.atk=Math.floor(battle.enemy.stats.atk*0.9);
-  document.getElementById('battleSetup').style.display='none';
-  document.getElementById('battleLog').innerHTML='';
-  blog(`<span class="warn">[对战开始] 你的 ${battle.player.name} VS ${battle.enemyLabel||('野生 '+battle.enemy.name)}！</span>`);
-  updateBattleUI(); renderMoveBtns();
-}
-function startBattle(){
-  const eSpecies=SPIRITS[Math.floor(Math.random()*SPIRITS.length)];
-  const eStage=Math.floor(Math.random()*3);
-  const eNature=randomNature();
-  doBattle({species:eSpecies,stage:eStage,nature:eNature});
-}
-function launchTrainer(region){
-  const id=pick(region.pool);
-  const sp=SPIRITS.find(x=>x.id===id);
-  const nat=NATURES.find(n=>n.name==='固执')||NATURES[1];
-  doBattle({species:sp,stage:2,nature:nat},{isTrainer:true,enemyLabel:`训练家·${region.name}守护者`});
-  document.getElementById('battle').scrollIntoView();
-}
-function shakeEl(el){ el.classList.add('hit'); setTimeout(()=>el.classList.remove('hit'),450); }
-function burst(el,color){
-  const r=el.getBoundingClientRect();
-  const d=document.createElement('div'); d.className='burst';
-  d.style.left=(r.left+r.width/2)+'px'; d.style.top=(r.top+r.height/2)+'px';
-  d.style.background=`radial-gradient(circle, ${color}, transparent 70%)`;
-  document.body.appendChild(d); setTimeout(()=>d.remove(),600);
-}
-function floatText(el,text,color){
-  const r=el.getBoundingClientRect();
-  const d=document.createElement('div'); d.className='float-dmg'; d.textContent=text; d.style.color=color;
-  d.style.left=(r.left+r.width/2)+'px'; d.style.top=(r.top+r.height/2)+'px';
-  document.body.appendChild(d); setTimeout(()=>d.remove(),900);
-}
-function blog(msg,cls='info'){
-  const l=document.getElementById('battleLog');
-  const d=document.createElement('div'); d.className=cls; d.innerHTML=msg;
-  l.appendChild(d); l.scrollTop=l.scrollHeight;
-}
-function updateBattleUI(){
-  if(!battle) return;
-  const set=(pre,f)=>{
-    document.getElementById(pre+'Name').textContent=f.name;
-    document.getElementById(pre+'Model').innerHTML=`<span class="emo">${f.species.emoji[f.stage]}</span>`;
-    document.getElementById(pre+'Model').style.setProperty('--aura',typeInfo(f.species.type).color);
-    document.getElementById(pre+'Type').textContent=typeInfo(f.species.type).name+'系 · '+(f.nature.name||'坦率');
-    const pct=f.hp/f.maxHp*100;
-    const bar=document.getElementById(pre+'HpBar');
-    bar.style.width=pct+'%'; bar.className='hpfill'+(pct<=30?' low':pct<=60?' mid':'');
-    document.getElementById(pre+'HpTxt').textContent=`${f.hp} / ${f.maxHp}`;
-  };
-  set('p',battle.player); set('e',battle.enemy);
-}
-function renderMoveBtns(){
-  const grid=document.getElementById('moveGrid');
-  if(!battle){ grid.innerHTML=''; return; }
-  grid.innerHTML=battle.player.moves.map((m,i)=>{
-    const ti=typeInfo(m.type);
-    return `<button class="move-btn" onclick="playerMove(${i})" data-i="${i}">
-      <span class="mname">${m.name}</span>
-      <span class="mmeta"><span class="ty" style="background:${ti.color};font-size:11px">${ti.name}</span> 威力 ${m.power} · 命中 ${m.acc}</span>
-    </button>`;
-  }).join('');
-  enableMoves();
-}
-function enableMoves(){ document.querySelectorAll('#moveGrid .move-btn').forEach(b=>b.disabled=false); }
-function disableMoves(){ document.querySelectorAll('#moveGrid .move-btn').forEach(b=>b.disabled=true); }
-
-async function playerMove(idx){
-  if(!battle || battle.over || battleBusy) return;
-  battleBusy=true; disableMoves();
-  const pMove=battle.player.moves[idx];
-  const eMove=battle.enemy.moves[Math.floor(Math.random()*battle.enemy.moves.length)];
-  const pFirst=battle.player.stats.spd>=battle.enemy.stats.spd;
-  const seq = pFirst ? [['p',pMove],['e',eMove]] : [['e',eMove],['p',pMove]];
-  for(const [who,move] of seq){
-    if(battle.over) break;
-    if(who==='p') await executeMove(battle.player,battle.enemy,move,true);
-    else await executeMove(battle.enemy,battle.player,move,false);
-  }
-  if(!battle.over){ applyRegen(); updateBattleUI(); battleBusy=false; enableMoves(); }
-}
-async function executeMove(atk,def,move,isPlayer){
-  if(Math.random()*100>move.acc){ blog(`${atk.name} 的「${move.name}」没有命中！`,'no'); await sleep(480); return; }
-  const {dmg,tm,crit}=calcDamage(atk,def,move);
-  def.hp=Math.max(0,def.hp-dmg);
-  const defEl=document.getElementById(isPlayer?'eModel':'pModel');
-  const color=move.type==='none'?TYPE_NONE.color:TYPES[move.type].color;
-  burst(defEl,color); shakeEl(defEl);
-  let msg=`${atk.name} 使用「${move.name}」，造成 ${dmg} 伤害`;
-  if(tm===2) msg+=' <b class="warn">效果拔群！</b>';
-  else if(tm===0.5) msg+=' 效果不佳…';
-  else if(tm===0) msg+=' 没有效果…';
-  if(crit) msg+=' <b class="warn">暴击！</b>';
-  blog(msg, tm===2?'ok':tm===0?'no':'info');
-  floatText(defEl, dmg===0?'MISS':'-'+dmg, tm===2?'#ffd166':crit?'#fb7185':'#ffffff');
-  updateBattleUI();
-  await sleep(680);
-  if(def.hp<=0) endBattle(isPlayer?'win':'lose');
-}
-function applyRegen(){
-  [battle.player,battle.enemy].forEach(f=>{
-    if(f.hp>0 && f.species.ability.kind==='regen' && f.hp<f.maxHp){
-      f.hp=Math.min(f.maxHp,f.hp+Math.floor(f.maxHp*0.04));
-    }
-  });
-}
-function endBattle(result){
-  if(battle.over) return;
-  battle.over=true; battleBusy=false; disableMoves();
-  if(result==='win'){
-    blog(`<b class="ok">[胜利] ${battle.enemyLabel||('野生的 '+battle.enemy.name)} 倒下了！</b>`);
-    if(battle.instIdx>=0 && collection[battle.instIdx]){
-      const c=collection[battle.instIdx];
-      c.bond=Math.min(MAX_BOND,c.bond+2); saveColl(); renderColl(); updateStats(); populateBattleSel();
-    }
-    if(battle.isTrainer){
-      inventory.stone++; saveInv(); renderInv();
-      toast('🏆 战胜训练家！获得 进化石 ×1');
-      wlog(`<span class="ok">[胜利] 你击败了 ${battle.enemyLabel}，获得 进化石 ×1！</span>`,'ok');
-    } else {
-      toast('🏆 战斗胜利！亲密度 +2');
-    }
-  } else {
-    blog(`<b class="no">[失败] 你的 ${battle.player.name} 倒下了…</b>`);
-    toast('战斗失败，再接再厉！');
-  }
-  document.getElementById('battleSetup').style.display='flex';
-}
-
-/* ================= 统计 & 初始化 ================= */
-function updateStats(){
-  document.getElementById('statCaught').textContent=collection.reduce((a,c)=>a+c.count,0);
-  const st=document.getElementById('statTotal'); if(st) st.textContent=SPIRITS.length;
-  const sy=document.getElementById('statTypes'); if(sy) sy.textContent=Object.keys(TYPES).length;
-  const sr=document.getElementById('statRegions'); if(sr) sr.textContent=REGIONS.length;
-}
-
-renderMap(); selectRegion(REGIONS[0].id);
-renderFilters(); renderDex(); renderColl(); updateStats(); renderMatrix(); renderTcSummary(); populateBattleSel();
-renderInv(); updateBallCount();
+boot();
 </script>
 </body>
 </html>
