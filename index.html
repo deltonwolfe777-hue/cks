@@ -218,6 +218,41 @@
   .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(40px);background:#0b1026;border:1px solid var(--accent);
     color:#fff;padding:11px 20px;border-radius:13px;box-shadow:0 18px 50px rgba(0,0,0,.5);opacity:0;transition:.3s;z-index:300;font-size:13.5px}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* ===== 打击感 / 经验值 / 像素特效层 ===== */
+  .b-scene{will-change:transform}
+  .fx-canvas,.pf-canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;
+    image-rendering:pixelated;image-rendering:crisp-edges;z-index:3}
+  .hitstop .b-sprite,.hitstop .fx-canvas,.hitstop .pf-canvas{animation-play-state:paused}
+  .b-sprite.lunge-r{animation:lungeR .24s ease-out}
+  .b-sprite.lunge-l{animation:lungeL .24s ease-out}
+  @keyframes lungeR{0%,100%{transform:translate(0,0)}45%{transform:translate(18px,-10px) scale(1.05)}}
+  @keyframes lungeL{0%,100%{transform:translate(0,0)}45%{transform:translate(-18px,10px) scale(1.05)}}
+  .b-sprite.hurt{animation:hurtFlash .3s ease-out}
+  @keyframes hurtFlash{0%{filter:brightness(4.5) saturate(0)}60%{filter:brightness(1.8)}100%{filter:drop-shadow(0 10px 10px rgba(0,0,0,.45))}}
+  .b-sprite.faint{animation:faintFall .7s ease-in forwards}
+  @keyframes faintFall{0%{opacity:1;transform:translateY(0) rotate(0)}100%{opacity:0;transform:translateY(46px) rotate(-22deg) scale(.78)}}
+  .bexp{height:4px;border-radius:999px;background:rgba(255,255,255,.14);overflow:hidden;margin-top:5px}
+  .bexp i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#22d3ee,#7c5cff);
+    transition:width .55s ease-out;box-shadow:0 0 8px rgba(34,211,238,.85)}
+  .bexptext{font-size:10px;color:#7bd4ee;margin-top:3px;text-align:right;letter-spacing:.3px;font-weight:700}
+  .tier-badge{font-size:9.5px;font-weight:900;padding:1px 6px;border-radius:999px;color:#0b1026;margin-left:5px}
+  .float-dmg.crit{font-size:35px;text-shadow:0 0 16px #fb7185,0 2px 8px #000}
+  .float-dmg.super{font-size:31px;text-shadow:0 0 14px #ffd166,0 2px 8px #000}
+  .lvup-banner{position:fixed;left:50%;top:24%;transform:translate(-50%,-50%);z-index:130;pointer-events:none;
+    font-size:25px;font-weight:900;color:#fff;text-shadow:0 0 22px #22d3ee,0 4px 14px rgba(0,0,0,.9);
+    animation:lvupIn 1.45s ease-out forwards}
+  @keyframes lvupIn{0%{opacity:0;transform:translate(-50%,-50%) scale(.45)}18%{opacity:1;transform:translate(-50%,-50%) scale(1.16)}
+    68%{opacity:1;transform:translate(-50%,-62%) scale(1)}100%{opacity:0;transform:translate(-50%,-116%) scale(.94)}}
+  .party-lv{font-size:10px;font-weight:900;color:var(--gold);background:rgba(255,208,102,.16);
+    border-radius:6px;padding:1px 5px;border:1px solid rgba(255,208,102,.3)}
+  .xp{display:flex;align-items:center;gap:5px;margin-top:3px}
+  .xpbar{flex:1;height:3px;border-radius:999px;background:rgba(255,255,255,.14);overflow:hidden}
+  .xpbar i{display:block;height:100%;background:linear-gradient(90deg,#22d3ee,#7c5cff);transition:width .45s}
+  .xp .xptxt{font-size:9.5px;color:var(--txt-dim);white-space:nowrap}
+  .sound-btn.on{border-color:var(--accent-2)!important;color:#a5f3fc}
+  .fx-credit{font-size:11px;color:var(--txt-dim);opacity:.75;margin-top:14px;line-height:1.7;border-top:1px dashed rgba(255,255,255,.12);padding-top:10px}
+  .fx-credit b{color:var(--accent-2)}
 </style>
 </head>
 <body>
@@ -234,6 +269,7 @@
       <button onclick="openDex()">📖 图鉴</button>
       <button onclick="openTypes()">⚔️ 属性克制</button>
       <button onclick="openHelp()">❓ 玩法</button>
+      <button id="soundBtn" class="sound-btn" onclick="toggleSound()">🔊</button>
     </div>
   </div>
 </header>
@@ -250,10 +286,10 @@
       <div class="flash" id="flash"></div>
 
       <div class="battle" id="battleScreen" hidden>
-        <div class="b-scene">
+        <div class="b-scene" id="bScene">
           <div class="b-side enemy">
             <div class="b-hpbox">
-              <div class="b-name"><span id="bEnemyName">野生精灵</span><span class="b-lv" id="bEnemyLv">Lv.5</span></div>
+              <div class="b-name"><span><span id="bEnemyName">野生精灵</span><span class="tier-badge" id="bTierBadge" style="display:none">野生</span></span><span class="b-lv" id="bEnemyLv">Lv.5</span></div>
               <div class="b-hp"><i id="bEnemyHp" style="width:100%"></i></div>
             </div>
             <div class="b-sprite" id="bEnemySprite">🐭</div>
@@ -264,8 +300,12 @@
               <div class="b-name"><span id="bPlayerName">我的精灵</span><span class="b-lv" id="bPlayerLv">Lv.5</span></div>
               <div class="b-hp"><i id="bPlayerHp" style="width:100%"></i></div>
               <div class="b-hptext" id="bPlayerHpText">—</div>
+              <div class="bexp"><i id="bPlayerExp" style="width:0%"></i></div>
+              <div class="bexptext" id="bPlayerExpText">EXP 0 / 0</div>
             </div>
           </div>
+          <canvas class="pf-canvas" id="pfCanvas" width="320" height="200"></canvas>
+          <canvas class="fx-canvas" id="fxCanvas" width="320" height="200"></canvas>
           <div class="b-ball" id="bBall">🔴</div>
         </div>
         <div class="b-bottom">
@@ -413,8 +453,24 @@ const SPIRITS = [
 ];
 SPIRITS.forEach(s=>{ s.ability=ABILITIES[s.type]; s.talentObj=TALENTS[s.talent]; });
 const EVO_BOND=[0,4,9];
+const EVO_LV=[0,7,18];
 const MAX_BOND=12;
 const MAX_PARTY=6;
+const MAX_LV=50;
+
+/* 经验：升到 L+1 需要 (L+1)^3 - L^3 */
+function expNeed(lv){ lv=Math.max(1,Math.min(MAX_LV-1,lv||1)); return 3*lv*lv+3*lv+1; }
+function expTotalAt(lv){ return Math.pow(Math.max(1,lv||1),3); }
+/* 种族基础经验：由种族值总和推导 */
+function baseExp(sp){ const b=sp.base; return Math.round((b.hp*0.5+b.atk+b.def+b.spd)/4); }
+
+/* 敌方层级：普通 / 稀有 / 训练家 / 霸主，经验倍率不同 */
+const TIERS={
+  wild:    {name:'野生',  mult:1.0, color:'#9aa6d6'},
+  rare:    {name:'稀有',  mult:2.2, color:'#22d3ee'},
+  trainer: {name:'训练家',mult:1.6, color:'#ffd166'},
+  boss:    {name:'霸主',  mult:3.2, color:'#fb7185'}
+};
 
 /* ===================== 地图 ===================== */
 const TILE=32, MAP_W=48, MAP_H=34;
@@ -444,7 +500,7 @@ const TRAINER_DEFS=[
   {key:'snow',   name:'冰晶使 霜',      emoji:'❄️',   pool:['s8','s13'],  stage:2},
   {key:'desert', name:'沙盗 漠',        emoji:'🥷',   pool:['s13','s4'],  stage:1},
   {key:'ruins',  name:'守夜人 冥',      emoji:'🕯️',   pool:['s10','s6'],  stage:2},
-  {key:'ridge',  name:'龙骑士 玦',      emoji:'🐲',   pool:['s15','s14'], stage:2}
+  {key:'ridge',  name:'龙骑士 玦',      emoji:'🐲',   pool:['s15','s14'], stage:2, boss:true}
 ];
 
 let map=[], biomeMap=[];
@@ -515,7 +571,11 @@ const keyOf=(x,y)=>x+','+y;
 
 function loadAll(){
   try{ const c=JSON.parse(localStorage.getItem('sr_coll_v2')); if(Array.isArray(c)) collection=c; }catch(e){ collection=[]; }
-  collection.forEach(x=>{ if(!x.nature) x.nature=randomNature().name; });
+  collection.forEach(x=>{
+    if(!x.nature) x.nature=randomNature().name;
+    if(typeof x.lv!=='number') x.lv=20;   // 旧存档迁移：以 Lv.20 为基准
+    if(typeof x.exp!=='number') x.exp=0;
+  });
   try{ const g=JSON.parse(localStorage.getItem('sr_game_v2')); if(g&&typeof g.balls==='number'){ game=Object.assign(game,g); if(!Array.isArray(game.defeated)) game.defeated=[]; } }catch(e){}
   if(game.pos&&typeof game.pos.x==='number'){ player.x=game.pos.x; player.y=game.pos.y; }
 }
@@ -531,14 +591,27 @@ const pick=a=>a[Math.floor(Math.random()*a.length)];
 
 /* ===================== 数值 ===================== */
 function stageScale(stage){ return 1+stage*0.18; }
-function movesFor(s){
+/* 等级对数值的影响：Lv.20 为基准 1.0，上限 1.55 */
+function lvScale(lv){ return Math.max(.7, Math.min(1.55, 1+((lv||20)-20)*0.012)); }
+/* 等级对 HP 的影响更明显（Lv.20 为基准 1.0） */
+function lvHpScale(lv){ return Math.max(.78, Math.min(1.85, 1+((lv||20)-20)*0.022)); }
+
+/* 技能随等级解锁：撞击(1) / 本系轻招(1) / 本系中招(8) / 本系重招(16) */
+const MOVE_LV=[1,8,16];
+function movesFor(s,lv){
+  const L=lv||20;
   const pool=TYPE_MOVES[s.type]||[];
-  return [...pool.map(m=>({name:m.name,power:m.power,acc:m.acc,type:s.type})),
-          {name:'撞击',power:40,acc:100,type:'none'}];
+  const list=[{name:'撞击',power:40,acc:100,type:'none',lv:1}];
+  pool.forEach((m,i)=>{
+    const need=MOVE_LV[i]||1;
+    if(L>=need) list.push({name:m.name,power:m.power,acc:m.acc,type:s.type,lv:need});
+  });
+  return list;
 }
-function buildStats(species,nature,stage){
-  const sc=stageScale(stage);
-  let hp=species.base.hp*2*sc+60, atk=species.base.atk*sc, def=species.base.def*sc, spd=species.base.spd*sc;
+function buildStats(species,nature,stage,lv){
+  const sc=stageScale(stage)*lvScale(lv);
+  const hpSc=stageScale(stage)*lvHpScale(lv);
+  let hp=(species.base.hp*2+60)*hpSc, atk=species.base.atk*sc, def=species.base.def*sc, spd=species.base.spd*sc;
   const apply=(s,m)=>{ if(s==='atk')atk*=m; else if(s==='def')def*=m; else if(s==='spd')spd*=m; else if(s==='hp')hp*=m; };
   if(nature.up)apply(nature.up,1.1);
   if(nature.down)apply(nature.down,0.9);
@@ -548,21 +621,44 @@ function buildStats(species,nature,stage){
   if(species.ability.kind==='swift')spd*=1.1;
   return {hp:Math.floor(hp),atk:Math.floor(atk),def:Math.floor(def),spd:Math.floor(spd)};
 }
-function buildFighter(species,stage,nature){
-  const stats=buildStats(species,nature,stage);
-  return {species,stage,nature,name:species.stages[stage],stats,hp:stats.hp,maxHp:stats.hp,moves:movesFor(species)};
+function buildFighter(species,stage,nature,lv){
+  const L=lv||20;
+  const stats=buildStats(species,nature,stage,L);
+  return {species,stage,nature,lv:L,name:species.stages[stage],stats,hp:stats.hp,maxHp:stats.hp,moves:movesFor(species,L)};
 }
 function maxHpOf(inst){
   const s=SPIRITS.find(x=>x.id===inst.id); if(!s) return 1;
-  return buildStats(s,findNature(inst.nature),inst.stage).hp;
+  return buildStats(s,findNature(inst.nature),inst.stage,inst.lv||20).hp;
 }
 function hpOf(inst){ return (inst.hp==null)?maxHpOf(inst):Math.max(0,Math.min(inst.hp,maxHpOf(inst))); }
 function fighterFromInstance(inst){
   const s=SPIRITS.find(x=>x.id===inst.id);
-  const f=buildFighter(s,inst.stage,findNature(inst.nature));
+  const f=buildFighter(s,inst.stage,findNature(inst.nature),inst.lv||20);
   if(inst.hp==null||inst.hp>f.maxHp) inst.hp=f.maxHp;
   f.hp=inst.hp;
   return f;
+}
+
+/* 获得经验（会自动升级、涨上限、解锁招式）。返回变化摘要 */
+function gainExp(inst,amount){
+  const empty={ups:0,learned:[],gain:amount,from:0,to:0};
+  if(!inst||!amount) return empty;
+  const s=SPIRITS.find(x=>x.id===inst.id); if(!s) return empty;
+  if(typeof inst.lv!=='number') inst.lv=20;
+  if(typeof inst.exp!=='number') inst.exp=0;
+  const from=inst.lv, beforeMoves=movesFor(s,inst.lv).length;
+  inst.exp+=amount;
+  let ups=0;
+  while(inst.lv<MAX_LV && inst.exp>=expNeed(inst.lv)){
+    inst.exp-=expNeed(inst.lv);
+    const oldMax=maxHpOf(inst);
+    inst.lv++; ups++;
+    const newMax=maxHpOf(inst);
+    if(inst.hp!=null) inst.hp=Math.min(newMax, inst.hp+Math.max(0,newMax-oldMax));
+  }
+  if(inst.lv>=MAX_LV) inst.exp=0;
+  const learned=movesFor(s,inst.lv).slice(beforeMoves).map(m=>m.name);
+  return {ups,learned,gain:amount,from,to:inst.lv};
 }
 function calcDamage(atk,def,move){
   const lvl=50;
@@ -575,8 +671,12 @@ function calcDamage(atk,def,move){
   let crit=1;
   if(atk.species.talentObj.kind==='crit'&&Math.random()<.15)crit=1.5;
   const rnd=.85+Math.random()*.15;
-  let dmg=Math.floor(base*stab*tm*boost*crit*rnd);
-  if(tm===0)dmg=0;
+  /* 0.62 全局伤害系数 + 单次不超过目标 52% 最大 HP，避免被一发带走、也保证战斗有来有回 */
+  let dmg=Math.floor(base*stab*tm*boost*crit*rnd*0.62);
+  if(tm===0) dmg=0;
+  const cap=Math.max(6,Math.ceil((def.maxHp||120)*0.52));
+  dmg=Math.min(dmg,cap);
+  if(tm>0) dmg=Math.max(Math.round(move.power*0.1),dmg);   // 保底伤害，避免被硬抗拖成拉锯
   return {dmg:Math.max(0,dmg),tm,crit:crit>1};
 }
 
@@ -621,7 +721,7 @@ function buildEntities(){
   TRAINER_DEFS.forEach(def=>{
     const b=BIOME_BY_KEY[def.key];
     const p=snapWalkable(b.cx+2,b.cy+2); occupied.add(keyOf(p.x,p.y));
-    entities.trainers.push({key:def.key,name:def.name,emoji:def.emoji,pool:def.pool,stage:def.stage,
+    entities.trainers.push({key:def.key,name:def.name,emoji:def.emoji,pool:def.pool,stage:def.stage,boss:!!def.boss,
       x:p.x,y:p.y,defeated:game.defeated.includes(def.key)});
   });
   const spots=[];
@@ -706,12 +806,14 @@ function renderParty(){
     const mh=maxHpOf(c), hp=hpOf(c), pct=Math.round(hp/mh*100);
     const cls=pct<=25?'low':pct<=55?'mid':'';
     const fainted=hp<=0;
+    const lv=c.lv||20, need=expNeed(lv), xp=Math.min(100,Math.round((c.exp||0)/need*100));
     return `<div class="party-row ${i===activeIdx?'active':''} ${fainted?'fainted':''}" onclick="setActive(${i})">
       <div class="party-emo">${fainted?'💤':s.emoji[c.stage]}</div>
       <div class="party-mid">
-        <div class="party-nm">${s.stages[c.stage]} <span class="ty" style="background:${TYPES[s.type].color};font-size:10px">${TYPES[s.type].name}</span></div>
+        <div class="party-nm">${s.stages[c.stage]} <span class="party-lv">Lv.${lv}</span> <span class="ty" style="background:${TYPES[s.type].color};font-size:10px">${TYPES[s.type].name}</span></div>
         <div class="hpbar"><i class="${cls}" style="width:${pct}%"></i></div>
         <div class="party-sub">HP ${hp}/${mh} · 羁绊 ${c.bond}/${MAX_BOND}${c.stage<2?'':' · 最终形态'}</div>
+        <div class="xp"><div class="xpbar"><i style="width:${xp}%"></i></div><span class="xptxt">${lv>=MAX_LV?'MAX':`${Math.floor(c.exp||0)}/${need}`}</span></div>
       </div>
     </div>`;
   }).join('');
@@ -729,12 +831,15 @@ function renderProgress(){
   const trainers=entities.trainers.length||8;
   const def=game.defeated.length;
   const dex=new Set(collection.map(c=>c.id)).size;
+  const avg=collection.length?Math.round(collection.reduce((a,c)=>a+(c.lv||20),0)/collection.length):0;
+  const top=collection.length?Math.max(...collection.map(c=>c.lv||20)):0;
   document.getElementById('progress').innerHTML=`
     <div class="prog-row">🏅 击败训练家 <b>${def}/${trainers}</b></div>
     <div class="pbar"><i style="width:${def/trainers*100}%"></i></div>
     <div class="prog-row">📖 图鉴收集 <b>${dex}/${SPIRITS.length}</b></div>
     <div class="pbar"><i style="width:${dex/SPIRITS.length*100}%"></i></div>
-    <div class="tips">走进 <b>高草</b> 遇敌 · 战斗中投球捕捉 · 打赢训练家获得进化石</div>
+    <div class="prog-row">⭐ 队伍等级 <b>Lv.${top}</b> · 平均 <b>${avg}</b></div>
+    <div class="tips">走进 <b>高草</b> 遇敌 · 打赢获得经验升级 · <b>👑霸主</b>经验 3.2 倍</div>
   `;
 }
 
@@ -783,21 +888,333 @@ function setActive(i){
   activeIdx=i; renderParty();
 }
 
+/* =========================================================================
+   打击感系统：pixelfx 像素特效 + 合成音效 + 顿帧(hitstop) + 震屏
+   特效库：pixelfx  https://github.com/patch-gg/pixelfx  (MIT)
+   运行时从 jsDelivr 按需加载；若网络不可用则自动降级为内置粒子特效。
+   ========================================================================= */
+const PF_BASE='https://cdn.jsdelivr.net/gh/patch-gg/pixelfx@main/src/';
+const FXW=320, FXH=200;
+const PFX_CREDIT='像素特效由 pixelfx（patch-gg/pixelfx · MIT）提供';
+
+/* 属性配色（暗→亮 7 阶），作为 pixelfx 的 palette 覆盖 */
+const PAL={
+  fire:['#3a0d05','#7a1f08','#c93c10','#f2721d','#ffa93a','#ffdf7a','#fff6d0'],
+  water:['#04162e','#0b2f5c','#155bb0','#2f8ce0','#5cc4f0','#a8ecff','#ffffff'],
+  grass:['#0a2410','#14401d','#226b2c','#39a24a','#68d46a','#b6f18a','#f0ffd8'],
+  electric:['#2b1f02','#5c4205','#a87a08','#f0b70d','#ffe03a','#fff49c','#ffffff'],
+  ice:['#08202e','#0f3b52','#1c6b86','#3fa5c4','#7fe0ee','#c8f6ff','#ffffff'],
+  rock:['#1c140c','#3a2a18','#63472a','#93703f','#c09a63','#e6c99a','#fff4dc'],
+  dark:['#100617','#251038','#431c63','#6a2f96','#9b58d0','#c99cf0','#f0e2ff'],
+  light:['#3a2a06','#6b4f08','#b08b10','#f0cd28','#ffe970','#fff8c0','#ffffff'],
+  psychic:['#2b0820','#4f0f3b','#852059','#c93b86','#f57ab5','#ffb9da','#fff0f7'],
+  wind:['#062218','#0c4030','#136b4b','#1fa06f','#4fd6a0','#a6f5cf','#ecfff6'],
+  dragon:['#0a0a25','#171449','#2c2578','#4a3cb8','#7a6af0','#b5aaff','#eeeaff'],
+  none:['#1a1c2c','#2f3450','#4a5178','#6f78a8','#9aa6d6','#c8d2f0','#ffffff']
+};
+/* 属性 → 命中特效（pixelfx 模块 id） */
+const FX_HIT={
+  fire:'fire/fire-ring', water:'water/splash', grass:'nature/leaf-storm',
+  electric:'lightning/zap-hit', ice:'ice/frost-nova', rock:'nature/boulder',
+  dark:'shadow/dark-explosion', light:'holy/sunburst', psychic:'arcane/mana-burst',
+  wind:'nature/tornado', dragon:'melee/heavy-cleave', none:'impacts/hit-spark'
+};
+
+let pfState='idle';                       // idle | loading | ready | failed
+let pfCore=null, pfMods=Object.create(null), pfPromise=null;
+let pfFrame=null, pfCtx=null, pfImg=null, pfItems=[];
+let fxCtx=null, fxParts=[];
+let loopRAF=0, loopLast=0, fxPaused=false;
+let shakeAmp=0, shakeLeft=0;
+
+function initFxCanvases(){
+  const pc=document.getElementById('pfCanvas'), fc=document.getElementById('fxCanvas');
+  if(pc&&!pfCtx){ pfCtx=pc.getContext('2d'); pfCtx.imageSmoothingEnabled=false; }
+  if(fc&&!fxCtx){ fxCtx=fc.getContext('2d'); fxCtx.imageSmoothingEnabled=false; }
+}
+function resetFx(){
+  pfItems=[]; fxParts=[]; shakeLeft=0; shakeAmp=0;
+  const sc=document.getElementById('bScene'); if(sc) sc.style.transform='';
+  if(pfCtx) pfCtx.clearRect(0,0,FXW,FXH);
+  if(fxCtx) fxCtx.clearRect(0,0,FXW,FXH);
+  document.body.classList.remove('hitstop');
+  fxPaused=false;
+}
+async function ensurePFX(){
+  if(pfState==='ready') return pfCore;
+  if(pfState==='failed') return null;
+  if(pfPromise) return pfPromise;
+  pfState='loading';
+  pfPromise=(async()=>{
+    try{
+      const core=await import(PF_BASE+'core/index.js');
+      pfCore=core;
+      pfFrame=core.createFrame(FXW,FXH);
+      pfImg=new ImageData(FXW,FXH);
+      pfState='ready';
+      return core;
+    }catch(e){
+      pfState='failed';
+      console.warn('[pixelfx] 无法加载，已切换为内置像素特效：',e&&e.message);
+      return null;
+    }
+  })();
+  return pfPromise;
+}
+async function pfLoad(id){
+  if(pfMods[id]) return pfMods[id];
+  const mod=await import(PF_BASE+'fx/'+id+'.js');
+  pfMods[id]=mod;
+  return mod;
+}
+/* 在画布坐标 pos 处播放一个 pixelfx 特效 */
+function pfAt(id,pos,opt){
+  opt=opt||{};
+  if(pfState==='failed') return false;
+  ensurePFX();
+  if(pfState!=='ready') return false;
+  (async()=>{
+    try{
+      const mod=await pfLoad(id);
+      if(pfState!=='ready') return;
+      const fx=pfCore.createFx(mod,{
+        x:Math.round(pos.x), y:Math.round(pos.y),
+        flip:!!opt.flip,
+        palette:opt.palette||PAL.none,
+        seed:(Math.random()*99999)|0
+      });
+      pfItems.push(fx);
+      kickLoop();
+    }catch(e){/* 单个特效失败不影响游戏 */}
+  })();
+  return true;
+}
+/* 内置粒子（始终可用，作为底噪与降级方案） */
+function burstPixels(x,y,pal,n,power){
+  power=power||1;
+  for(let i=0;i<n;i++){
+    const a=Math.random()*Math.PI*2, sp=(50+Math.random()*190)*power;
+    fxParts.push({
+      x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-70,
+      life:0,ttl:.26+Math.random()*.44,
+      r:1+((Math.random()*2)|0),
+      c:pal[3+((Math.random()*4)|0)]||'#fff',g:430
+    });
+  }
+  kickLoop();
+}
+function kickLoop(){
+  if(loopRAF) return;
+  const scr=document.getElementById('battleScreen');
+  if(!scr||scr.hidden) return;
+  loopLast=0;
+  loopRAF=requestAnimationFrame(fxTick);
+}
+function fxTick(ts){
+  const dt=loopLast?Math.min(.05,(ts-loopLast)/1000):.016;
+  loopLast=ts;
+
+  /* 震屏 */
+  const scene=document.getElementById('bScene');
+  if(shakeLeft>0){
+    shakeLeft-=dt;
+    const k=Math.max(0,shakeLeft);
+    if(scene) scene.style.transform=
+      `translate(${(Math.random()-.5)*2*shakeAmp*k*3.4}px,${(Math.random()-.5)*2*shakeAmp*k*3.4}px)`;
+    if(shakeLeft<=0&&scene) scene.style.transform='';
+  }
+
+  if(!fxPaused){
+    if(fxCtx){
+      fxCtx.clearRect(0,0,FXW,FXH);
+      for(let i=fxParts.length-1;i>=0;i--){
+        const p=fxParts[i]; p.life+=dt;
+        if(p.life>=p.ttl){ fxParts.splice(i,1); continue; }
+        p.vy+=p.g*dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vx*=.985;
+        const k=1-p.life/p.ttl, sz=Math.max(1,Math.round(p.r*k+1));
+        fxCtx.globalAlpha=Math.max(0,k);
+        fxCtx.fillStyle=p.c;
+        fxCtx.fillRect(Math.round(p.x),Math.round(p.y),sz,sz);
+      }
+      fxCtx.globalAlpha=1;
+    }
+    if(pfState==='ready'&&pfItems.length){
+      const c=pfCore;
+      c.clearFrame(pfFrame);
+      for(const fx of pfItems) fx.draw(pfFrame,'back');
+      for(const fx of pfItems) fx.draw(pfFrame,'front');
+      c.composite(pfFrame,pfImg.data,null);
+      if(pfCtx) pfCtx.putImageData(pfImg,0,0);
+      for(const fx of pfItems) fx.update(dt);
+      pfItems=pfItems.filter(fx=>!fx.done());
+    } else if(pfCtx){
+      pfCtx.clearRect(0,0,FXW,FXH);
+    }
+  }
+
+  if(fxParts.length||pfItems.length||shakeLeft>0){
+    loopRAF=requestAnimationFrame(fxTick);
+  } else {
+    loopRAF=0;
+    if(pfCtx) pfCtx.clearRect(0,0,FXW,FXH);
+    if(fxCtx) fxCtx.clearRect(0,0,FXW,FXH);
+  }
+}
+function shakeCam(amp,dur){ shakeAmp=amp; shakeLeft=dur; kickLoop(); }
+/* 顿帧：命中瞬间冻结画面（打感的来源） */
+async function hitStop(ms){
+  if(ms<=0) return;
+  fxPaused=true;
+  document.body.classList.add('hitstop');
+  await sleep(ms);
+  document.body.classList.remove('hitstop');
+  fxPaused=false;
+}
+function elCenter(el){
+  const scene=document.getElementById('bScene');
+  if(!el||!scene) return {x:FXW/2,y:FXH/2};
+  const r=el.getBoundingClientRect(), s=scene.getBoundingClientRect();
+  if(!s.width||!s.height) return {x:FXW/2,y:FXH/2};
+  return {
+    x:Math.max(10,Math.min(FXW-10,(r.left+r.width/2-s.left)/s.width*FXW)),
+    y:Math.max(10,Math.min(FXH-10,(r.top+r.height/2-s.top)/s.height*FXH))
+  };
+}
+function hurtSprite(el){
+  if(!el) return;
+  el.classList.remove('hurt'); void el.offsetWidth; el.classList.add('hurt');
+}
+function lungeSprite(el,dir){
+  if(!el) return;
+  const cls=dir>0?'lunge-r':'lunge-l';
+  el.classList.remove('lunge-r','lunge-l'); void el.offsetWidth; el.classList.add(cls);
+  setTimeout(()=>el.classList.remove(cls),260);
+}
+/* 一次命中的全部表现：特效 + 粒子 + 震屏 + 顿帧 + 音效 */
+async function impactFx(type,pos,power,isPlayer,r){
+  const pal=PAL[type]||PAL.none;
+  pfAt(FX_HIT[type]||'impacts/hit-spark',pos,{palette:pal,flip:!isPlayer});
+  if(r&&r.crit) pfAt('impacts/crit-hit',pos,{palette:PAL.fire,flip:!isPlayer});
+  burstPixels(pos.x,pos.y,pal,Math.round(14+16*power),power);
+  shakeCam(2.6*power,.24);
+  sfx(r&&r.crit?'crit':(r&&r.tm>1)?'super':(r&&r.tm>0&&r.tm<1)?'weak':'hit');
+  await hitStop(Math.round(60+70*power));
+}
+
+/* ===================== 合成音效（WebAudio，无外部音频文件） ===================== */
+let actx=null;
+let muted=localStorage.getItem('sr_mute')==='1';
+function audio(){
+  if(!actx){
+    try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return null; }
+  }
+  if(actx.state==='suspended') actx.resume().catch(()=>{});
+  return actx;
+}
+function beep(freq,dur,type,vol,to,delay){
+  const a=audio(); if(!a||muted) return;
+  type=type||'square'; vol=vol==null?.12:vol; delay=delay||0;
+  const t0=a.currentTime+delay;
+  const o=a.createOscillator(), g=a.createGain();
+  o.type=type; o.frequency.setValueAtTime(freq,t0);
+  if(to) o.frequency.exponentialRampToValueAtTime(Math.max(30,to),t0+dur);
+  g.gain.setValueAtTime(.0001,t0);
+  g.gain.linearRampToValueAtTime(vol,t0+.012);
+  g.gain.exponentialRampToValueAtTime(.0001,t0+dur);
+  o.connect(g).connect(a.destination);
+  o.start(t0); o.stop(t0+dur+.03);
+}
+function noiseBurst(dur,vol,freq,q,delay){
+  const a=audio(); if(!a||muted) return;
+  dur=dur||.16; vol=vol==null?.22:vol; freq=freq||1200; q=q||1;
+  const len=Math.max(1,Math.floor(a.sampleRate*dur));
+  const buf=a.createBuffer(1,len,a.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2);
+  const src=a.createBufferSource(); src.buffer=buf;
+  const f=a.createBiquadFilter(); f.type='lowpass'; f.frequency.value=freq; f.Q.value=q;
+  const g=a.createGain(); g.gain.value=vol;
+  src.connect(f).connect(g).connect(a.destination);
+  src.start(a.currentTime+(delay||0));
+}
+function sfx(name){
+  if(muted) return;
+  switch(name){
+    case 'hit':     noiseBurst(.15,.24,1800,1); beep(150,.13,'sine',.16,60); break;
+    case 'crit':    noiseBurst(.2,.3,3400,1.2); beep(430,.2,'square',.13,90); break;
+    case 'super':   noiseBurst(.19,.27,2600,1); beep(310,.16,'square',.12,80); break;
+    case 'weak':    noiseBurst(.1,.12,700,.8); break;
+    case 'miss':    noiseBurst(.16,.1,5200,.7); break;
+    case 'faint':   beep(320,.45,'triangle',.15,60); break;
+    case 'levelup': [523,659,784,1047].forEach((f,i)=>beep(f,.16,'triangle',.13,null,i*.09)); break;
+    case 'catch':   [659,880,1175].forEach((f,i)=>beep(f,.18,'sine',.12,null,i*.1)); break;
+    case 'coin':    beep(988,.08,'square',.1); beep(1319,.12,'square',.1,null,.08); break;
+    case 'boss':    beep(90,.55,'sawtooth',.14,45); noiseBurst(.4,.16,400,.6); break;
+    case 'heal':    [523,784].forEach((f,i)=>beep(f,.22,'sine',.1,null,i*.1)); break;
+    case 'ui':      beep(660,.05,'sine',.07); break;
+  }
+}
+function toggleSound(){
+  muted=!muted;
+  localStorage.setItem('sr_mute',muted?'1':'0');
+  syncSoundBtn();
+  if(!muted) sfx('ui');
+}
+function syncSoundBtn(){
+  const b=document.getElementById('soundBtn');
+  if(b){ b.textContent=muted?'🔇':'🔊'; b.classList.toggle('on',!muted); }
+}
+function lvBanner(text){
+  const d=document.createElement('div');
+  d.className='lvup-banner'; d.textContent=text;
+  document.body.appendChild(d);
+  setTimeout(()=>d.remove(),1500);
+}
+/* 伤害飘字：暴击/拔群更大更亮 */
+function floatNumber(el,text,r){
+  if(!el) return;
+  const rc=el.getBoundingClientRect();
+  const d=document.createElement('div');
+  const crit=!!(r&&r.crit), strong=!!(r&&r.tm>1), weak=!!(r&&r.tm>0&&r.tm<1);
+  d.className='float-dmg'+(crit?' crit':strong?' super':'');
+  d.textContent=text+(crit?'!':'');
+  d.style.color=strong?'#ffd166':crit?'#fb7185':weak?'#9aa6d6':'#fff';
+  d.style.left=(rc.left+rc.width/2)+'px';
+  d.style.top=(rc.top+rc.height/2)+'px';
+  document.body.appendChild(d);
+  setTimeout(()=>d.remove(),900);
+}
+
 /* ===================== 战斗 ===================== */
 function bSetMsg(t){ document.getElementById('bMsg').textContent=t; }
 function setHpBar(el,pct){ el.style.width=pct+'%'; el.className = pct<=25?'low':pct<=55?'mid':''; }
 function updateBattleUI(){
   if(!B) return;
   const e=B.enemy, p=B.player;
+  const inst=collection[B.activeIdx];
   document.getElementById('bEnemyName').textContent=e.name;
-  document.getElementById('bEnemyLv').textContent='Lv.'+(12+e.stage*9);
+  document.getElementById('bEnemyLv').textContent='Lv.'+(e.lv||20);
   document.getElementById('bEnemySprite').textContent=e.species.emoji[e.stage];
   setHpBar(document.getElementById('bEnemyHp'), Math.max(0,e.hp/e.maxHp*100));
   document.getElementById('bPlayerName').textContent=p.name;
-  document.getElementById('bPlayerLv').textContent='Lv.'+(12+p.stage*9);
+  document.getElementById('bPlayerLv').textContent='Lv.'+(p.lv||20);
   document.getElementById('bPlayerSprite').textContent=p.species.emoji[p.stage];
   setHpBar(document.getElementById('bPlayerHp'), Math.max(0,p.hp/p.maxHp*100));
   document.getElementById('bPlayerHpText').textContent=`${Math.max(0,p.hp)} / ${p.maxHp}`;
+  /* 层级徽章 */
+  const tb=document.getElementById('bTierBadge');
+  if(tb){
+    const t=TIERS[B.tier]||TIERS.wild;
+    tb.textContent=t.name;
+    tb.style.background=t.color;
+    tb.style.display=(B.tier&&B.tier!=='wild')?'inline-block':'none';
+  }
+  /* 经验条 */
+  if(inst){
+    const lv=inst.lv||20, need=expNeed(lv);
+    document.getElementById('bPlayerExp').style.width=Math.min(100,(inst.exp||0)/need*100)+'%';
+    document.getElementById('bPlayerExpText').textContent=
+      lv>=MAX_LV?'EXP MAX':`EXP ${Math.floor(inst.exp||0)} / ${need}`;
+  }
 }
 function renderBattleMenu(){
   const menu=document.getElementById('bMenu');
@@ -831,14 +1248,31 @@ function bMenu(st){ if(!B||B.over||B.busy) return; B.menuState=st; renderBattleM
 
 function startWildBattle(){
   const b=biomeAt(player.x,player.y)||BIOME_BY_KEY.plains;
-  const sid = Math.random()<0.06 ? b.rare : pick(b.pools);
+  const idx=Math.max(0,BIOMES.indexOf(b));
+  const roll=Math.random();
+  let tier='wild', sid, stage;
+  if(roll<0.05){ tier='boss'; sid=b.rare; stage=2; }          // 5% 霸主
+  else if(roll<0.14){ tier='rare'; sid=b.rare; stage=1; }      // 9% 稀有
+  else { sid=pick(b.pools); stage=Math.random()<.6?0:1; }      // 普通
   const sp=SPIRITS.find(x=>x.id===sid);
-  const stage=(sid===b.rare)?2:(Math.random()<.55?0:1);
-  openBattle({enemy:buildFighter(sp,stage,randomNature()),enemyTeam:null,isTrainer:false,trainerName:null});
+  let lv=4+stage*7+Math.floor(Math.random()*4)+Math.floor(idx*0.45);
+  if(tier==='rare') lv+=5;
+  if(tier==='boss') lv+=10;
+  lv=Math.max(2,Math.min(MAX_LV,lv));
+  const f=buildFighter(sp,stage,randomNature(),lv);
+  if(tier==='boss'){
+    ['atk','def','spd'].forEach(k=>f.stats[k]=Math.round(f.stats[k]*1.2));
+    f.maxHp=Math.round(f.maxHp*1.25); f.hp=f.maxHp;
+    f.name='霸主·'+f.name;
+  }
+  openBattle({enemy:f,enemyTeam:null,isTrainer:false,trainerName:null,tier});
 }
 function startTrainerBattle(t){
-  const team=t.pool.map(id=>buildFighter(SPIRITS.find(x=>x.id===id),t.stage,findNature('固执')));
-  openBattle({enemy:team[0],enemyTeam:team,isTrainer:true,trainerName:t.name,trainerRef:t});
+  const i=Math.max(0,TRAINER_DEFS.findIndex(d=>d.key===t.key));
+  const lv=Math.max(2,Math.min(MAX_LV,8+i*2+(t.boss?8:0)));
+  const tier=t.boss?'boss':'trainer';
+  const team=t.pool.map(id=>buildFighter(SPIRITS.find(x=>x.id===id),t.stage,findNature('固执'),lv));
+  openBattle({enemy:team[0],enemyTeam:team,isTrainer:true,trainerName:t.name,trainerRef:t,tier});
 }
 function openBattle(cfg){
   if(!collection.length){ toast('先选择初始伙伴！'); return; }
@@ -849,15 +1283,20 @@ function openBattle(cfg){
   }
   const pf=fighterFromInstance(collection[activeIdx]);
   B={player:pf,enemy:cfg.enemy,enemyTeam:cfg.enemyTeam,enemyIdx:0,isTrainer:cfg.isTrainer,
-     trainerName:cfg.trainerName,trainerRef:cfg.trainerRef||null,activeIdx,
+     trainerName:cfg.trainerName,trainerRef:cfg.trainerRef||null,activeIdx,tier:cfg.tier||'wild',
      over:false,busy:false,force:false,menuState:'root'};
   if(B.enemy.species.ability.kind==='intimidate') B.player.stats.atk=Math.floor(B.player.stats.atk*0.9);
   if(B.player.species.ability.kind==='intimidate') B.enemy.stats.atk=Math.floor(B.enemy.stats.atk*0.9);
   mode='battle';
   document.getElementById('battleScreen').hidden=false;
   document.getElementById('player').style.opacity='0';
+  initFxCanvases(); resetFx(); ensurePFX();
   updateBattleUI();
-  bSetMsg(cfg.isTrainer?`${cfg.trainerName} 向你发起了对战！`:`野生的 ${B.enemy.name} 出现了！`);
+  const tb=TIERS[B.tier]||TIERS.wild;
+  if(cfg.tier==='boss') sfx('boss');
+  bSetMsg(cfg.isTrainer
+    ? `${cfg.trainerName} 向你发起了对战！`
+    : `${B.tier==='boss'?'👑 霸主':B.tier==='rare'?'✨ 稀有':''}的 ${B.enemy.name}（Lv.${B.enemy.lv}）出现了！`);
   B.busy=true;
   setTimeout(()=>{ if(!B) return; B.busy=false; bSetMsg(`去吧，${B.player.name}！`); renderBattleMenu(); },700);
 }
@@ -869,6 +1308,7 @@ function closeBattle(){
   }
   B=null;
   document.getElementById('battleScreen').hidden=true;
+  resetFx();
   document.getElementById('player').style.opacity='1';
   mode='overworld'; moving=false;
   updateHUD();
@@ -890,20 +1330,44 @@ async function bMove(idx){
   if(B && !B.over && !B.force){ B.busy=false; B.menuState='root'; renderBattleMenu(); }
 }
 async function execMove(atk,def,mv,isPlayer){
-  if(Math.random()*100>mv.acc){ bSetMsg(`${atk.name} 的「${mv.name}」没有命中！`); await sleep(520); return; }
+  const srcEl=document.getElementById(isPlayer?'bPlayerSprite':'bEnemySprite');
+  const dstEl=document.getElementById(isPlayer?'bEnemySprite':'bPlayerSprite');
+
+  /* 起手：攻击方前冲 */
+  lungeSprite(srcEl, isPlayer?1:-1);
+  await sleep(120);
+
+  if(Math.random()*100>mv.acc){
+    bSetMsg(`${atk.name} 的「${mv.name}」没有命中！`);
+    sfx('miss');
+    await sleep(500);
+    return;
+  }
+
   const r=calcDamage(atk,def,mv);
   def.hp=Math.max(0,def.hp-r.dmg);
-  const el=document.getElementById(isPlayer?'bEnemySprite':'bPlayerSprite');
-  el.classList.add('hit'); setTimeout(()=>el.classList.remove('hit'),400);
-  floatText(el, r.dmg===0?'MISS':'-'+r.dmg, r.tm===2?'#ffd166':r.crit?'#fb7185':'#fff');
+  const immune=r.tm===0, strong=r.tm>1, weak=r.tm>0&&r.tm<1;
+  const power=immune?0:(strong?1.35:weak?.7:1)*(r.crit?1.45:1);
+
+  /* 命中：特效 + 震动 + 顿帧 + 音效 + 受击闪烁 */
+  if(!immune){
+    const pos=elCenter(dstEl);
+    await impactFx(mv.type,pos,power,isPlayer,r);
+    hurtSprite(dstEl);
+  } else {
+    sfx('miss');
+  }
+
+  floatNumber(dstEl, immune?'0':'-'+r.dmg, r);
+
   let msg=`${atk.name} 使用「${mv.name}」，造成 ${r.dmg} 伤害`;
-  if(r.tm===2)msg+=' · 效果拔群！';
-  else if(r.tm===0.5)msg+=' · 效果不佳…';
-  else if(r.tm===0)msg+=' · 没有效果…';
+  if(strong)msg+=' · 效果拔群！';
+  else if(weak)msg+=' · 效果不佳…';
+  else if(immune)msg+=' · 没有效果…';
   if(r.crit)msg+=' · 暴击！';
   bSetMsg(msg);
   updateBattleUI();
-  await sleep(760);
+  await sleep(immune?460:520);
   if(def.hp<=0) await onFaint(isPlayer?'enemy':'player');
 }
 function floatText(el,text,color){
@@ -915,17 +1379,30 @@ function floatText(el,text,color){
 async function onFaint(who){
   if(!B) return;
   if(who==='enemy'){
+    const el=document.getElementById('bEnemySprite');
+    el.classList.add('faint');
+    pfAt('spawn/poof',elCenter(el),{palette:PAL.dark});
+    burstPixels(elCenter(el).x,elCenter(el).y,PAL.none,16,1.1);
+    sfx('faint');
+    await sleep(560);
+    /* 先结算经验，再处理换人/胜利 */
+    await awardExp(B.enemy,B.tier);
+    if(!B) return;
     if(B.isTrainer && B.enemyTeam && B.enemyIdx<B.enemyTeam.length-1){
       B.enemyIdx++;
-      bSetMsg(`${B.enemy.name} 倒下了！${B.trainerName} 派出了 ${B.enemyTeam[B.enemyIdx].name}！`);
-      await sleep(950);
+      bSetMsg(`${B.trainerName} 派出了 ${B.enemyTeam[B.enemyIdx].name}！`);
+      await sleep(700);
       if(!B) return;
       B.enemy=B.enemyTeam[B.enemyIdx];
+      el.classList.remove('faint');
       updateBattleUI();
       return;
     }
+    el.classList.remove('faint');
     await winBattle();
   } else {
+    const el=document.getElementById('bPlayerSprite');
+    el.classList.add('faint'); sfx('faint');
     const inst=collection[B.activeIdx];
     if(inst) inst.hp=0;
     saveColl();
@@ -934,10 +1411,62 @@ async function onFaint(who){
       B.busy=true; B.force=true; B.menuState='party';
       bSetMsg(`${B.player.name} 倒下了！请选择下一只精灵。`);
       renderParty(); renderBattleMenu();
+      setTimeout(()=>el.classList.remove('faint'),400);
     } else {
       await loseBattle();
     }
   }
+}
+
+/* 经验结算：出战精灵全额，队伍其余存活精灵获得 50%（经验共享）
+   经验量 = 种族基础经验 × 敌方等级 × 层级倍率 × 等级差修正 */
+function expGain(enemy,inst,tierKey){
+  const t=TIERS[tierKey]||TIERS.wild;
+  const base=baseExp(enemy.species);
+  const diff=((inst&&inst.lv)||20)-(enemy.lv||20);
+  const k=Math.max(.35,Math.min(1.3,1-diff*.03));   // 打低级怪收益递减，越级挑战加成
+  return Math.max(1,Math.round(base*enemy.lv*0.45*t.mult*k));
+}
+async function awardExp(enemy,tierKey){
+  if(!B||!enemy) return;
+  const t=TIERS[tierKey]||TIERS.wild;
+  const inst=collection[B.activeIdx];
+  const gain=expGain(enemy,inst,tierKey);
+  if(inst) inst.hp=B.player.hp;
+  const r=gainExp(inst,gain);
+
+  const side=[];
+  collection.forEach((c,i)=>{
+    if(i===B.activeIdx) return;
+    if(hpOf(c)<=0) return;
+    const rr=gainExp(c,Math.max(1,Math.round(gain*0.5)));
+    if(rr.ups){ const sp=SPIRITS.find(x=>x.id===c.id); side.push(`${sp.stages[c.stage]} Lv.${c.lv}`); }
+  });
+  saveColl();
+
+  if(inst&&B){
+    B.player=fighterFromInstance(inst);
+    B.player.hp=inst.hp;
+  }
+  updateBattleUI();
+
+  const spName=inst?SPIRITS.find(x=>x.id===inst.id).stages[inst.stage]:'队伍';
+  const bonus=tierKey==='boss'?`（霸主 ×${t.mult}）`:tierKey==='rare'?`（稀有 ×${t.mult}）`:tierKey==='trainer'?`（训练家 ×${t.mult}）`:'';
+  bSetMsg(`${spName} 获得了 ${gain} 点经验值！${bonus}`);
+  await sleep(r.ups?820:520);
+
+  if(r.ups){
+    sfx('levelup');
+    const pel=document.getElementById('bPlayerSprite');
+    pfAt('ui/level-up',elCenter(pel),{palette:PAL.electric});
+    burstPixels(elCenter(pel).x,elCenter(pel).y,PAL.light,22,1.1);
+    lvBanner(`${spName} 升级！Lv.${inst.lv}`);
+    updateBattleUI();
+    await sleep(1050);
+    if(r.learned.length&&B) bSetMsg(`Lv.${inst.lv}！学会了新招式：${r.learned.join('、')}`);
+    await sleep(r.learned.length?780:0);
+  }
+  if(side.length) toast('经验共享 → '+side.join('、'));
 }
 function bSwitch(i){
   if(!B||B.over) return;
@@ -976,6 +1505,7 @@ async function bCatch(){
   const ball=document.getElementById('bBall');
   ball.classList.remove('throw'); void ball.offsetWidth; ball.classList.add('throw');
   bSetMsg('你投出了精灵球！');
+  sfx('ui');
   renderBattleMenu();
   await sleep(850);
   if(!B||B.over) return;
@@ -985,15 +1515,18 @@ async function bCatch(){
   if(Math.random()<chance){
     B.over=true;
     const nm=B.enemy.name;
-    const inst={id:B.enemy.species.id,stage:B.enemy.stage,bond:1,count:1,nature:B.enemy.nature.name,hp:B.enemy.hp};
+    sfx('catch');
+    pfAt('ui/achievement',elCenter(document.getElementById('bEnemySprite')),{palette:PAL.light});
+    const inst={id:B.enemy.species.id,stage:B.enemy.stage,bond:1,count:1,
+      nature:B.enemy.nature.name,hp:B.enemy.hp,lv:B.enemy.lv,exp:0};
     const ex=collection.find(c=>c.id===inst.id);
     if(ex){ ex.count++; ex.bond=Math.min(MAX_BOND,ex.bond+1); }
     else collection.push(inst);
     saveColl();
-    bSetMsg(`太好了！${nm} 被抓住了！`);
-    await sleep(1200);
+    bSetMsg(`太好了！${nm}（Lv.${inst.lv}）被抓住了！`);
+    await sleep(1300);
     if(B) closeBattle();
-    toast(`🎉 收服了 ${nm}`);
+    toast(`🎉 收服了 ${nm} · Lv.${inst.lv}`);
   } else {
     bSetMsg('可恶！它从精灵球里挣脱了！');
     await sleep(850);
@@ -1026,6 +1559,7 @@ async function winBattle(){
   if(inst){ inst.hp=B.player.hp; inst.bond=Math.min(MAX_BOND,(inst.bond||0)+2); }
   saveColl();
   bSetMsg('战斗胜利！羁绊提升了。');
+  sfx('coin');
   if(B.isTrainer){
     const t=B.trainerRef;
     if(t){
@@ -1036,8 +1570,15 @@ async function winBattle(){
     saveGame();
     renderEntities();
     toast('🏆 战胜训练家！获得 进化石 ×1');
+    await sleep(900);
   }
-  await sleep(1200);
+  if(B.tier==='boss'){
+    game.stone++; game.candy++;
+    saveGame();
+    toast('👑 击败霸主！获得 进化石 ×1、亲密度糖果 ×1');
+    await sleep(700);
+  }
+  await sleep(600);
   if(B) closeBattle();
   updateHUD();
 }
@@ -1050,6 +1591,7 @@ async function loseBattle(){
   saveColl();
   B=null;
   document.getElementById('battleScreen').hidden=true;
+  resetFx();
   document.getElementById('player').style.opacity='1';
   mode='overworld';
   player.x=HUB.x; player.y=HUB.y+2;
@@ -1206,9 +1748,13 @@ function openHelp(){
     <div class="iblock"><h4>1. 走路探索</h4><p>用 <b>方向键 / WASD</b> 或屏幕左下方向键移动。地图分 8 个生物群系：微风草原、低语森林、碧波湖、灰烬火山、霜白雪原、流沙荒漠、遗忘遗迹、龙脊山道。</p></div>
     <div class="iblock"><h4>2. 踩草遇敌</h4><p>走进深色<b>高草</b>（雪原是雪地、荒漠是沙地）有几率遇到野生精灵，遇敌直接切入战斗画面。</p></div>
     <div class="iblock"><h4>3. 战斗与捕捉</h4><p>「战斗」出招，速度高者先手，属性克制伤害翻倍。「背包」→ 精灵球投球捕捉，对方 HP 越低越容易成功；训练家的精灵不能抓。</p></div>
-    <div class="iblock"><h4>4. 训练家与道具</h4><p>地图上的训练家撞上去就开战，打赢获得进化石。地上的 🔴 是道具球，走过去自动拾取。</p></div>
-    <div class="iblock"><h4>5. 回复与进化</h4><p>走到 🏥 完全恢复队伍。精灵在战斗与道具作用下提升羁绊，羁绊达标即可在详情页进化，三阶进化全部开放。</p></div>
-    <div class="iblock"><h4>6. 目标</h4><p>收集全部 15 种精灵，击败 8 位训练家，完成图鉴。</p></div>
+    <div class="iblock"><h4>4. 训练家与道具</h4><p>地图上的训练家撞上去就开战，打赢获得进化石。地上的 🔴 是道具球，走过去自动拾取。龙脊山道的 🐲 龙骑士是本作 <b>BOSS</b>。</p></div>
+    <div class="iblock"><h4>5. 经验与升级</h4><p>每次打倒精灵，出战精灵获得<b>全额经验</b>，队伍中其余存活精灵获得 <b>50%</b>。经验量按<b>敌方层级</b>结算：</p>
+      <p>野生精灵 ×1.0 · 训练家精灵 ×1.6 · ✨稀有精灵 ×2.2 · 👑霸主精灵 ×3.2。越级挑战有加成，打低于自己太多级的对手收益会衰减。</p>
+      <p>升级会提升六维数值与最大 HP，并在 <b>Lv.8 / Lv.16</b> 依次解锁本系中级、重级招式。</p></div>
+    <div class="iblock"><h4>6. 回复与进化</h4><p>走到 🏥 完全恢复队伍。精灵在战斗与道具作用下提升羁绊，羁绊达标即可在详情页进化，三阶进化全部开放。</p></div>
+    <div class="iblock"><h4>7. 战斗表现</h4><p>命中带<b>像素特效 + 震屏 + 顿帧 + 合成音效</b>，右上角 🔊 可静音。像素特效由开源库 <b>pixelfx</b>（patch-gg/pixelfx · MIT）提供，离线时自动降级为内置粒子特效。</p></div>
+    <div class="iblock"><h4>8. 目标</h4><p>收集全部 15 种精灵，击败 8 位训练家（含龙骑士 BOSS），完成图鉴。</p></div>
   `);
 }
 
@@ -1227,7 +1773,7 @@ function showStarter(){
 }
 function pickStarter(id){
   const s=SPIRITS.find(x=>x.id===id);
-  const inst={id,stage:0,bond:3,count:1,nature:randomNature().name,hp:null};
+  const inst={id,stage:0,bond:3,count:1,nature:randomNature().name,hp:null,lv:10,exp:0};
   inst.hp=maxHpOf(inst);
   collection.push(inst); activeIdx=collection.length-1;
   saveColl(); updateHUD();
