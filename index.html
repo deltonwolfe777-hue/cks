@@ -150,7 +150,8 @@
   .b-btn small{font-size:10.5px;color:var(--txt-dim);font-weight:600;white-space:nowrap}
   .b-btn.cur{border-color:var(--accent-2)}
   .b-btn.back{grid-column:1/-1;justify-content:center;color:var(--txt-dim)}
-  .b-ball{position:absolute;left:50%;bottom:20%;font-size:34px;opacity:0;z-index:5;pointer-events:none}
+  .b-ball{position:absolute;left:50%;bottom:20%;width:44px;height:44px;font-size:34px;opacity:0;z-index:5;pointer-events:none}
+  .b-ball .spr{width:100%;height:100%}
   .b-ball.throw{animation:ballThrow .9s ease-out}
   @keyframes ballThrow{0%{opacity:1;transform:translate(-50%,0) scale(1)}45%{opacity:1;transform:translate(-50%,-160px) scale(.85)}70%{opacity:1;transform:translate(-50%,-190px) scale(.8)}100%{opacity:0;transform:translate(-50%,-200px) scale(.6)}}
   .float-dmg{position:fixed;transform:translate(-50%,-50%);font-weight:900;font-size:26px;pointer-events:none;z-index:120;
@@ -253,6 +254,28 @@
   .sound-btn.on{border-color:var(--accent-2)!important;color:#a5f3fc}
   .fx-credit{font-size:11px;color:var(--txt-dim);opacity:.75;margin-top:14px;line-height:1.7;border-top:1px dashed rgba(255,255,255,.12);padding-top:10px}
   .fx-credit b{color:var(--accent-2)}
+
+  /* ===== 元素灵核 · 程序化造型（几何折面风格化奇幻） ===== */
+  .spr{display:block;width:100%;height:100%;overflow:visible}
+  .spr .spr-ring{transform-origin:50px 54px;animation:sprSpin 9s linear infinite}
+  .spr .spr-ring.rev{animation-duration:13s;animation-direction:reverse}
+  .spr .spr-core{transform-origin:50px 58px;animation:sprCore 2.4s ease-in-out infinite}
+  .spr .spr-float{animation:sprFloat 3s ease-in-out infinite}
+  .spr .spr-float.d1{animation-delay:-.75s} .spr .spr-float.d2{animation-delay:-1.5s}
+  .spr .spr-float.d3{animation-delay:-2.25s}
+  @keyframes sprSpin{to{transform:rotate(360deg)}}
+  @keyframes sprCore{0%,100%{opacity:.72;transform:scale(.93)}50%{opacity:1;transform:scale(1.09)}}
+  @keyframes sprFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+  .hitstop .spr *,.hitstop .spr{animation-play-state:paused}
+  .b-sprite{width:104px;height:104px;line-height:1;filter:drop-shadow(0 10px 10px rgba(0,0,0,.45));display:inline-block}
+  @media(max-width:640px){.b-sprite{width:80px;height:80px}}
+  .party-emo .spr{width:26px;height:26px}
+  .dex-cell .dm .spr{width:48px;height:48px;margin:0 auto}
+  .detail-sprite .spr{width:104px;height:104px}
+  .starter .sm .spr{width:86px;height:86px;margin:0 auto}
+  .b-btn .spr{width:19px;height:19px;display:inline-block;vertical-align:-4px;margin-right:3px}
+  .entity .spr,.player .spr{width:100%;height:100%}
+  .spr-static *{animation:none!important}
 </style>
 </head>
 <body>
@@ -280,7 +303,7 @@
       <div class="map-world" id="mapWorld">
         <div class="tile-layer" id="tileLayer"></div>
         <div class="entity-layer" id="entityLayer"></div>
-        <div class="player" id="player">🧙</div>
+        <div class="player" id="player"></div>
       </div>
       <div class="biome-tag" id="biomeTag">📍 灵契镇</div>
       <div class="flash" id="flash"></div>
@@ -292,10 +315,10 @@
               <div class="b-name"><span><span id="bEnemyName">野生精灵</span><span class="tier-badge" id="bTierBadge" style="display:none">野生</span></span><span class="b-lv" id="bEnemyLv">Lv.5</span></div>
               <div class="b-hp"><i id="bEnemyHp" style="width:100%"></i></div>
             </div>
-            <div class="b-sprite" id="bEnemySprite">🐭</div>
+            <div class="b-sprite" id="bEnemySprite"></div>
           </div>
           <div class="b-side player">
-            <div class="b-sprite" id="bPlayerSprite">🧙</div>
+            <div class="b-sprite" id="bPlayerSprite"></div>
             <div class="b-hpbox">
               <div class="b-name"><span id="bPlayerName">我的精灵</span><span class="b-lv" id="bPlayerLv">Lv.5</span></div>
               <div class="b-hp"><i id="bPlayerHp" style="width:100%"></i></div>
@@ -306,7 +329,7 @@
           </div>
           <canvas class="pf-canvas" id="pfCanvas" width="320" height="200"></canvas>
           <canvas class="fx-canvas" id="fxCanvas" width="320" height="200"></canvas>
-          <div class="b-ball" id="bBall">🔴</div>
+          <div class="b-ball" id="bBall"></div>
         </div>
         <div class="b-bottom">
           <div class="b-msg" id="bMsg"></div>
@@ -452,6 +475,214 @@ const SPIRITS = [
   {id:'s15',name:'苍穹龙',type:'dragon',emoji:['🐲','🦅','🐉'],stages:['翼龙崽','风翼龙','苍穹龙王'],base:{hp:62,atk:78,def:54,spd:78},talent:'spd',desc:'展开遮天巨翼，翱翔于云海之上。'}
 ];
 SPIRITS.forEach(s=>{ s.ability=ABILITIES[s.type]; s.talentObj=TALENTS[s.talent]; });
+
+/* ===================== 元素灵核 · 程序化造型引擎 =====================
+   风格锚点 v1：几何折面风格化奇幻。不写实、不 Q 版卡通。
+   45 形态共用同一套 shape 语法，仅变「体态原型 + 属性色 + 阶位参数」。
+   一阶紧凑 / 二阶 +环 +悬浮件 / 三阶 +双环 +翼冠 +灵核分身。        */
+const ART_TYPE={
+  fire:    {c:'#ff6b35',line:'mystic',motif:'flame'},   water: {c:'#4d96ff',line:'mystic',motif:'wave'},
+  grass:   {c:'#5fd068',line:'mystic',motif:'leaf'},    electric:{c:'#ffd93d',line:'tech',motif:'circuit'},
+  light:   {c:'#ffe27a',line:'mystic',motif:'star'},    dark:  {c:'#9b6dff',line:'mystic',motif:'rift'},
+  rock:    {c:'#c08552',line:'tech',motif:'hex'},       ice:   {c:'#7fd8e8',line:'tech',motif:'crystal'},
+  wind:    {c:'#76e0a8',line:'mystic',motif:'swirl'},   psychic:{c:'#ff8fd0',line:'tech',motif:'dial'},
+  dragon:  {c:'#6b5cff',line:'tech',motif:'scale'}
+};
+/* 体态原型：决定剪影。每只精灵全 3 阶不变，保证「进化了还是同一只」 */
+const ART_FORM={
+  s1:'beast', s2:'frog', s3:'rabbit', s4:'beast', s5:'bird', s6:'beast', s7:'turtle', s8:'beast',
+  s9:'bug', s10:'owl', s11:'beast', s12:'deer', s13:'lizard', s14:'dragon', s15:'dragon'
+};
+const ART_SHAPE={
+  beast:{head:'34,30 50,20 66,30 62,44 38,44',body:'30,48 50,40 70,48 66,70 34,70',
+    lite:'30,48 50,40 50,70 34,70',ears:['34,30 30,11 45,26','66,30 70,11 55,26'],
+    tail:'66,62 82,58 89,44 84,39',legs:[[34,66],[58,66]],wing:'30,50 10,28 16,50 8,40',
+    crown:'36,22 50,6 64,22'},
+  frog:{head:'30,36 50,27 70,36 66,50 34,50',body:'28,52 50,43 72,52 68,74 32,74',
+    lite:'28,52 50,43 50,74 32,74',ears:['34,36 31,25 43,33','66,36 69,25 57,33'],
+    tail:'',legs:[[30,70],[60,70]],wing:'28,54 8,38 14,56 6,46',crown:'34,30 50,14 66,30'},
+  rabbit:{head:'38,30 50,22 62,30 58,43 42,43',body:'36,50 50,42 64,50 62,72 38,72',
+    lite:'36,50 50,42 50,72 38,72',ears:['43,27 38,3 49,24','57,27 62,3 51,24'],
+    tail:'62,68 70,64 72,70 64,74',legs:[[38,68],[56,68]],wing:'36,52 14,32 20,54 10,44',
+    crown:'40,24 50,10 60,24'},
+  bird:{head:'40,28 50,20 60,28 56,39 44,39',body:'38,44 50,38 62,44 64,68 50,79 36,68',
+    lite:'38,44 50,38 50,79 36,68',ears:['44,25 50,12 54,25'],beak:'56,31 72,35 56,39',
+    tail:'50,77 40,91 60,88',legs:[[44,74],[54,74]],wing:'38,48 8,26 18,52 6,40',
+    crown:'42,22 50,8 58,22'},
+  turtle:{head:'40,32 50,25 60,32 58,43 42,43',body:'26,48 40,38 60,38 74,48 70,70 30,70',
+    lite:'26,48 40,38 50,70 30,70',ears:[],tail:'70,64 80,68 76,72',
+    legs:[[30,66],[62,66]],wing:'26,50 8,38 14,54 6,46',crown:'38,28 50,14 62,28',
+    shell:'34,50 50,44 66,50 62,66 38,66'},
+  bug:{head:'44,30 50,24 56,30 54,39 46,39',body:'45,41 55,41 57,72 43,72',
+    lite:'45,41 50,41 50,72 43,72',ears:[],antenna:'M46,27 L39,11 M54,27 L61,11',
+    tail:'',legs:[[43,68],[53,68]],wing:'44,44 12,20 10,52 40,64',
+    crown:'44,26 50,10 56,26'},
+  owl:{head:'30,26 50,17 70,26 66,44 34,44',body:'34,45 50,39 66,45 68,70 32,70',
+    lite:'34,45 50,39 50,70 32,70',ears:['32,26 27,13 42,23','68,26 73,13 58,23'],
+    tail:'50,70 40,84 60,84',legs:[[40,68],[54,68]],wing:'34,50 8,30 14,54 6,42',
+    crown:'34,22 50,7 66,22'},
+  deer:{head:'40,28 50,20 60,28 56,41 44,41',body:'34,48 50,42 66,48 62,69 38,69',
+    lite:'34,48 50,42 50,69 38,69',ears:['42,24 36,13 47,22','58,24 64,13 53,22'],
+    horn:'M43,22 L34,8 M39,15 L30,12 M57,22 L66,8 M61,15 L70,12',
+    tail:'62,60 72,56 70,64',legs:[[38,66],[56,66]],wing:'34,50 12,30 18,52 8,42',
+    crown:'40,22 50,6 60,22'},
+  lizard:{head:'32,44 50,35 68,44 64,57 36,57',body:'24,58 50,48 76,58 70,73 30,73',
+    lite:'24,58 50,48 50,73 30,73',ears:['34,42 30,32 42,40','66,42 70,32 58,40'],
+    spine:'M30,52 L36,42 L42,50 L50,40 L58,50 L64,42 L70,52',
+    tail:'70,64 88,60 95,69 88,74',legs:[[30,70],[62,70]],wing:'24,58 6,40 12,60 4,52',
+    crown:'34,38 50,22 66,38'},
+  dragon:{head:'38,22 50,14 62,22 58,35 42,35',body:'36,46 50,38 64,46 62,74 38,74',
+    lite:'36,46 50,38 50,74 38,74',ears:['40,20 33,4 47,16','60,20 67,4 53,16'],
+    horn:'M41,18 L34,2 M59,18 L66,2',tail:'62,70 82,75 91,65 87,58',
+    legs:[[38,70],[56,70]],wing:'36,48 6,20 14,52 2,38',crown:'38,18 50,2 62,18'}
+};
+const ART_MOTIF={
+  flame:'M42,66 L46,56 L50,62 L54,51 L58,60 L62,55',
+  wave:'M34,60 L41,55 L48,60 L55,55 L62,60',
+  leaf:'M50,68 L50,53 M50,60 L41,53 M50,60 L59,53',
+  circuit:'M36,56 L45,56 L45,63 L54,63 L54,56 L64,56 M45,56 L45,51',
+  star:'M50,51 L50,69 M39,60 L61,60 M42,53 L58,67 M58,53 L42,67',
+  rift:'M39,53 L48,60 L43,67 M61,53 L52,60 L57,67',
+  hex:'M43,55 L50,51 L57,55 L57,63 L50,67 L43,63 Z M50,51 L50,67',
+  crystal:'M50,50 L50,70 M40,55 L60,65 M60,55 L40,65 M44,52 L56,52 M44,68 L56,68',
+  swirl:'M36,62 Q50,48 64,62 Q50,70 43,59',
+  dial:'M42,60 A8,8 0 1,1 58,60 A8,8 0 1,1 42,60 M50,49 L50,52 M50,68 L50,71 M39,60 L36,60 M61,60 L64,60',
+  scale:'M42,55 L50,51 L58,55 L50,59 Z M42,63 L50,59 L58,63 L50,67 Z'
+};
+/* 一阶就存在的体态辨识翼：蝶/鸟/龙/枭，保证 10% 缩略图仍能认出体态 */
+const ART_BASEWING={
+  bug:'44,44 16,18 10,42 40,62',   bird:'38,48 17,32 21,54 36,58',
+  dragon:'36,48 15,26 19,50 34,56', owl:'34,48 15,30 19,52 32,56'
+};
+const ART_INK='#0b1026', ART_BASE='#3A4C86', ART_DARK='#161F45', ART_LITE='#5A70B0', ART_HI='#E8F4FF';
+function _pg(pts,fill,op,sw){ return `<polygon points="${pts}" fill="${fill}"${op?` opacity="${op}"`:''} stroke="${ART_INK}" stroke-width="${sw||1.7}" stroke-linejoin="round"/>`; }
+function _pl(d,stroke,w,op){ return `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${w||1.4}" stroke-linecap="round" stroke-linejoin="round"${op?` opacity="${op}"`:''}/>`; }
+/* 悬浮符印：玄幻线=菱形符印 / 科技线=六边刻度模块 */
+function _sigil(x,y,c,tech,sz,cls){
+  const s=sz||5, p=tech
+    ? `${x-s},${y} ${x-s*.5},${y-s*.86} ${x+s*.5},${y-s*.86} ${x+s},${y} ${x+s*.5},${y+s*.86} ${x-s*.5},${y+s*.86}`
+    : `${x},${y-s} ${x+s},${y} ${x},${y+s} ${x-s},${y}`;
+  return `<g class="${cls||''}">${_pg(p,ART_DARK,.92,1.2)}${_pg(p,c,.9,1.1)}${_pl(tech?`M${x-s*.6},${y} L${x+s*.6},${y}`:`M${x},${y-s*.5} L${x},${y+s*.5}`,ART_HI,1,.9)}</g>`;
+}
+/* 生成单个精灵造型；o.mini=地图缩略（去细碎符文）/ o.flip=水平镜像 / o.static=停动画 */
+function spiritSVG(id,stage,o){
+  o=o||{}; const sp=SPIRITS.find(x=>x.id===id); if(!sp) return '';
+  const A=ART_TYPE[sp.type]||ART_TYPE.dragon, C=A.c, tech=A.line==='tech';
+  const F=ART_SHAPE[ART_FORM[id]||'beast'], st=Math.max(0,Math.min(2,stage|0));
+  const mini=!!o.mini, scale=[.86,.98,1.02][st], baseWing=ART_BASEWING[ART_FORM[id]];
+  /* 缩略模式用色板中更亮的一档做躯干面，保证 26px/19px 下主体与背景分离 */
+  const bodyCol=mini?ART_LITE:ART_BASE;
+  let s='';
+  /* 能量环：二阶 1 条 / 三阶 2 条反向旋转；科技线用刻度虚线，玄幻线用符文点 */
+  if(!mini && st>=1){
+    const dash=tech?'11 4':'2 6';
+    s+=`<g class="spr-ring"><ellipse cx="50" cy="54" rx="41" ry="14" fill="none" stroke="${C}" stroke-width="1.7" stroke-dasharray="${dash}" opacity=".8"/></g>`;
+    if(st>=2) s+=`<g class="spr-ring rev"><ellipse cx="50" cy="54" rx="45" ry="22" fill="none" stroke="${C}" stroke-width="1.4" stroke-dasharray="${tech?'4 7':'9 5'}" opacity=".62"/></g>`;
+  }
+  /* 悬浮符印：0 / 2 / 4 枚 */
+  const orbN=[0,2,4][st];
+  if(!mini) for(let i=0;i<orbN;i++){
+    const pts=[[17,30],[83,34],[19,76],[81,78]];
+    s+=_sigil(pts[i][0],pts[i][1],C,tech,st>=2?5.4:4.6,`spr-float d${(i+1)%4}`);
+  }
+  /* 主体：三阶体量放大；玄幻线用弧角翼，科技线用直棱翼 */
+  s+=`<g transform="translate(50 54) scale(${scale}) translate(-50 -54)">`;
+  /* 体态辨识件（一阶就有）：蝶/鸟/龙/枭展开基础翼，保证缩到 10% 仍认得出体态 */
+  const mirrorW=(p)=>p.split(' ').map(q=>{const[a,b]=q.split(',');return `${(100-(+a)).toFixed(0)},${b}`}).join(' ');
+  if(baseWing){
+    [baseWing,mirrorW(baseWing)].forEach(w=>{
+      s+=_pg(w,ART_DARK,.97,1.7)+_pg(w,C,.34,1.2);
+      if(!mini) s+=_pl(`M${w.split(' ')[0].replace(',',' ')} L${w.split(' ')[2].replace(',',' ')}`,C,1.3,.65);
+    });
+  }
+  /* 尾巴：属性色脊线 */
+  if(F.tail) s+=_pg(F.tail,ART_DARK,.98,1.6)+_pl(`M${F.tail.split(' ')[0].replace(',',' ')} L${F.tail.split(' ')[1].replace(',',' ')}`,C,2,.85);
+  /* 进化翼：二阶初生 / 三阶完全展开；玄幻线羽状弧翼，科技线棱角模块翼 */
+  if(st>=1){
+    const wf=st>=2?1.0:.55;
+    [F.wing,mirrorW(F.wing)].forEach((w,i)=>{
+      const cx=i?70:30, cy=50;
+      s+=`<g transform="translate(${cx} ${cy}) scale(${wf}) translate(${-cx} ${-cy})">`+
+         _pg(w,ART_DARK,.96,1.7)+_pg(w,C,.28,1.2)+_pl(`M${w.split(' ')[0].replace(',',' ')} L${w.split(' ')[2].replace(',',' ')}`,C,1.4,.8)+`</g>`;
+    });
+    /* 三阶外展翼片：剪影宽度真正外扩到 1.8×，不是把原翼放大 */
+    if(st>=2){
+      const outer=tech?'30,48 7,18 13,40 5,36 19,60 32,60':'30,48 8,22 15,40 5,38 20,60 32,62';
+      [outer,mirrorW(outer)].forEach(w=>{ s+=_pg(w,C,.42,1.5)+_pg(w,ART_DARK,.55,1.2); });
+    }
+  }
+  /* 四肢 */
+  (F.legs||[]).forEach(([x,y])=>{ s+=_pg(`${x},${y} ${x+9},${y} ${x+8},${y+15} ${x+1},${y+15}`,ART_DARK,.98,1.5); });
+  /* 躯干：整体暗面 + 左上亮面，明确折面转折 */
+  s+=_pg(F.body,ART_DARK,1,2)+_pg(F.lite,bodyCol,1,1.6);
+  if(F.shell) s+=_pg(F.shell,C,.20,1.4)+_pl(`M${F.shell.replace(/ /g,' L')} Z`,C,1.2,.55);
+  /* 属性纹样刻在躯干上（缩略图省略） */
+  if(!mini){
+    s+=_pl(ART_MOTIF[A.motif]||'',C,1.5,.9);
+    /* 元素线区分：玄幻=弧形符文飘带 / 科技=直角电路与能量刻度 */
+    if(tech){
+      s+=_pl('M33,47 L27,47 L27,56 M67,47 L73,47 L73,56 M36,72 L36,77 L44,77 M64,72 L64,77 L56,77',C,1.3,.7);
+      s+=_pl('M28,60 L28,64 M30,60 L30,64 M32,60 L32,64 M68,60 L68,64 M70,60 L70,64 M72,60 L72,64',ART_HI,1,.55);
+    } else {
+      s+=_pl('M30,54 Q22,46 28,36 M70,54 Q78,46 72,36 M34,72 Q28,78 24,70 M66,72 Q72,78 76,70',C,1.4,.65);
+    }
+  }
+  /* 头部 */
+  s+=_pg(F.head,ART_DARK,1,2)+_pg(F.head.split(' ').slice(0,3).join(' ')+' 50,40',ART_LITE,.85,1.3);
+  (F.ears||[]).forEach(e=>{ s+=_pg(e,ART_BASE,1,1.6)+_pg(e,C,.28,1.1); });
+  if(F.beak) s+=_pg(F.beak,C,.8,1.4);
+  if(F.antenna) s+=_pl(F.antenna,C,1.6,.9);
+  if(F.horn) s+=_pl(F.horn,C,2.2,.85);
+  if(F.spine) s+=_pl(F.spine,C,2,.8);
+  /* 细长狭缝眼：不是圆形大眼，避开 Q 版卡通 */
+  s+=_pg(`40,31 48,29.6 48,32 40,33`,C,1,.9)+_pg(`52,29.6 60,31 60,33 52,32`,C,1,.9);
+  /* 三阶头冠：放射状结晶尖刺（不是实心帽）；玄幻线用尖角，科技线用棱柱刻度 */
+  if(st>=2){
+    const spikes=tech
+      ? ['40,22 35,6 46,18','50,19 50,4 55,18','60,22 65,6 54,18']
+      : ['40,22 33,7 46,18','50,19 50,4 54,18','60,22 67,7 54,18'];
+    spikes.forEach(p=>{ s+=_pg(p,C,.72,1.4)+_pg(p,ART_HI,.16,1); });
+  }
+  /* 胸口灵核：外层光晕 + 属性实核 + 白色高光；三阶加 2 枚分身 */
+  const core=(x,y,r)=>`<g class="spr-core">`+
+    _pg(`${x},${y-r*1.5} ${x+r*1.5},${y} ${x},${y+r*1.5} ${x-r*1.5},${y}`,C,.20,1)+
+    _pg(`${x},${y-r} ${x+r},${y} ${x},${y+r} ${x-r},${y}`,C,1,1.3)+
+    _pg(`${x},${y-r*.5} ${x+r*.5},${y} ${x},${y+r*.5} ${x-r*.5},${y}`,ART_HI,.95,.8)+`</g>`;
+  s+=core(50,58,6.2);
+  if(st>=2){ s+=core(31,49,3); s+=core(69,49,3); }
+  s+='</g>';
+  const flip=o.flip?' transform="scale(-1 1) translate(-100 0)"':'';
+  return `<svg class="spr${o.static?' spr-static':''}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-label="${sp.stages[st]}"><g${flip}>${s}</g></svg>`;
+}
+/* 玩家角色与训练家：同套折面语法 —— 斗篷剪影 + 帽檐阴影 + 胸口灵核 */
+function charSVG(opt){
+  opt=opt||{}; const C=opt.color||'#7c5cff', boss=!!opt.boss, mini=!!opt.mini;
+  let s='';
+  if(boss&&!mini) s+=`<g class="spr-ring rev"><ellipse cx="50" cy="54" rx="43" ry="19" fill="none" stroke="${C}" stroke-width="1.5" stroke-dasharray="3 6" opacity=".7"/></g>`;
+  s+=_pg(`28,46 50,34 72,46 78,84 22,84`,ART_DARK,1,2);
+  s+=_pg(`28,46 50,34 50,84 22,84`,ART_BASE,1,1.6);
+  s+=_pg(`38,20 50,12 62,20 60,38 40,38`,ART_DARK,1,2);
+  s+=_pg(`36,22 50,13 64,22 50,27`,C,.55,1.4);
+  s+=_pg(`40,27 60,27 58,33 42,33`,ART_INK,.9,1);
+  s+=_pg(`35,17 50,7 65,17 50,21`,C,.8,1.5);
+  s+=_pg(`50,52 56,58 50,64 44,58`,C,1,1.3)+_pg(`50,55 53,58 50,61 47,58`,ART_HI,.95,.7);
+  if(!mini) s+=_sigil(78,32,C,false,4.5,'spr-float')+_pl(`M18,44 L12,38 M82,44 L88,38`,C,1.4,.7);
+  return `<svg class="spr${mini?' spr-static':''}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">${s}</svg>`;
+}
+/* 地图道具球 / 回复点：几何化，避免 emoji 与折面造型混搭 */
+function markSVG(kind){
+  const C=kind==='heal'?'#34d399':'#ff6b57';
+  if(kind==='heal') return `<svg class="spr spr-static" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">`+
+    _pg(`50,12 76,50 50,88 24,50`,ART_DARK,1,2)+_pg(`50,12 76,50 50,50 24,50`,C,.75,1.5)+
+    _pg(`44,36 56,36 56,44 64,44 64,56 56,56 56,64 44,64 44,56 36,56 36,44 44,44`,ART_HI,1,1)+`</svg>`;
+  return `<svg class="spr spr-static" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">`+
+    `<circle cx="50" cy="50" r="30" fill="${ART_DARK}" stroke="${ART_INK}" stroke-width="2.5"/>`+
+    `<path d="M20,50 A30,30 0 0,1 80,50 Z" fill="${C}"/>`+
+    `<path d="M20,50 L80,50" stroke="${ART_INK}" stroke-width="3"/>`+
+    `<circle cx="50" cy="50" r="7" fill="${ART_DARK}" stroke="${C}" stroke-width="2.5"/>`+
+    _pg(`50,44 54,50 50,56 46,50`,ART_HI,1,.8)+`</svg>`;
+}
+
 const EVO_BOND=[0,4,9];
 const EVO_LV=[0,7,18];
 const MAX_BOND=12;
@@ -721,8 +952,10 @@ function buildEntities(){
   TRAINER_DEFS.forEach(def=>{
     const b=BIOME_BY_KEY[def.key];
     const p=snapWalkable(b.cx+2,b.cy+2); occupied.add(keyOf(p.x,p.y));
+    const lead=SPIRITS.find(x=>x.id===def.pool[0]);
+    const tint=(ART_TYPE[lead&&lead.type]||ART_TYPE.dragon).c;
     entities.trainers.push({key:def.key,name:def.name,emoji:def.emoji,pool:def.pool,stage:def.stage,boss:!!def.boss,
-      x:p.x,y:p.y,defeated:game.defeated.includes(def.key)});
+      color:tint,x:p.x,y:p.y,defeated:game.defeated.includes(def.key)});
   });
   const spots=[];
   BIOMES.forEach(b=>{ spots.push([b.cx-2,b.cy-2]); spots.push([b.cx+2,b.cy-3]); });
@@ -762,14 +995,14 @@ function buildTileDOM(){
 function renderEntities(){
   const layer=document.getElementById('entityLayer');
   layer.innerHTML='';
-  const add=(x,y,cls,emoji)=>{
+  const add=(x,y,cls,html)=>{
     const d=document.createElement('div'); d.className='entity '+cls;
-    d.style.transform=`translate(${x*TILE}px,${y*TILE}px)`; d.textContent=emoji;
+    d.style.transform=`translate(${x*TILE}px,${y*TILE}px)`; d.innerHTML=html;
     layer.appendChild(d);
   };
-  if(entities.heal) add(entities.heal.x,entities.heal.y,'heal','🏥');
-  entities.trainers.forEach(t=>{ if(!t.defeated) add(t.x,t.y,'trainer',t.emoji); });
-  entities.items.forEach(it=>{ if(!it.taken) add(it.x,it.y,'item',it.emoji); });
+  if(entities.heal) add(entities.heal.x,entities.heal.y,'heal',markSVG('heal'));
+  entities.trainers.forEach(t=>{ if(!t.defeated) add(t.x,t.y,'trainer',charSVG({color:t.color,boss:t.boss,mini:true})); });
+  entities.items.forEach(it=>{ if(!it.taken) add(it.x,it.y,'item',markSVG('ball')); });
 }
 function renderPlayer(){
   document.getElementById('player').style.transform=`translate(${player.x*TILE}px,${player.y*TILE}px)`;
@@ -808,7 +1041,7 @@ function renderParty(){
     const fainted=hp<=0;
     const lv=c.lv||20, need=expNeed(lv), xp=Math.min(100,Math.round((c.exp||0)/need*100));
     return `<div class="party-row ${i===activeIdx?'active':''} ${fainted?'fainted':''}" onclick="setActive(${i})">
-      <div class="party-emo">${fainted?'💤':s.emoji[c.stage]}</div>
+      <div class="party-emo">${fainted?'💤':spiritSVG(s.id,c.stage,{mini:true,static:true})}</div>
       <div class="party-mid">
         <div class="party-nm">${s.stages[c.stage]} <span class="party-lv">Lv.${lv}</span> <span class="ty" style="background:${TYPES[s.type].color};font-size:10px">${TYPES[s.type].name}</span></div>
         <div class="hpbar"><i class="${cls}" style="width:${pct}%"></i></div>
@@ -1193,11 +1426,11 @@ function updateBattleUI(){
   const inst=collection[B.activeIdx];
   document.getElementById('bEnemyName').textContent=e.name;
   document.getElementById('bEnemyLv').textContent='Lv.'+(e.lv||20);
-  document.getElementById('bEnemySprite').textContent=e.species.emoji[e.stage];
+  document.getElementById('bEnemySprite').innerHTML=spiritSVG(e.species.id,e.stage,{flip:true});
   setHpBar(document.getElementById('bEnemyHp'), Math.max(0,e.hp/e.maxHp*100));
   document.getElementById('bPlayerName').textContent=p.name;
   document.getElementById('bPlayerLv').textContent='Lv.'+(p.lv||20);
-  document.getElementById('bPlayerSprite').textContent=p.species.emoji[p.stage];
+  document.getElementById('bPlayerSprite').innerHTML=spiritSVG(p.species.id,p.stage);
   setHpBar(document.getElementById('bPlayerHp'), Math.max(0,p.hp/p.maxHp*100));
   document.getElementById('bPlayerHpText').textContent=`${Math.max(0,p.hp)} / ${p.maxHp}`;
   /* 层级徽章 */
@@ -1240,7 +1473,7 @@ function renderBattleMenu(){
       const s=SPIRITS.find(x=>x.id===c.id);
       const hp=hpOf(c), alive=hp>0;
       return `<button class="b-btn ${i===B.activeIdx?'cur':''}" onclick="bSwitch(${i})" ${alive&&i!==B.activeIdx?'':'disabled'}>
-        ${s.emoji[c.stage]} ${s.stages[c.stage]}<small>${hp}/${maxHpOf(c)}</small></button>`;
+        ${spiritSVG(s.id,c.stage,{mini:true,static:true})} ${s.stages[c.stage]}<small>${hp}/${maxHpOf(c)}</small></button>`;
     }).join('')+`<button class="b-btn back" onclick="bMenu('root')">返回</button>`;
   }
 }
@@ -1503,6 +1736,7 @@ async function bCatch(){
   B.busy=true; B.menuState='root';
   game.balls--; saveGame(); updateHUD();
   const ball=document.getElementById('bBall');
+  ball.innerHTML=markSVG('ball');
   ball.classList.remove('throw'); void ball.offsetWidth; ball.classList.add('throw');
   bSetMsg('你投出了精灵球！');
   sfx('ui');
@@ -1647,7 +1881,7 @@ function openDex(){
       ${SPIRITS.map(s=>{
         const t=TYPES[s.type];
         return `<div class="dex-cell ${owned.has(s.id)?'owned':''}" onclick="openDetail('${s.id}',null)">
-          <div class="dm">${s.emoji[0]}</div>
+          <div class="dm">${spiritSVG(s.id,0,{mini:true,static:true})}</div>
           <div class="dn">${s.name}<span class="ty" style="background:${t.color};font-size:10px">${t.name}</span></div>
           <div class="dc">${s.stages[0]} → ${s.stages[2]}</div>
         </div>`;
@@ -1676,7 +1910,7 @@ function openDetail(sid,instIdx){
   openModal(`
     <button class="close" onclick="closeModal()">✕</button>
     <div class="detail-top">
-      <div class="detail-sprite" style="--aura:${t.color}">${s.emoji[stage]}</div>
+      <div class="detail-sprite" style="--aura:${t.color}">${spiritSVG(s.id,stage)}</div>
       <div style="flex:1;min-width:200px">
         <h2 style="margin:0">${s.stages[stage]} <span class="ty" style="background:${t.color};font-size:12px">${t.name}系</span></h2>
         <div style="color:var(--txt-dim);font-size:13px;margin-top:6px;line-height:1.6">${s.desc}</div>
@@ -1764,7 +1998,7 @@ function showStarter(){
   document.getElementById('starterChoices').innerHTML=opts.map(s=>{
     const t=TYPES[s.type];
     return `<div class="starter" onclick="pickStarter('${s.id}')">
-      <div class="sm">${s.emoji[0]}</div>
+      <div class="sm">${spiritSVG(s.id,0,{static:true})}</div>
       <div class="sn">${s.stages[0]} <span class="ty" style="background:${t.color};font-size:10px">${t.name}</span></div>
       <div class="sd">${s.desc}<br><span style="color:var(--txt-dim)">最终进化：${s.stages[2]}</span></div>
     </div>`;
@@ -1799,6 +2033,7 @@ window.addEventListener('resize',()=>{ if(map.length) updateCamera(); });
 /* ===================== 启动 ===================== */
 function boot(){
   loadAll();
+  document.getElementById('player').innerHTML=charSVG({color:'#7c5cff',mini:true});
   buildWorld();
   buildEntities();
   buildTileDOM();
