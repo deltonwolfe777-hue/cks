@@ -2,6 +2,12 @@
 
 > 2026-11-05 ｜ 项目：灵契大陆 SpiriRealm
 
+## 线上地址
+
+**https://deltonwolfe777-hue.github.io/cks/** —— GitHub Pages，源为 `main` 分支根目录，强制 HTTPS。
+推送走 Git Data API（本机 `github.com` 被代理阻断，`api.github.com` 可用），脚本见工作区
+`.workbuddy/tools/auto_sync.py`，改动完成后自动提交并推送。
+
 ## 结论先说
 
 **40 物种 × 3 阶 = 120 张立绘已完成，9 只"只放大不进化"的已修复，全部内嵌进 `index.html`。**
