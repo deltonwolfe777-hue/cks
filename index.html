@@ -654,19 +654,65 @@ function spiritSVG(id,stage,o){
   const flip=o.flip?' transform="scale(-1 1) translate(-100 0)"':'';
   return `<svg class="spr${o.static?' spr-static':''}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-label="${sp.stages[st]}"><g${flip}>${s}</g></svg>`;
 }
-/* 玩家角色与训练家：同套折面语法 —— 斗篷剪影 + 帽檐阴影 + 胸口灵核 */
+/* 玩家角色与训练家：四肢完整、有衣物的人类；每位训练家配色+配饰各异以便分辨 */
+function shadeHEX(hex,amt){ // amt∈[-1,1]，正提亮、负压暗
+  const n=parseInt(hex.slice(1),16); let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+  const f=v=> amt>=0 ? Math.round(v+(255-v)*amt) : Math.round(v*(1+amt));
+  return '#'+((1<<24)+(f(r)<<16)+(f(g)<<8)+f(b)).toString(16).slice(1).padStart(6,'0');
+}
+function charAcc(acc){
+  switch(acc){
+    case 'straw':   return _pg('34,15 66,15 50,9','#E8C77A',1,1.4)+_pg('38,15 62,15 58,19 42,19','#C99A4E',1,1.3)+_pg('46,12 54,12 50,15','#E8C77A',1,1.2);
+    case 'hood':    return _pg('35,22 50,3 65,22 60,16 50,8 40,16','#3FB58C',1,1.5)+_pg('38,17 50,7 62,17','#2A2A3A',1,1.3);
+    case 'cap':     return _pg('38,16 50,8 62,16 58,12 50,8 42,12','#4FB0E8',1,1.4)+_pg('60,15 74,17 60,19','#2A6DA0',1,1.3);
+    case 'horn':    return _pg('36,13 42,2 46,12','#FF7A4A',1,1.3)+_pg('64,13 58,2 54,12','#FF7A4A',1,1.3)+_pg('40,14 60,14 58,18 42,18','#C53A1C',1,1.3);
+    case 'iccrown': return _pg('42,14 46,6 50,13 54,6 58,14 56,16 50,11 44,16','#BFEFFF',1,1.4);
+    case 'scarf':   return _pg('38,30 62,30 58,38 42,38','#E0AE4A',1,1.5)+_pg('44,24 56,24 54,31 46,31','#3A2E1E',1,1.3);
+    case 'darkhood':return _pg('33,24 50,2 67,24 62,14 50,6 38,14','#463A6E',1,1.6)+_pg('40,16 50,8 60,16','#241B3A',1,1.3)+_pl('46,24 54,24','#9A7BE0',1,.8);
+    case 'dragoncrown':return _pg('40,13 44,3 50,10 56,3 60,13 57,15 50,9 43,15','#E8C84A',1,1.5)+_pg('50,3 52,9 48,9','#E8C84A',1,1.3);
+    case 'hero':    return _pg('40,15 50,6 60,15 56,11 50,7 44,11','#4A2FA0',1,1.4)+_pl('50,9 50,5','#E8F4FF',1.4,.9);
+    default: return '';
+  }
+}
 function charSVG(opt){
-  opt=opt||{}; const C=opt.color||'#7c5cff', boss=!!opt.boss, mini=!!opt.mini;
+  opt=opt||{};
+  const cloth=opt.cloth||opt.color||'#7c5cff';
+  const cloth2=opt.cloth2||shadeHEX(cloth,-0.28);
+  const skin=opt.skin||'#F0C9A0', skin2=shadeHEX(skin,-0.22);
+  const hair=opt.hair||'#2A2A3A';
+  const boss=!!opt.boss, mini=!!opt.mini, acc=opt.acc||null;
   let s='';
-  if(boss&&!mini) s+=`<g class="spr-ring rev"><ellipse cx="50" cy="54" rx="43" ry="19" fill="none" stroke="${C}" stroke-width="1.5" stroke-dasharray="3 6" opacity=".7"/></g>`;
-  s+=_pg(`28,46 50,34 72,46 78,84 22,84`,ART_DARK,1,2);
-  s+=_pg(`28,46 50,34 50,84 22,84`,ART_BASE,1,1.6);
-  s+=_pg(`38,20 50,12 62,20 60,38 40,38`,ART_DARK,1,2);
-  s+=_pg(`36,22 50,13 64,22 50,27`,C,.55,1.4);
-  s+=_pg(`40,27 60,27 58,33 42,33`,ART_INK,.9,1);
-  s+=_pg(`35,17 50,7 65,17 50,21`,C,.8,1.5);
-  s+=_pg(`50,52 56,58 50,64 44,58`,C,1,1.3)+_pg(`50,55 53,58 50,61 47,58`,ART_HI,.95,.7);
-  if(!mini) s+=_sigil(78,32,C,false,4.5,'spr-float')+_pl(`M18,44 L12,38 M82,44 L88,38`,C,1.4,.7);
+  if(boss&&!mini) s+=`<g class="spr-ring rev"><ellipse cx="50" cy="90" rx="33" ry="8" fill="none" stroke="${cloth}" stroke-width="1.5" stroke-dasharray="3 6" opacity=".7"/></g>`;
+  /* 双腿（裤） */
+  s+=_pg('43,60 47,82 41,82 38,60',cloth2,1,1.5);
+  s+=_pg('57,60 62,82 56,82 53,60',cloth2,1,1.5);
+  /* 靴 */
+  s+=_pg('37,79 48,79 48,90 36,90',ART_INK,1,1.3);
+  s+=_pg('52,79 63,79 64,90 53,90',ART_INK,1,1.3);
+  /* 躯干（外套） */
+  s+=_pg('35,33 65,33 60,63 40,63',cloth,1,1.7);
+  s+=_pg('50,33 65,33 60,63 50,63',cloth2,1,1.4);
+  s+=_pg('40,33 60,33 50,44',shadeHEX(cloth,0.18),1,1.2);
+  /* 腰带 */
+  s+=_pg('40,55 60,55 59,60 41,60',shadeHEX(cloth,-0.42),1,1.2);
+  /* 双臂（衣袖） */
+  s+=_pg('32,35 39,35 38,57 31,57',cloth,1,1.5);
+  s+=_pg('61,35 68,35 69,57 62,57',cloth,1,1.5);
+  /* 手 */
+  s+=`<circle cx="34.5" cy="60" r="3.2" fill="${skin}" stroke="${ART_INK}" stroke-width="1.3"/>`;
+  s+=`<circle cx="65.5" cy="60" r="3.2" fill="${skin}" stroke="${ART_INK}" stroke-width="1.3"/>`;
+  /* 颈 */
+  s+=_pg('46,27 54,27 54,33 46,33',skin,1,1.2);
+  /* 头 */
+  s+=_pg('40,15 50,10 60,15 60,25 50,31 40,25',skin,1,1.6);
+  s+=_pg('50,15 60,15 60,25 50,31',skin2,1,1.2);
+  /* 发 */
+  s+=_pg('38,17 50,7 62,17 58,11 50,6 42,11',hair,1,1.4);
+  /* 五官 */
+  s+=`<circle cx="45.5" cy="21" r="1.7" fill="${ART_INK}"/><circle cx="54.5" cy="21" r="1.7" fill="${ART_INK}"/>`;
+  s+=_pl('47,26 53,26',ART_INK,1,.7);
+  /* 配饰（区分角色） */
+  s+=charAcc(acc);
   return `<svg class="spr${mini?' spr-static':''}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">${s}</svg>`;
 }
 /* 地图道具球 / 回复点：几何化，避免 emoji 与折面造型混搭 */
@@ -724,14 +770,14 @@ const BIOMES=[
 const BIOME_BY_KEY={}; BIOMES.forEach(b=>BIOME_BY_KEY[b.key]=b);
 
 const TRAINER_DEFS=[
-  {key:'plains', name:'草原少年 阿澈',  emoji:'🧑‍🌾', pool:['s3','s1'],   stage:1},
-  {key:'forest', name:'巡林人 苔',      emoji:'🧝',   pool:['s12','s3'],  stage:1},
-  {key:'lake',   name:'湖畔钓手 澜',    emoji:'🎣',   pool:['s2','s9'],   stage:1},
-  {key:'volcano',name:'熔岩使 炎',      emoji:'🔥',   pool:['s11','s13'], stage:2},
-  {key:'snow',   name:'冰晶使 霜',      emoji:'❄️',   pool:['s8','s13'],  stage:2},
-  {key:'desert', name:'沙盗 漠',        emoji:'🥷',   pool:['s13','s4'],  stage:1},
-  {key:'ruins',  name:'守夜人 冥',      emoji:'🕯️',   pool:['s10','s6'],  stage:2},
-  {key:'ridge',  name:'龙骑士 玦',      emoji:'🐲',   pool:['s15','s14'], stage:2, boss:true}
+  {key:'plains', name:'草原少年 阿澈', emoji:'🧑‍🌾', cloth:'#6BBF59', cloth2:'#3E8E41', hair:'#6B4A2B', acc:'straw',       pool:['s3','s1'],   stage:1},
+  {key:'forest', name:'巡林人 苔',     emoji:'🧝', cloth:'#2E8B6B', cloth2:'#1C5E47', hair:'#3A2A1A', acc:'hood',        pool:['s12','s3'],  stage:1},
+  {key:'lake',   name:'湖畔钓手 澜',   emoji:'🎣', cloth:'#3E9BD6', cloth2:'#2A6DA0', hair:'#2A2A3A', acc:'cap',         pool:['s2','s9'],   stage:1},
+  {key:'volcano',name:'熔岩使 炎',     emoji:'🔥', cloth:'#E2603A', cloth2:'#A8351C', hair:'#2A1A14', acc:'horn',        pool:['s11','s13'], stage:2},
+  {key:'snow',   name:'冰晶使 霜',     emoji:'❄️', cloth:'#7FD3E8', cloth2:'#4FA8C4', hair:'#D9E8F0', acc:'iccrown',     pool:['s8','s13'],  stage:2},
+  {key:'desert', name:'沙盗 漠',       emoji:'🥷', cloth:'#D9A441', cloth2:'#A8762A', hair:'#3A2A1A', acc:'scarf',       pool:['s13','s4'],  stage:1},
+  {key:'ruins',  name:'守夜人 冥',     emoji:'🕯️', cloth:'#46506B', cloth2:'#2E3550', hair:'#15131F', acc:'darkhood',    pool:['s10','s6'],  stage:2},
+  {key:'ridge',  name:'龙骑士 玦',     emoji:'🐲', cloth:'#8A5CD6', cloth2:'#5A2FA0', hair:'#2A2A3A', acc:'dragoncrown', pool:['s15','s14'], stage:2, boss:true}
 ];
 
 let map=[], biomeMap=[];
@@ -955,7 +1001,8 @@ function buildEntities(){
     const lead=SPIRITS.find(x=>x.id===def.pool[0]);
     const tint=(ART_TYPE[lead&&lead.type]||ART_TYPE.dragon).c;
     entities.trainers.push({key:def.key,name:def.name,emoji:def.emoji,pool:def.pool,stage:def.stage,boss:!!def.boss,
-      color:tint,x:p.x,y:p.y,defeated:game.defeated.includes(def.key)});
+      color:def.cloth,cloth:def.cloth,cloth2:def.cloth2,hair:def.hair,acc:def.acc,
+      x:p.x,y:p.y,defeated:game.defeated.includes(def.key)});
   });
   const spots=[];
   BIOMES.forEach(b=>{ spots.push([b.cx-2,b.cy-2]); spots.push([b.cx+2,b.cy-3]); });
@@ -1001,7 +1048,7 @@ function renderEntities(){
     layer.appendChild(d);
   };
   if(entities.heal) add(entities.heal.x,entities.heal.y,'heal',markSVG('heal'));
-  entities.trainers.forEach(t=>{ if(!t.defeated) add(t.x,t.y,'trainer',charSVG({color:t.color,boss:t.boss,mini:true})); });
+  entities.trainers.forEach(t=>{ if(!t.defeated) add(t.x,t.y,'trainer',charSVG({cloth:t.cloth,cloth2:t.cloth2,hair:t.hair,acc:t.acc,boss:t.boss,mini:true})); });
   entities.items.forEach(it=>{ if(!it.taken) add(it.x,it.y,'item',markSVG('ball')); });
 }
 function renderPlayer(){
@@ -2033,7 +2080,7 @@ window.addEventListener('resize',()=>{ if(map.length) updateCamera(); });
 /* ===================== 启动 ===================== */
 function boot(){
   loadAll();
-  document.getElementById('player').innerHTML=charSVG({color:'#7c5cff',mini:true});
+  document.getElementById('player').innerHTML=charSVG({cloth:'#D24BA8',cloth2:'#922E72',hair:'#2A2A3A',acc:'hero',mini:true});
   buildWorld();
   buildEntities();
   buildTileDOM();
