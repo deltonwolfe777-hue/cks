@@ -1,1 +1,8 @@
 .workbuddy/
+
+# 美术生产中间目录：120 张成品立绘已 base64 内嵌进 index.html，仓库不存原图（沿用历史惯例）
+spirits/
+art-基准图/
+
+# 本地备份
+index.html.bak
