@@ -516,19 +516,6 @@ const SPIRITS = [
 ];
 SPIRITS.forEach(s=>{ s.ability=ABILITIES[s.type]; s.talentObj=TALENTS[s.talent]; });
 
-/* ===================== 元素灵核 · 程序化造型引擎 =====================
-   风格锚点 v1：几何折面风格化奇幻。不写实、不 Q 版卡通。
-   45 形态共用同一套 shape 语法，仅变「体态原型 + 属性色 + 阶位参数」。
-   一阶紧凑 / 二阶 +环 +悬浮件 / 三阶 +双环 +翼冠 +灵核分身。        */
-/* ===================== 元素灵核 · 物种造型引擎 v3 =====================
-   v2 教训：共用"朝右侧身 + 细腿"骨架 → 所有物种都像同一只狗，脸看不见、颜色一片紫。
-   v3 改为「正面立绘构图」：
-     · 头占画面 ~40%，双眼可见，物种特征（吻/喙/耳/角/须/牙）全部长在正脸上
-     · 骨架决定体块与附肢（四足/矮壮/鸟/蛇/鱼/鲸/虫/甲壳/龟/蝠/蛛/章鱼/龙/人形）
-     · 身体真正吃进属性色（火橙/水蓝/草绿/电黄/暗紫/岩棕/冰青/风绿松/超粉/龙蓝紫），
-       但共用同一套墨线 + 折面 + 几何语言 → 同画风、不同形象
-     · 进化 = 体量↑、头身比↓、五官成熟（圆眼→竖瞳）、部件生长与增多 */
-
 /* ===================== 元素灵核 · 物种造型引擎 v3 =====================
    v2 教训：共用"朝右侧身 + 细腿"骨架 → 所有物种都像同一只狗，脸看不见、颜色一片紫。
    v3 改为「正面立绘构图」：
@@ -577,15 +564,44 @@ function _clip(sub,cl){
   }
   return out;
 }
+
+/* 体积光渐变：高光偏左上、暗部偏右下，配合每块独立包围盒 */
+const ART_GRAD_DEFS='<defs>'
+ +'<radialGradient id="gHi" cx=".30" cy=".22" r=".78"><stop offset="0" stop-color="#ffffff" stop-opacity=".62"/><stop offset=".62" stop-color="#ffffff" stop-opacity=".14"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient>'
+ +'<radialGradient id="gSh" cx=".76" cy=".86" r=".82"><stop offset="0" stop-color="#0b1230" stop-opacity=".52"/><stop offset=".58" stop-color="#0b1230" stop-opacity=".14"/><stop offset="1" stop-color="#0b1230" stop-opacity="0"/></radialGradient>'
+ +'<linearGradient id="gGr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b1230" stop-opacity=".30"/><stop offset=".55" stop-color="#0b1230" stop-opacity="0"/></linearGradient>'
+ +'</defs>';
+let __SIL=null, __INK=null, __LW=1;
 function _pp(pts,fill,op,sw){
   const A=typeof pts==='string'?pts:_st(pts);
   const o=(op==null||op===1)?'':` opacity="${op}"`;
-  const k=(sw==null||sw<=0)?'':` stroke="${ART_INK}" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round"`;
+  const ink=__INK||ART_INK;
+  const k=(sw==null||sw<=0)?'':` stroke="${ink}" stroke-width="${(sw)*(__LW||1)}" stroke-linejoin="round" stroke-linecap="round"`;
+  if(__SIL&&fill!=='none'&&(op==null||op===1)) __SIL.push({k:'p',p:A,f:fill});
   return `<polygon points="${A}" fill="${fill}"${o}${k}/>`;
+}
+
+/* 把收集到的实体块烘成两层：统一剪影 + 同色融合层 */
+function _bakeSil(sh,ink,w){
+  let s='';
+  for(const q of sh){
+    if(q.k==='p') s+=`<polygon points="${q.p}" fill="${ink}" stroke="${ink}" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round"/>`;
+    else s+=`<circle cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="${q.r.toFixed(1)}" fill="${ink}" stroke="${ink}" stroke-width="${w}"/>`;
+  }
+  return s;
+}
+function _bakeBlob(sh,w){
+  let s='';
+  for(const q of sh){
+    const f=q.f||'#000';
+    if(q.k==='p') s+=`<polygon points="${q.p}" fill="${f}" stroke="${f}" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round"/>`;
+    else s+=`<circle cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="${q.r.toFixed(1)}" fill="${f}" stroke="${f}" stroke-width="${w}"/>`;
+  }
+  return s;
 }
 function _pg(pts,fill,op,sw){ return _pp(pts,fill,op,sw==null?1.7:sw); }
 function _pl(d,stroke,w,op){ return `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${w||1.4}" stroke-linecap="round" stroke-linejoin="round"${op!=null&&op!==1?` opacity="${op}"`:''}/>`; }
-function _cir(x,y,r,fill,op,sw){ return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${fill}"${op!=null&&op!==1?` opacity="${op}"`:''}${sw?` stroke="${ART_INK}" stroke-width="${sw}"`:''}/>`; }
+function _cir(x,y,r,fill,op,sw){ if(__SIL&&fill!=='none'&&(op==null||op===1)) __SIL.push({k:'c',x,y,r,f:fill}); return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${fill}"${op!=null&&op!==1?` opacity="${op}"`:''}${sw?` stroke="${__INK||ART_INK}" stroke-width="${sw}"`:''}/>`; }
 function _sigil(x,y,c,tech,sz,cls){
   const s=sz||5, p=tech
     ? `${x-s},${y} ${x-s*.5},${y-s*.86} ${x+s*.5},${y-s*.86} ${x+s},${y} ${x+s*.5},${y+s*.86} ${x-s*.5},${y+s*.86}`
@@ -616,9 +632,14 @@ function _facet(pts,base,lite,dark,sw){
   const A=typeof pts==='string'?_n(pts):pts, b=_bbp(A), W=Math.max(b.w,1), H=Math.max(b.h,1);
   const L=_clip(A,[[b.x0-3,b.y0-3],[b.x0+W*0.74,b.y0-3],[b.x0-3,b.y0+H*0.88]]);
   const D=_clip(A,[[b.x1+3,b.y1+3],[b.x1-W*0.56,b.y1+3],[b.x1+3,b.y1-H*0.62]]);
+  const P0=_st(A);
   let s=_pp(A,base,1,0);
-  if(L.length>2) s+=_pp(L,lite,.62,0);
-  if(D.length>2) s+=_pp(D,dark,.44,0);
+  /* 柔和体积：整块叠径向高光/暗部，取代硬边三角 */
+  s+=`<polygon points="${P0}" fill="url(#gHi)" opacity=".62"/>`;
+  s+=`<polygon points="${P0}" fill="url(#gSh)" opacity=".55"/>`;
+  /* 少量折面留作几何纹理，不再是主体明暗 */
+  if(L.length>2) s+=_pp(L,lite,.16,0);
+  if(D.length>2) s+=_pp(D,dark,.15,0);
   s+=_pp(A,'none',1,sw==null?1.9:sw);
   return s;
 }
@@ -676,8 +697,8 @@ const SK={
     const d=[];
     const bw=15*big2, bh=16.5*big2;
     /* 腿 */
-    d.push(_pl(`M44,${(bcy+bh-3).toFixed(1)} L43,88`,ART_INK,3.4,1));
-    d.push(_pl(`M56,${(bcy+bh-3).toFixed(1)} L57,88`,ART_INK,3.4,1));
+    d.push(_pl(`M44,${(bcy+bh-3).toFixed(1)} L43,88`,ART_INK,5.4,1));
+    d.push(_pl(`M56,${(bcy+bh-3).toFixed(1)} L57,88`,ART_INK,5.4,1));
     d.push(_pp('39,86 47,86 47.5,89 38,89',P.base,P.lite,P.dark,1.5));
     d.push(_pp('53,86 61,86 62,89 52.5,89',P.base,P.lite,P.dark,1.5));
     /* 身 */
@@ -873,14 +894,15 @@ function LEG(P,o){
   s+=_facet(taper(kx,ky,ax,ay,w1*1.08,w2,o.bow2||0,5),cb,cl,cd,1.7);
   const pw=w2*2.55, ph=w2*1.02;
   s+=_facet(el(fx,fy-ph*.28,pw/2,ph*.8,8),cb,cl,cd,1.6);
+  /* 趾缝：三条细线，不再是三颗黑豆 */
   for(let i=-1;i<=1;i++){
-    const tx=fx+i*pw*0.295;
-    s+=_cir(tx,fy+ph*.34,pw*0.112,hind?P.dark:P.dark2,1,0);
+    const tx=fx+i*pw*0.30;
+    s+=_pl(`M${tx.toFixed(1)},${(fy+ph*.10).toFixed(1)} L${tx.toFixed(1)},${(fy+ph*.58).toFixed(1)}`,hind?P.dark:P.dark2,1.05,.42);
   }
   if(o.claws){
     for(let i=-1;i<=1;i++){
-      const tx=fx+i*pw*0.295;
-      s+=_pp(`${(tx-1.1).toFixed(1)},${(fy+ph*.46).toFixed(1)} ${(tx+1.1).toFixed(1)},${(fy+ph*.46).toFixed(1)} ${tx.toFixed(1)},${(fy+ph*.46+2.4).toFixed(1)}`,ART_HI,.95,0);
+      const tx=fx+i*pw*0.30;
+      s+=_pp(`${(tx-1.0).toFixed(1)},${(fy+ph*.48).toFixed(1)} ${(tx+1.0).toFixed(1)},${(fy+ph*.48).toFixed(1)} ${tx.toFixed(1)},${(fy+ph*.48+2.1).toFixed(1)}`,ART_HI,.92,0);
     }
   }
   return s;
@@ -998,40 +1020,44 @@ Object.assign(SK,{
   /* 蟹：宽甲、横出步足、双大钳 */
   crust(P,c,g,o){
     const k=(o.big||1)*g.big, clawS=(o.claw||1)*g.feat, d=[];
-    for(let i=0;i<3;i++){
-      const base=50+i*3;
+    /* 步足：四对，从体侧向下外张 */
+    for(let i=0;i<4;i++){
+      const x0=50+(i<2?-1:1)*(13+i*3.4), y0=62+i*1.6;
       [-1,1].forEach(sx=>{
-        const x0=50+sx*(15+i*5);
-        d.push(_facet(taper(x0,71,x0+sx*(11+i*2),82,5.4,3.2,0,4),P.dark2,P.base,P.dark,1.4));
+        const dir=i<2?-1:1;
+        d.push(_facet(taper(x0,62,x0+dir*(9+i*2.6),78+i*1.6,5.2,3.0,0,4),P.dark2,P.base,P.dark,1.4));
+        d.push(_pl(`M${(x0+dir*(8+i*2.4)).toFixed(1)},${(76+i*1.6).toFixed(1)} L${(x0+dir*(10+i*2.8)).toFixed(1)},${(82+i*1.8).toFixed(1)}`,P.dark2,2.6,.85));
       });
     }
-    d.push(_facet(el(50,59,26*k,16.5*k,9,.26),P.base,P.lite,P.dark,2.2));
-    d.push(_facet(el(50,63,15.5*k,9.4*k,9),P.belly,P.hi,P.dark,1.2));
-    d.push(_pp('36,58 50,51 64,58 50,64',P.lite,.34,1.2));
-    const claw=(x,dir)=>{
-      const ax=dir>0?68:32, ay=54;
-      let s=_facet(taper(ax,ay,x,52,7.5,5.6,dir*5,4),P.base,P.lite,P.dark,1.7);
-      const w=9.6*clawS, h=8.4*clawS;
-      s+=_facet(`${(x-w).toFixed(1)},${(52-h).toFixed(1)} ${(x+w*.72).toFixed(1)},${(52-h*.82).toFixed(1)} ${(x+w).toFixed(1)},${(52+h*.2).toFixed(1)} ${(x-w*.6).toFixed(1)},${(52+h*.3).toFixed(1)}`,P.base,P.lite,P.dark,1.9);
-      s+=_facet(`${(x-w*.22).toFixed(1)},${(52-h*.1).toFixed(1)} ${(x+w*.84).toFixed(1)},${(52-h*.2).toFixed(1)} ${(x+w).toFixed(1)},${(52+h*.72).toFixed(1)} ${(x-w*.1).toFixed(1)},${(52+h*.6).toFixed(1)}`,P.base,P.lite,P.dark,1.7);
-      return s;
+    /* 壳身：横宽扁圆 */
+    d.push(_facet(el(50,60,25*k,14.6*k,11,.12),P.base,P.lite,P.dark,2.2));
+    d.push(_facet(el(50,63.5,16*k,8.6*k,10),P.belly,P.hi,P.dark,1.2));
+    d.push(_pp('36,58 50,50.5 64,58 50,66',P.lite,.30,1.2));
+    /* 两只螯：臂短、钳在体侧偏下 */
+    const claw=(dir)=>{
+      const ax=50+dir*22*k, ay=62;
+      const bx=ax+dir*11, by=66;
+      let s2=_facet(taper(ax,ay,bx,by,8.4,6.4,dir*2.4,4),P.base,P.lite,P.dark,1.7);
+      const w=8.2*clawS, h=7.4*clawS;
+      /* 上螯 */
+      s2+=_facet(`${bx.toFixed(1)},${(by-h*.72).toFixed(1)} ${(bx+dir*w*1.06).toFixed(1)},${(by-h*.30).toFixed(1)} ${(bx+dir*w*.86).toFixed(1)},${(by+h*.34).toFixed(1)} ${(bx+dir*w*.10).toFixed(1)},${(by+h*.20).toFixed(1)}`,P.base,P.lite,P.dark,1.9);
+      /* 下螯 */
+      s2+=_facet(`${bx.toFixed(1)},${(by+h*.16).toFixed(1)} ${(bx+dir*w*.82).toFixed(1)},${(by+h*.52).toFixed(1)} ${(bx+dir*w*.74).toFixed(1)},${(by+h*1.02).toFixed(1)} ${(bx+dir*w*.06).toFixed(1)},${(by+h*.72).toFixed(1)}`,P.base,P.lite,P.dark,1.8);
+      /* 螯齿 */
+      s2+=_pl(`M${(bx+dir*w*.16).toFixed(1)},${(by-h*.18).toFixed(1)} L${(bx+dir*w*.78).toFixed(1)},${(by-h*.08).toFixed(1)}`,ART_INK,1.5,.6);
+      return s2;
     };
-    d.push(claw(15,-1)); d.push(claw(85,1));
-    return {d,a:{head:[50,40,15.5*g.headR,12.5*g.headR],sh:[30,52],sh2:[70,52],shY:52,bc:[50,59],tl:[50,74],gy:87}};
+    d.push(claw(-1)); d.push(claw(1));
+    return {d,a:{head:[50,42,15.2*g.headR,12.2*g.headR],sh:[30,54],sh2:[70,54],shY:54,bc:[50,58],tl:[50,74],gy:88}};
   },
   turtle(P,c,g,o){
-    const k=(o.big||1)*g.big, d=[];
-    d.push(LEG(P,{hip:[33,70],knee:[28,79],ankle:[27,84],foot:[27,87],w0:12*k,w1:9*k,w2:7.6*k,tone:'hind'}));
-    d.push(LEG(P,{hip:[67,70],knee:[72,79],ankle:[73,84],foot:[73,87],w0:12*k,w1:9*k,w2:7.6*k,tone:'hind'}));
-    d.push(_facet(el(50,62,24.5*k,19.5*k,8,Math.PI/8),P.base,P.lite,P.dark,2.3));
-    d.push(_pp('38,62 50,51 62,62 50,72',P.lite,.34,1.3));
-    d.push(_pp('26,60 34,54 40,62 33,68',P.lite,.22,1.1));
-    d.push(_pp('74,60 66,54 60,62 67,68',P.lite,.22,1.1));
-    d.push(_pl('M26,60 L50,50 L74,60',ART_HI,1.2,.35));
-    d.push(LEG(P,{hip:[40,68],knee:[39,79],ankle:[39,85],foot:[39,88],w0:11*k,w1:8.4*k,w2:7*k,claws:true}));
-    d.push(LEG(P,{hip:[60,68],knee:[61,79],ankle:[61,85],foot:[61,88],w0:11*k,w1:8.4*k,w2:7*k,claws:true}));
-    d.push(_facet('44,51 56,51 58,44 42,44',P.base,P.lite,P.dark,1.6));
-    return {d,a:{head:[50,29,18.5*g.headR,16*g.headR],sh:[31,49],sh2:[69,49],shY:49,bc:[50,62],tl:[76,76],gy:87}};
+    /* 低矮扁壳 + 四短腿 + 颈前伸：靠 quadH 参数化得到真正的龟形 */
+    return quadH(P,c,g,Object.assign({
+      bx:43,by:66,bw:27,bh:9.6,
+      legF:{h:72,kn:81,an:86,ft:89.4,w:8.6},
+      legB:{h:70,kn:80,an:86,ft:89.4,w:9.2},
+      headR0:15.4,headR1:13.2,neckW:12.5,headX:.94,headLift:2.05
+    },o));
   },
   bat(P,c,g,o){
     const k=(o.big||1)*g.big, d=[];
@@ -1117,8 +1143,8 @@ function quadH(P,c,g,o){
   d.push(_facet(el(hx0-2,by-bh*.18,bh*.78,bh*.9,9),P.base,P.lite,P.dark,1.8));
   d.push(LEG(P,{hip:[hx0,by+5],knee:[hx0+1.4,legF.kn],ankle:[hx0+1.4,legF.an],foot:[hx0+1.4,legF.ft],w0:legF.w*k,w1:legF.w*.78*k,w2:legF.w*.6*k,bow:1.4,claws:o.claws}));
   /* 颈 */
-  d.push(_facet(taper(bx+bw*.5,by-bh*.42,bx+bw*.86,by-bh*1.5,o.neckW||15.5,o.neckW?o.neckW*.78:12.4,0,4),P.base,P.lite,P.dark,1.8));
-  return {d,a:{head:[bx+bw*.95,by-bh*(o.headLift||1.98),o.headR0||16.5,o.headR1||14.2],sh:[bx+bw*.34,by-bh*.7],sh2:[bx-bw*.2,by-bh*.7],shY:by-bh*.7,bc:[bx,by],tl:[hx1-4,by-2],gy:88}};
+  d.push(_facet(taper(bx+bw*.44,by-bh*.30,bx+bw*.80,by-bh*1.22,o.neckW||19.5,(o.neckW||19.5)*.80,0,4),P.base,P.lite,P.dark,1.8));
+  return {d,a:{head:[Math.min(bx+bw*(o.headX||.82),71),by-bh*(o.headLift||1.60)*(1-(k-1)*0.62),(o.headR0||16.5)*g.headR,(o.headR1||14.2)*g.headR],sh:[bx+bw*.34,by-bh*.7],sh2:[bx-bw*.2,by-bh*.7],shY:by-bh*.7,bc:[bx,by],tl:[hx1-4,by-2],gy:88}};
 }
 Object.assign(SK,{
   /* 犬科/狐/狼：横身、深胸、直立耳、蓬尾 */
@@ -1187,8 +1213,8 @@ function rabbitPose(P,c,g,o){
   /* 前腿短 */
   d.push(LEG(P,{hip:[bx+bw*.62,by+4],knee:[bx+bw*.66,by+13],ankle:[bx+bw*.66,by+24],foot:[bx+bw*.66,by+28],w0:6.4*k,w1:5*k,w2:4.4*k}));
   /* 颈+头（高） */
-  d.push(_facet(taper(bx+bw*.4,by-bh*.6,bx+bw*.8,by-bh*1.6,12*k,10*k,0,4),P.base,P.lite,P.dark,1.6));
-  return {d,a:{head:[bx+bw*.92,by-bh*1.95,15.5*g.headR,13.2*g.headR],sh:[bx+bw*.3,by-bh*.5],sh2:[bx-bw*.3,by-bh*.5],shY:by-bh*.5,bc:[bx,by],tl:[bx-bw*1.02,by+3],gy:88}};
+  d.push(_facet(taper(bx+bw*.34,by-bh*.46,bx+bw*.76,by-bh*1.24,18*k,15*k,0,4),P.base,P.lite,P.dark,1.6));
+  return {d,a:{head:[Math.min(bx+bw*.84,68),by-bh*1.50*(1-(k-1)*0.55),16.6*g.headR,13.8*g.headR],sh:[bx+bw*.3,by-bh*.5],sh2:[bx-bw*.3,by-bh*.5],shY:by-bh*.5,bc:[bx,by],tl:[bx-bw*1.02,by+3],gy:88}};
 }
 
 /* 蜥：贴地长身、四肢外撑、尾长拖地 */
@@ -1209,7 +1235,7 @@ function lizardPose(P,c,g,o){
   d.push(_pl(`M${bx-14},${by-5} Q${bx},${by-8} ${bx+15},${by-5}`,P.C,2,.42));
   /* 短颈、头低平前伸 */
   d.push(_facet(taper(bx+bw*.7,by-4,bx+bw*1.02,by-6,12*k,10*k,0,4),P.base,P.lite,P.dark,1.6));
-  return {d,a:{head:[bx+bw*1.22,by-8,15*g.headR,11*g.headR],sh:[bx+bw*.4,by-4],sh2:[bx-bw*.2,by-4],shY:by-4,bc:[bx,by],tl:[bx-bw*1.05,by+2],gy:88}};
+  return {d,a:{head:[Math.min(bx+bw*1.22,69),by-8,15*g.headR,11*g.headR],sh:[bx+bw*.4,by-4],sh2:[bx-bw*.2,by-4],shY:by-4,bc:[bx,by],tl:[bx-bw*1.05,by+2],gy:88}};
 }
 
 Object.assign(SK,{
@@ -1233,6 +1259,63 @@ Object.assign(SK,{
     return r;
   }
 });
+
+/* 坐姿：后腿折叠、臀落地、前腿直立撑起、身体前倾 —— 犬/狐/鼠/熊 */
+function quadSit(P,c,g,o){
+  const k=(o.big||1)*g.big;
+  const bx=42, by=55, bw=(o.bw||20)*k, bh=(o.bh||14)*k;
+  const d=[];
+  /* 远侧后腿（垫在身下） */
+  d.push(_facet(el(bx-bw*.55, by+bh*.72, 10.5*k, 12*k, 11), P.dark2, P.base, P.dark, 1.8));
+  /* 近侧后腿：大腿折叠 + 小腿前伸 + 后脚掌 */
+  d.push(_facet(el(bx-bw*.78, by+bh*.55, 11.5*k, 13.2*k, 11, .16), P.base, P.lite, P.dark, 1.9));
+  d.push(_facet(taper(bx-bw*.72, by+bh*.92, bx-bw*.24, by+bh*1.62, 8.6*k, 6.4*k, 2, 5), P.base, P.lite, P.dark, 1.7));
+  d.push(_facet(el(bx-bw*.10, by+bh*1.70, 9.2*k, 3.1*k, 7), P.base, P.lite, P.dark, 1.5));
+  /* 躯干：坐姿上前倾 */
+  d.push(_facet(el(bx, by, bw, bh, 13), P.base, P.lite, P.dark, 2.1));
+  d.push(_facet(el(bx+1.5, by+bh*.40, bw*.60, bh*.46, 10), P.belly, P.hi, P.dark, 1.2));
+  /* 前腿直立撑地 */
+  d.push(LEG(P,{hip:[bx+bw*.58, by+bh*.18], knee:[bx+bw*.66, by+bh*.92], ankle:[bx+bw*.68, by+bh*1.60], foot:[bx+bw*.68, by+bh*1.80], w0:9.6*k, w1:7.4*k, w2:6.2*k, claws:o.claws}));
+  /* 胸 */
+  d.push(_facet(el(bx+bw*.54, by+bh*.02, bh*.82, bh*.96, 9), P.base, P.lite, P.dark, 1.8));
+  /* 颈：短粗，头稳稳坐在肩上 */
+  d.push(_facet(taper(bx+bw*.34, by-bh*.34, bx+bw*.72, by-bh*1.20, 19*k, 16*k, 0, 4), P.base, P.lite, P.dark, 1.8));
+  return {d,a:{head:[bx+bw*(o.headX||.80), by-bh*(o.headLift||1.56)*(1-(k-1)*0.55), (o.headR0||17.2)*g.headR, (o.headR1||14.6)*g.headR], sh:[bx+bw*.30,by-bh*.62], sh2:[bx-bw*.30,by-bh*.62], shY:by-bh*.62, bc:[bx,by], tl:[bx-bw*.92,by+bh*.62], gy:89}};
+}
+
+/* 伏行：身体压得很低、四肢弯曲贴地、肩胛耸起 —— 狼/猫科/蜥 */
+function quadProwl(P,c,g,o){
+  const k=(o.big||1)*g.big;
+  const bx=43, by=66, bw=(o.bw||25)*k, bh=(o.bh||10.6)*k;
+  const d=[];
+  /* 远侧腿 */
+  d.push(LEG(P,{hip:[bx+bw*.56,by+2], knee:[bx+bw*.60,by+bh*.78], ankle:[bx+bw*.56,by+bh*1.34], foot:[bx+bw*.52,by+bh*1.50], w0:8.6*k,w1:6.4*k,w2:5.2*k, tone:'hind'}));
+  d.push(LEG(P,{hip:[bx-bw*.58,by+2], knee:[bx-bw*.62,by+bh*.78], ankle:[bx-bw*.58,by+bh*1.34], foot:[bx-bw*.54,by+bh*1.50], w0:9*k,w1:6.8*k,w2:5.4*k, tone:'hind'}));
+  /* 躯干：极扁长 */
+  d.push(_facet(el(bx, by, bw, bh, 13), P.base, P.lite, P.dark, 2.1));
+  d.push(_facet(el(bx+1, by+bh*.44, bw*.64, bh*.42, 10), P.belly, P.hi, P.dark, 1.2));
+  /* 肩胛耸起（潜行的标志） */
+  d.push(_facet(el(bx+bw*.52, by-bh*.52, bh*.72, bh*.86, 9), P.base, P.lite, P.dark, 1.8));
+  d.push(_facet(el(bx-bw*.52, by-bh*.30, bh*.60, bh*.66, 9), P.base, P.lite, P.dark, 1.7));
+  /* 近侧腿：弯曲贴地 */
+  d.push(LEG(P,{hip:[bx-bw*.62,by+4], knee:[bx-bw*.66,by+bh*.86], ankle:[bx-bw*.56,by+bh*1.40], foot:[bx-bw*.48,by+bh*1.54], w0:10*k,w1:7.6*k,w2:6*k, bow:-2}));
+  d.push(LEG(P,{hip:[bx+bw*.60,by+4], knee:[bx+bw*.64,by+bh*.86], ankle:[bx+bw*.54,by+bh*1.40], foot:[bx+bw*.46,by+bh*1.54], w0:9*k,w1:7*k,w2:5.6*k, bow:2, claws:o.claws}));
+  /* 颈：前伸压平 */
+  d.push(_facet(taper(bx+bw*.60, by-bh*.34, bx+bw*1.02, by-bh*.86, 17*k, 14*k, 0, 4), P.base, P.lite, P.dark, 1.8));
+  return {d,a:{head:[bx+bw*(o.headX||1.02), by-bh*(o.headLift||1.05)*(1-(k-1)*0.4), (o.headR0||16.6)*g.headR, (o.headR1||14)*g.headR], sh:[bx+bw*.55,by-bh*.5], sh2:[bx-bw*.25,by-bh*.3], shY:by-bh*.5, bc:[bx,by], tl:[bx-bw*1.0,by-bh*.05], gy:90}};
+}
+
+/* 注册新姿态 + 按物种分配（与站姿物种形成体态差异） */
+Object.assign(SK,{ sit:quadSit, prowl:quadProwl });
+Object.assign(QK,{
+  s1:{0:'sit'},        /* 火苗鼠：幼体坐着，站起来才显威 */
+  s6:{all:'sit'},      /* 暗影猫：猫坐姿 */
+  s26:{all:'sit'},     /* 电尾鼠 */
+  s18:{all:'prowl'},   /* 炎鬃狼：伏行潜近 */
+  s22:{all:'prowl'},   /* 藤蔓蛇：贴地潜行 */
+  s20:{all:'prowl'},   /* 寒潮鲨：低伏 */
+  s33:{all:'prowl'}    /* 冰晶熊：雪地潜行 */
+});
 /* ===================== 配色 v7：每个物种自己的色相 ===================== */
 /* 同属性不等于同色：属性定基调，物种定色相，跨物种不再"换皮同色" */
 const SPAL={
@@ -1249,12 +1332,25 @@ const SPAL={
 function _pathOf(p){ const A=typeof p==='string'?_n(p):p; return A.map((q,i)=>(i?'L':'M')+q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ')+' Z'; }
 /* 正面眼：幼体圆眼有大高光 → 成熟竖瞳（凶） */
 function EYE(x,y,s,P,g){
-  const r=[1.0,.92,.80][g.eye]*s;
-  let o=`<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${(r*.88).toFixed(1)}" ry="${r.toFixed(1)}" fill="${ART_INK}"/>`;
-  o+=`<ellipse cx="${x.toFixed(1)}" cy="${(y+r*.05).toFixed(1)}" rx="${(r*.64).toFixed(1)}" ry="${(r*.76).toFixed(1)}" fill="${P.C}"/>`;
-  if(g.eye<2) o+=_cir(x-r*.20,y-r*.30,r*.34,ART_HI,.95,0);
-  else { o+=`<ellipse cx="${x.toFixed(1)}" cy="${(y+r*.05).toFixed(1)}" rx="${(r*.20).toFixed(1)}" ry="${(r*.72).toFixed(1)}" fill="${ART_INK}"/>`+_cir(x-r*.24,y-r*.34,r*.18,ART_HI,.95,0); }
-  o+=`<path d="M${(x-r*1.15).toFixed(1)},${(y-r*.95).toFixed(1)} Q${x.toFixed(1)},${(y-r*1.5).toFixed(1)} ${(x+r*1.15).toFixed(1)},${(y-r*.95).toFixed(1)}" fill="none" stroke="${ART_INK}" stroke-width="1.5" stroke-linecap="round" opacity=".55"/>`;
+  const r=[1.00,.94,.86][g.eye]*s;
+  const lid=_mix(P.dark,_mix(ART_INK,'#000000',.25),.42);   /* 眼窝/眼睑 */
+  const iris=_mix(P.C,ART_INK,.26);                          /* 虹膜：属性色压深 */
+  const irisLo=_mix(P.C,'#ffffff',.34);                      /* 虹膜下缘反光 */
+  const o1=(v)=>v.toFixed(1);
+  /* 1. 眼窝：眼球嵌进头里，不留悬浮感 */
+  let o=`<ellipse cx="${o1(x)}" cy="${o1(y)}" rx="${o1(r*1.12)}" ry="${o1(r*1.16)}" fill="${lid}" opacity=".60"/>`;
+  /* 2. 眼球 */
+  o+=`<ellipse cx="${o1(x)}" cy="${o1(y)}" rx="${o1(r*.90)}" ry="${o1(r)}" fill="${iris}"/>`;
+  /* 3. 下缘湿润反光 */
+  o+=`<ellipse cx="${o1(x)}" cy="${o1(y+r*.44)}" rx="${o1(r*.62)}" ry="${o1(r*.30)}" fill="${irisLo}" opacity=".58"/>`;
+  /* 4. 瞳孔：幼体大圆瞳，成熟竖瞳 */
+  const pw=g.eye<2?r*.48:r*.24, ph=g.eye<2?r*.54:r*.82;
+  o+=`<ellipse cx="${o1(x)}" cy="${o1(y+r*.05)}" rx="${o1(pw)}" ry="${o1(ph)}" fill="#070B1A"/>`;
+  /* 5. 双高光 */
+  o+=`<circle cx="${o1(x-r*.30)}" cy="${o1(y-r*.33)}" r="${o1(r*.29)}" fill="#ffffff" opacity=".96"/>`;
+  o+=`<circle cx="${o1(x+r*.27)}" cy="${o1(y+r*.31)}" r="${o1(r*.12)}" fill="#ffffff" opacity=".48"/>`;
+  /* 6. 上眼睑新月：压住眼球上缘，给表情 */
+  o+=`<path d="M${o1(x-r*1.04)},${o1(y-r*.30)} Q${o1(x)},${o1(y-r*1.34)} ${o1(x+r*1.04)},${o1(y-r*.30)} Q${o1(x)},${o1(y-r*.86)} ${o1(x-r*1.04)},${o1(y-r*.30)} Z" fill="${lid}" opacity=".94"/>`;
   return o;
 }
 const HD={
@@ -1334,10 +1430,12 @@ const HD={
     /* 前突长吻 */
     s+=_facet(`${(hx-rx*.5).toFixed(1)},${(hy+ry*.1).toFixed(1)} ${(hx+rx*.5).toFixed(1)},${(hy+ry*.1).toFixed(1)} ${(hx+rx*.40).toFixed(1)},${(hy+ry*.86).toFixed(1)} ${(hx-rx*.40).toFixed(1)},${(hy+ry*.86).toFixed(1)}`,P.base,P.lite,P.dark,1.8);
     /* 上颌齿列 */
-    if(g.feat>0.55){
-      let t='';
-      for(let i=0;i<6;i++){ const x=hx-rx*.36+i*rx*.144; t+=`${x.toFixed(1)},${(hy+ry*.62).toFixed(1)} ${(x+rx*.07).toFixed(1)},${(hy+ry*.62).toFixed(1)} ${(x+rx*.035).toFixed(1)},${(hy+ry*.86).toFixed(1)} `; }
-      s+=_pp(t.trim(),ART_HI,.95,0);
+    /* 口裂：一条柔和的口线，而不是一排锯齿 */
+    s+=_pl(`M${(hx-rx*.44).toFixed(1)},${(hy+ry*.56).toFixed(1)} Q${hx.toFixed(1)},${(hy+ry*.70).toFixed(1)} ${(hx+rx*.44).toFixed(1)},${(hy+ry*.56).toFixed(1)}`,ART_INK,1.9,.90);
+    /* 只露两颗小尖牙（成熟期） */
+    if(g.feat>0.68){
+      s+=_pp(`${(hx-rx*.30).toFixed(1)},${(hy+ry*.58).toFixed(1)} ${(hx-rx*.20).toFixed(1)},${(hy+ry*.58).toFixed(1)} ${(hx-rx*.25).toFixed(1)},${(hy+ry*.74).toFixed(1)}`,ART_HI,.95,0);
+      s+=_pp(`${(hx+rx*.20).toFixed(1)},${(hy+ry*.58).toFixed(1)} ${(hx+rx*.30).toFixed(1)},${(hy+ry*.58).toFixed(1)} ${(hx+rx*.25).toFixed(1)},${(hy+ry*.74).toFixed(1)}`,ART_HI,.95,0);
     }
     s+=_pp(`${(hx-rx*.22).toFixed(1)},${(hy+ry*.20).toFixed(1)} ${(hx-rx*.10).toFixed(1)},${(hy+ry*.20).toFixed(1)} ${(hx-rx*.16).toFixed(1)},${(hy+ry*.34).toFixed(1)}`,ART_INK,.9,0);
     s+=_pp(`${(hx+rx*.10).toFixed(1)},${(hy+ry*.20).toFixed(1)} ${(hx+rx*.22).toFixed(1)},${(hy+ry*.20).toFixed(1)} ${(hx+rx*.16).toFixed(1)},${(hy+ry*.34).toFixed(1)}`,ART_INK,.9,0);
@@ -1375,8 +1473,9 @@ const HD={
     /* 眼柱 */
     const stalk=(dx)=>{
       const x=hx+dx*rx*.5;
-      return _facet(`${(x-2.6).toFixed(1)},${hy.toFixed(1)} ${(x-3).toFixed(1)},${(hy-ry*1.7).toFixed(1)} ${(x+3).toFixed(1)},${(hy-ry*1.7).toFixed(1)} ${(x+2.6).toFixed(1)},${hy.toFixed(1)}`,P.base,P.lite,P.dark,1.4)
-        + _cir(x,hy-ry*1.9,rx*.22,ART_INK,1,1.2) + _cir(x-rx*.06,hy-ry*1.96,rx*.07,ART_HI,.9,0);
+      /* 短眼柱：蟹眼只略微高出甲面，不是蜗牛触角 */
+      return _facet(`${(x-2.4).toFixed(1)},${hy.toFixed(1)} ${(x-2.6).toFixed(1)},${(hy-ry*.62).toFixed(1)} ${(x+2.6).toFixed(1)},${(hy-ry*.62).toFixed(1)} ${(x+2.4).toFixed(1)},${hy.toFixed(1)}`,P.base,P.lite,P.dark,1.4)
+        + _cir(x,hy-ry*.80,rx*.20,ART_INK,1,1.1) + _cir(x-rx*.05,hy-ry*.86,rx*.06,ART_HI,.9,0);
     };
     s+=stalk(-1)+stalk(1);
     s+=_pl(`M${(hx-rx*.8).toFixed(1)},${(hy+ry*.4).toFixed(1)} Q${hx.toFixed(1)},${(hy+ry*.7).toFixed(1)} ${(hx+rx*.8).toFixed(1)},${(hy+ry*.4).toFixed(1)}`,ART_INK,1.8,.9);
@@ -1468,43 +1567,49 @@ const HD={
 const EAR={
   roundBig(P,c,g,a){
     const [hx,hy,rx,ry]=a.head, k=g.feat;
-    const R=rx*.38*k+rx*.16;
-    let o=_facet(el(hx-rx*.76,hy-ry*.78,R,R*1.02,9),P.dark2,P.base,P.dark,1.6);
-    o+=_facet(el(hx+rx*.76,hy-ry*.78,R,R*1.02,9),P.base,P.lite,P.dark,1.6);
-    o+=_cir(hx-rx*.76,hy-ry*.78,R*.5,P.C,.4,0)+_cir(hx+rx*.76,hy-ry*.78,R*.5,P.C,.45,0);
+    const RY=ry*(.34+.15*k), RX=RY*.80;
+    const ex=hx+rx*.62, ey=hy-ry*.86;
+    const far=hx-rx*.62;
+    let o=_facet(el(far,ey-ry*.05,RX*.94,RY*.94,10),P.dark2,P.base,P.dark,1.5);
+    o+=_facet(el(ex,ey,RX,RY,10),P.base,P.lite,P.dark,1.9);
+    o+=_facet(el(ex,ey+RY*.12,RX*.52,RY*.58,9),P.dark,P.base,ART_INK,1.1);
+    o+=_cir(ex,ey+RY*.10,RX*.26,P.C,.30,0);
     return o;
   },
   roundSmall(P,c,g,a){
     const [hx,hy,rx,ry]=a.head, k=g.feat;
-    const R=rx*.28*k+rx*.12;
-    let o=_facet(el(hx-rx*.72,hy-ry*.76,R,R,8),P.dark2,P.base,P.dark,1.5);
-    o+=_facet(el(hx+rx*.72,hy-ry*.76,R,R,8),P.base,P.lite,P.dark,1.5);
-    o+=_cir(hx+rx*.72,hy-ry*.76,R*.48,P.C,.45,0);
+    const RY=ry*(.24+.12*k), RX=RY*.86;
+    const ex=hx+rx*.66, ey=hy-ry*.80;
+    let o=_facet(el(hx-rx*.66,ey,RX*.92,RY*.92,9),P.dark2,P.base,P.dark,1.4);
+    o+=_facet(el(ex,ey,RX,RY,9),P.base,P.lite,P.dark,1.8);
+    o+=_facet(el(ex,ey+RY*.10,RX*.48,RY*.54,8),P.dark,P.base,ART_INK,1.0);
     return o;
   },
   foxPoint(P,c,g,a){
     const [hx,hy,rx,ry]=a.head, k=g.feat;
-    const H=ry*(.62+.42*k), W=rx*.34;
+    const H=ry*(.66+.44*k), W=rx*.30;
+    const ey=hy-ry*.86;
     const one=(dir,base,lite)=>{
-      const bx=hx+dir*rx*.70, by=hy-ry*.66;
-      const tx=bx+dir*rx*.16, ty=by-H;
-      let s=_facet(`${(bx-W).toFixed(1)},${by.toFixed(1)} ${tx.toFixed(1)},${ty.toFixed(1)} ${(bx+W).toFixed(1)},${by.toFixed(1)}`,base,lite,P.dark,1.6);
-      s+=_pl(`M${bx.toFixed(1)},${(by-2).toFixed(1)} L${(tx-dir*1).toFixed(1)},${(ty+7).toFixed(1)}`,P.C,2,.55);
-      return s;
+      const bx=hx+dir*rx*.56;
+      const tx=bx+dir*rx*.14, ty=ey-H;
+      let o=_facet(`${(bx-W).toFixed(1)},${ey.toFixed(1)} ${tx.toFixed(1)},${ty.toFixed(1)} ${(bx+W).toFixed(1)},${ey.toFixed(1)}`,base,lite,P.dark,1.7);
+      o+=_facet(`${(bx-W*.52).toFixed(1)},${ey.toFixed(1)} ${(tx-dir*1).toFixed(1)},${(ty+H*.22).toFixed(1)} ${(bx+W*.5).toFixed(1)},${ey.toFixed(1)}`,P.dark,P.base,ART_INK,0);
+      return o;
     };
     return one(-1,P.dark2,P.base)+one(1,P.base,P.lite);
   },
   leafLong(P,c,g,a){
     const [hx,hy,rx,ry]=a.head, k=g.feat;
-    const H=ry*(1.15+.75*k), W=rx*.22;
-    const one=(dir,base,lite)=>{
-      const bx=hx+dir*rx*.42, by=hy-ry*.82;
-      const tx=bx+dir*rx*.12, ty=by-H;
-      let s=_facet(taper(bx,by,tx,ty,W*2,W*.7,dir*4,5),base,lite,P.dark,1.7);
-      s+=_pl(`M${bx.toFixed(1)},${(by-4).toFixed(1)} L${(tx+dir*1).toFixed(1)},${(ty+8).toFixed(1)}`,P.C,2.2,.5);
-      return s;
+    const H=ry*(1.14+.46*k), W=rx*.36;
+    const ex=hx+rx*.46, ey=hy-ry*.92;
+    const far=hx-rx*.46;
+    const one=(cx,base,lite,back)=>{
+      const tipx=cx+(back?-W*.34:W*.18), tipy=ey-H;
+      let o=_facet(taper(cx,ey-2,tipx,tipy,W*2,W*.82,0,6),base,lite,P.dark,1.7);
+      o+=_facet(taper(cx,ey-4,tipx,tipy-H*.02,W*1.05,W*.42,0,5),_mix(P.dark,P.belly,.30),P.belly,_mix(P.dark,ART_INK,.4),0);
+      return o;
     };
-    return one(-1,P.dark2,P.base)+one(1,P.base,P.lite);
+    return one(far,P.dark2,P.base,true)+one(ex,P.base,P.lite,false);
   },
   tuft(P,c,g,a){
     const [hx,hy,rx,ry]=a.head, k=g.feat;
@@ -1584,29 +1689,52 @@ const HORN={
 };
 
 /* ---------------- 翼（正面，双侧展开） ---------------- */
+/* 二次贝塞尔采样（用于生成平滑翼面多边形） */
+function qbez(p0,p1,p2,n){
+  const o=[];
+  for(let i=0;i<=n;i++){
+    const t=i/n,u=1-t;
+    o.push([u*u*p0[0]+2*u*t*p1[0]+t*t*p2[0], u*u*p0[1]+2*u*t*p1[1]+t*t*p2[1]]);
+  }
+  return o;
+}
+function Up0(k){ return 15+k*12; }
 const WING={
   /* 鸟翼：一整片翼面（前缘直、后缘羽状齿）+ 羽线 */
   bird(P,c,g,a,side){
-    const sx=(side<0?a.sh:a.sh2)[0], sy=a.shY, k=g.feat;
-    const sp=13+k*12, up=12+k*12;
-    const tx=sx+side*sp, ty=sy-up;
-    const bx=sx+side*sp*.86, by=sy+up*.78;
-    const base=side<0?P.dark2:P.base, lite=side<0?P.base:P.lite;
-    let poly=sx.toFixed(1)+","+(sy-4).toFixed(1)+" "+tx.toFixed(1)+","+ty.toFixed(1);
-    const N=4;
-    for(let i=1;i<=N;i++){
-      const t=i/N;
-      const ex=tx+(bx-tx)*t, ey=ty+(by-ty)*t;
-      poly+=" "+(ex+side*3.5).toFixed(1)+","+(ey-1).toFixed(1)+" "+ex.toFixed(1)+","+(ey+4.5).toFixed(1);
+    const sx=(side<0?a.sh:a.sh2)[0], sy=a.shY+2, k=g.feat;
+    const sp=14+k*8, up=15+k*9;
+    const dark=side<0?P.dark2:P.dark, mid=side<0?P.base:P.lite, lite=side<0?P.lite:ART_HI;
+    const root=[sx, sy];
+    const tip=[sx+side*sp, sy-up];
+    const base=side<0?P.dark2:P.base;
+    let o='';
+    /* 1) 翼膜：前缘饱满上弧，后缘下垂 */
+    const lead=qbez(root,[sx+side*sp*.50,sy-up*1.30],tip,7);
+    const back=qbez(tip,[sx+side*sp*.94,sy+6],[sx+side*sp*.36,sy+up*.46],4);
+    const tail=qbez([sx+side*sp*.36,sy+up*.46],[sx+side*sp*.16,sy+up*.34],[sx+side*2,sy+9],3);
+    o+=_facet(lead.concat(back).concat(tail),base,lite,P.dark,1.7);
+    /* 2) 覆羽：翼根一块亮色小扇形，盖住翼膜根部 */
+    const cv=[[sx+side*2,sy-3]];
+    for(let i=1;i<=4;i++){
+      const t=i/4.4;
+      const px=sx+side*sp*.52*t, py=sy-up*.52*t-2;
+      cv.push([px+side*5, py+3]); cv.push([px+side*1, py+7]);
     }
-    poly+=" "+(sx+side*1).toFixed(1)+","+(sy+7).toFixed(1);
-    let s=_facet(poly,base,lite,P.dark,1.8);
-    for(let i=1;i<=3;i++){
-      const t=i/4, ex=tx+(bx-tx)*t, ey=ty+(by-ty)*t;
-      s+=_pl("M"+(sx+side*2).toFixed(1)+","+(sy+2).toFixed(1)+" L"+ex.toFixed(1)+","+ey.toFixed(1),P.C,1.3,.6);
+    o+=_facet(cv,mid,lite,P.dark,1.2);
+    /* 3) 初级飞羽：四根细长羽片从翼尖散开 */
+    for(let i=0;i<4;i++){
+      const t=.34+i*.17;
+      const ax=sx+side*sp*(t*1.02), ay=sy-up*(t*1.02);
+      const len=up*(.46-t*.08), wdt=5.4-i*.8;
+      const px=ax+side*(3+i*1.4), py=ay+len;
+      o+=_facet(qbez([ax,ay],[ax+side*(6+i),ay+len*.42],[px,py],4)
+        .concat([[px+side*1.6,py-2],[ax+side*1.2,ay+1]]),
+        i<2?mid:base, lite, P.dark, 1.15);
     }
-    s+=_pl("M"+sx.toFixed(1)+","+(sy-2).toFixed(1)+" L"+tx.toFixed(1)+","+ty.toFixed(1),P.C,1.7,.85);
-    return s;
+    /* 翼前缘亮边 */
+    o+=_pl('M'+root[0].toFixed(1)+','+root[1].toFixed(1)+' Q'+(sx+side*sp*.48).toFixed(1)+','+(sy-up*1.14).toFixed(1)+' '+tip[0].toFixed(1)+','+tip[1].toFixed(1),ART_HI,1.3,.42);
+    return o;
   },
   /* 蝠膜翼：三段指骨撑起的整片膜 */
   bat(P,c,g,a,side){
@@ -1670,33 +1798,39 @@ const WING={
   },
   /* 隼刀翅：细长后掠整片 */
   blade(P,c,g,a,side){
-    const sx=(side<0?a.sh:a.sh2)[0], sy=a.shY, k=g.feat, sp=16+k*14;
-    const p=sx.toFixed(1)+","+(sy-3).toFixed(1)+" "+(sx+side*sp*.45).toFixed(1)+","+(sy-15).toFixed(1)+" "+(sx+side*sp).toFixed(1)+","+(sy+1).toFixed(1)+" "+(sx+side*sp*.5).toFixed(1)+","+(sy+10).toFixed(1);
-    let s=_facet(p,side<0?P.dark2:P.base,side<0?P.base:P.lite,P.dark,1.8);
-    s+=_pl("M"+sx.toFixed(1)+","+(sy-3).toFixed(1)+" L"+(sx+side*sp*.88).toFixed(1)+","+(sy-2).toFixed(1),P.C,1.5,.8);
-    for(let i=0;i<2;i++){
-      const t=.45+i*.25, x=sx+side*sp*t, y=sy-15+t*16;
-      s+=_pl("M"+x.toFixed(1)+","+y.toFixed(1)+" L"+(x+side*sp*.12).toFixed(1)+","+(y+9).toFixed(1),P.C,1.2,.55);
-    }
-    return s;
+    const sx=(side<0?a.sh:a.sh2)[0], sy=a.shY-1, k=g.feat;
+    const sp=16+k*12;
+    const base=side<0?P.dark2:P.base, lite=side<0?P.base:P.lite;
+    const root=[sx, sy+3], tip=[sx+side*sp, sy-Up0(k)];
+    const back=[sx+side*sp*.72, sy+9+k*4];
+    let pts=qbez(root,[sx+side*sp*.58,sy-14-k*8],tip,6)
+      .concat(qbez(tip,[sx+side*sp*.90,sy+2],back,3))
+      .concat([[sx+side*2, sy+6]]);
+    let s2=_facet(pts,base,lite,P.dark,1.7);
+    s2+=_pl(`M${root[0].toFixed(1)},${root[1].toFixed(1)} Q${(sx+side*sp*.55).toFixed(1)},${(sy-13-k*7).toFixed(1)} ${tip[0].toFixed(1)},${tip[1].toFixed(1)}`,ART_HI,1.1,.4);
+    s2+=_pl(`M${(sx+side*sp*.30).toFixed(1)},${(sy-2).toFixed(1)} L${(sx+side*sp*.72).toFixed(1)},${(sy+7).toFixed(1)}`,P.C,1.1,.45);
+    return s2;
   },
   /* 鳍翼（水/风） */
   fin(P,c,g,a,side){
-    const sx=(side<0?a.sh:a.sh2)[0], sy=a.shY;
-    const p=sx.toFixed(1)+","+sy.toFixed(1)+" "+(sx+side*15).toFixed(1)+","+(sy-17).toFixed(1)+" "+(sx+side*19).toFixed(1)+","+(sy-2).toFixed(1)+" "+(sx+side*13).toFixed(1)+","+(sy+11).toFixed(1);
-    let s=_facet(p,side<0?P.dark2:P.base,side<0?P.base:P.lite,P.dark,1.6);
-    for(let i=0;i<3;i++){ s+=_pl("M"+(sx+side*1).toFixed(1)+","+(sy+1).toFixed(1)+" L"+(sx+side*(15-3*i)).toFixed(1)+","+(sy-9+i*5).toFixed(1),P.C,1.1,.55); }
-    return s;
+    const sx=(side<0?a.sh:a.sh2)[0], sy=a.shY, k=g.feat;
+    const sp=14+k*9, up=14+k*9;
+    const base=side<0?P.dark2:P.base, lite=side<0?P.base:P.lite;
+    const root=[sx,sy+2], tip=[sx+side*sp*.92, sy-up];
+    let pts=qbez(root,[sx+side*sp*.86,sy-up*.86],tip,6)
+      .concat(qbez(tip,[sx+side*sp*1.04,sy-up*.10],[sx+side*sp*.68,sy+9+k*4],4))
+      .concat([[sx+side*1.6,sy+5]]);
+    let s2=_facet(pts,base,lite,P.dark,1.6);
+    for(let i=1;i<=3;i++){
+      const t=i/4;
+      s2+=_pl(`M${(sx+side*1).toFixed(1)},${(sy+1).toFixed(1)} L${(sx+side*sp*(.34+t*.58)).toFixed(1)},${(sy-up*(.30+t*.52)).toFixed(1)}`,P.C,1.05,.42);
+    }
+    return s2;
   }
 };
 
-/* ---------------- 尾（正面，向右侧伸出） ---------------- */
+/* ---------------- 尾 ---------------- */
 const TAIL={
-  none(){ return ''; },
-  thinRod(P,c,g,a){
-    const [rx,ry]=a.tl, k=g.feat, L=16*k+9;
-    return _facet(taper(rx,ry,rx+L,ry+5-L*.3,5.5*k+3,2,6,6),P.base,P.lite,P.dark,1.6);
-  },
   flameRod(P,c,g,a){
     const [rx,ry]=a.tl, k=g.feat, L=14*k+8;
     let s=_facet(taper(rx,ry,rx+L,ry-3,6*k+3.4,3,4,6),P.base,P.lite,P.dark,1.6);
@@ -1853,8 +1987,10 @@ const BACK={
 const FX={
   cheekSpark(P,c,g,a){
     const [hx,hy,rx,ry]=a.head;
-    let s=_cir(hx-rx*.92,hy+ry*.26,rx*.24,P.C,.8,1.3)+_cir(hx+rx*.92,hy+ry*.26,rx*.24,P.C,.8,1.3);
-    if(!P.mini) s+=_pl(`M${(hx-rx*1.06).toFixed(1)},${(hy+ry*.18).toFixed(1)} L${(hx-rx*.94).toFixed(1)},${(hy+ry*.12).toFixed(1)} L${(hx-rx*1.02).toFixed(1)},${(hy+ry*.34).toFixed(1)} L${(hx-rx*.86).toFixed(1)},${(hy+ry*.28).toFixed(1)}`,ART_HI,1.3,.9);
+    /* 近侧脸颊的暖光，不是贴在脸上的圆片 */
+    let s=_cir(hx+rx*.56,hy+ry*.34,rx*.34,P.C,.30,0);
+    s+=_cir(hx+rx*.50,hy+ry*.30,rx*.16,P.C,.42,0);
+    if(!P.mini) s+=_pl(`M${(hx+rx*.34).toFixed(1)},${(hy+ry*.20).toFixed(1)} L${(hx+rx*.62).toFixed(1)},${(hy+ry*.14).toFixed(1)} L${(hx+rx*.44).toFixed(1)},${(hy+ry*.42).toFixed(1)} L${(hx+rx*.70).toFixed(1)},${(hy+ry*.36).toFixed(1)}`,ART_HI,1.2,.72);
     return s;
   },
   waterSac(P,c,g,a){
@@ -2002,20 +2138,20 @@ const FX={
     return _pl(`M${bx-20},${by+14} L${bx+2},${by} M${bx+2},${by} L${bx+20},${by+12} M${bx+2},${by} L${bx-6},${by-14}`,P.C,1,.5);
   },
   crown(P,c,g,a){
-    const [hx,hy,rx,ry]=a.head, y=hy-ry*(1.0), w=rx*.8;
+    const [hx,hy,rx,ry]=a.head, y=hy-ry*(.94), w=rx*.62;
     const kind=c.crownKind||'spike';
     let s='';
     if(kind==='feather'){
       for(let i=0;i<5;i++){ const t=(i-2)/2;
-        s+=_pp(`${(hx+t*w*.34-2).toFixed(1)},${y.toFixed(1)} ${(hx+t*w*.52).toFixed(1)},${(y-ry*(.62-Math.abs(t)*.2)).toFixed(1)} ${(hx+t*w*.34+2).toFixed(1)},${y.toFixed(1)}`,P.C,.9,1.3); }
+        s+=_pp(`${(hx+t*w*.34-2).toFixed(1)},${y.toFixed(1)} ${(hx+t*w*.52).toFixed(1)},${(y-ry*(.44-Math.abs(t)*.14)).toFixed(1)} ${(hx+t*w*.34+2).toFixed(1)},${y.toFixed(1)}`,P.C,.9,1.3); }
     } else if(kind==='crystal'){
       for(let i=0;i<3;i++){ const t=(i-1)*.5;
-        s+=_pp(`${(hx+t*w*.5-4).toFixed(1)},${y.toFixed(1)} ${(hx+t*w*.5).toFixed(1)},${(y-ry*(.56-Math.abs(t)*.16)).toFixed(1)} ${(hx+t*w*.5+4).toFixed(1)},${y.toFixed(1)}`,P.C,.88,1.3); }
+        s+=_pp(`${(hx+t*w*.5-4).toFixed(1)},${y.toFixed(1)} ${(hx+t*w*.5).toFixed(1)},${(y-ry*(.40-Math.abs(t)*.12)).toFixed(1)} ${(hx+t*w*.5+4).toFixed(1)},${y.toFixed(1)}`,P.C,.88,1.3); }
     } else if(kind==='fin'){
-      s+=_pp(`${(hx-w*.9).toFixed(1)},${y.toFixed(1)} ${hx.toFixed(1)},${(y-ry*.62).toFixed(1)} ${(hx+w*.9).toFixed(1)},${y.toFixed(1)} ${(hx+w*.3).toFixed(1)},${(y+ry*.12).toFixed(1)} ${(hx-w*.3).toFixed(1)},${(y+ry*.12).toFixed(1)}`,P.C,.85,1.5);
+      s+=_pp(`${(hx-w*.9).toFixed(1)},${y.toFixed(1)} ${hx.toFixed(1)},${(y-ry*.46).toFixed(1)} ${(hx+w*.9).toFixed(1)},${y.toFixed(1)} ${(hx+w*.3).toFixed(1)},${(y+ry*.12).toFixed(1)} ${(hx-w*.3).toFixed(1)},${(y+ry*.12).toFixed(1)}`,P.C,.85,1.5);
     } else {
-      s+=_pp(`${(hx-w).toFixed(1)},${y.toFixed(1)} ${(hx-w).toFixed(1)},${(y-ry*.42).toFixed(1)} ${(hx-w*.5).toFixed(1)},${(y-ry*.16).toFixed(1)} ${hx.toFixed(1)},${(y-ry*.58).toFixed(1)} ${(hx+w*.5).toFixed(1)},${(y-ry*.16).toFixed(1)} ${(hx+w).toFixed(1)},${(y-ry*.42).toFixed(1)} ${(hx+w).toFixed(1)},${y.toFixed(1)}`,P.C,.92,1.7);
-      s+=_cir(hx,y-ry*.52,1.8,ART_HI,.95,0);
+      s+=_pp(`${(hx-w).toFixed(1)},${y.toFixed(1)} ${(hx-w).toFixed(1)},${(y-ry*.30).toFixed(1)} ${(hx-w*.5).toFixed(1)},${(y-ry*.12).toFixed(1)} ${hx.toFixed(1)},${(y-ry*.42).toFixed(1)} ${(hx+w*.5).toFixed(1)},${(y-ry*.12).toFixed(1)} ${(hx+w).toFixed(1)},${(y-ry*.30).toFixed(1)} ${(hx+w).toFixed(1)},${y.toFixed(1)}`,P.C,.92,1.7);
+      s+=_cir(hx,y-ry*.38,1.6,ART_HI,.95,0);
     }
     return s;
   }
@@ -2170,7 +2306,11 @@ function spiritSVG(id,stage,o){
     dark2:_mix(_mix(_mix(ART_DARK,C,.12),AC,.16),'#000000',.30), belly:_mix(_mix('#A8B8D8',C,.28),AC,.40), hi:ART_HI
   };
   c.crownKind=_crownKind(sp.type,c.head);
-  const Q=QK[sp.id]||{}; const qk=Q[st]||Q.all; const R=(SK[qk||c.sk]||SK.quad)(P,c,g,c.sko||{});
+  const Q=QK[sp.id]||{}; const qk=Q[st]||Q.all;
+  /* 剪影模式：先收集所有实体块，稍后烘成统一外轮廓 + 同色融合层 */
+  const _SIL=[]; __SIL=_SIL;
+  __INK=_mix(P.dark2,P.base,.46); __LW=.40;
+  const R=(SK[qk||c.sk]||SK.quad)(P,c,g,c.sko||{});
   let body='';
   /* 后层：双翼（背后展开） */
   if(c.wing&&WING[c.wing]) body+=WING[c.wing](P,c,g,R.a,-1)+WING[c.wing](P,c,g,R.a,1);
@@ -2180,21 +2320,24 @@ function spiritSVG(id,stage,o){
   body+=R.d.join('');
   /* 背饰（在背上表面） */
   if(c.back&&BACK[c.back]) body+=BACK[c.back](P,c,g,R.a);
-  /* 头 */
-  if(HD[c.head]) body+=HD[c.head](R.a.head[0],R.a.head[1],R.a.head[2],R.a.head[3],P,g);
-  /* 耳 / 角 */
+  /* 耳 / 角（先画，耳根被头遮住 → 从头上长出） */
   if(c.ear&&EAR[c.ear]) body+=EAR[c.ear](P,c,g,R.a);
   if(c.horn&&HORN[c.horn]) body+=HORN[c.horn](P,c,g,R.a);
+  /* 头 */
+  if(HD[c.head]) body+=HD[c.head](R.a.head[0],R.a.head[1],R.a.head[2],R.a.head[3],P,g);
   /* 专属件 */
   (c.fx||[]).forEach(k=>{ if(FX[k]) body+=FX[k](P,c,g,R.a); });
   /* 三阶才有脚下灵阵（不是每阶都套一圈特效） */
   if(!P.mini&&g.aura>=2){
     body+=`<g class="spr-ring"><ellipse cx="50" cy="88" rx="30" ry="6" fill="none" stroke="${C}" stroke-width="1.6" opacity=".45" stroke-dasharray="7 6"/></g>`;
   }
+  __SIL=null; __INK=null; __LW=1;
+  const sil=_bakeSil(_SIL,P.dark2,8)+_bakeBlob(_SIL,5);
   const flip=o.flip?' transform="scale(-1 1) translate(-100 0)"':'';
   const sc=g.s.toFixed(3);
-  return `<svg class="spr${o.static?' spr-static':''}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-label="${sp.stages[st]}"><g transform="translate(50 88) scale(${sc}) translate(-50 -88)"><g${flip}>${body}</g></g></svg>`;
+  return `<svg class="spr${o.static?' spr-static':''}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-label="${sp.stages[st]}">${ART_GRAD_DEFS}<g transform="translate(50 88) scale(${sc}) translate(-50 -88)"><g${flip}>${sil}${body}</g></g></svg>`;
 }
+
 /* 玩家角色与训练家：四肢完整、有衣物的人类；每位训练家配色+配饰各异以便分辨 */
 function shadeHEX(hex,amt){ // amt∈[-1,1]，正提亮、负压暗
   const n=parseInt(hex.slice(1),16); let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
