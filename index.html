@@ -529,6 +529,15 @@ SPIRITS.forEach(s=>{ s.ability=ABILITIES[s.type]; s.talentObj=TALENTS[s.talent];
        但共用同一套墨线 + 折面 + 几何语言 → 同画风、不同形象
      · 进化 = 体量↑、头身比↓、五官成熟（圆眼→竖瞳）、部件生长与增多 */
 
+/* ===================== 元素灵核 · 物种造型引擎 v3 =====================
+   v2 教训：共用"朝右侧身 + 细腿"骨架 → 所有物种都像同一只狗，脸看不见、颜色一片紫。
+   v3 改为「正面立绘构图」：
+     · 头占画面 ~40%，双眼可见，物种特征（吻/喙/耳/角/须/牙）全部长在正脸上
+     · 骨架决定体块与附肢（四足/矮壮/鸟/蛇/鱼/鲸/虫/甲壳/龟/蝠/蛛/章鱼/龙/人形）
+     · 身体真正吃进属性色（火橙/水蓝/草绿/电黄/暗紫/岩棕/冰青/风绿松/超粉/龙蓝紫），
+       但共用同一套墨线 + 折面 + 几何语言 → 同画风、不同形象
+     · 进化 = 体量↑、头身比↓、五官成熟（圆眼→竖瞳）、部件生长与增多 */
+
 const ART_TYPE={
   fire:{c:'#ff6b35',line:'mystic'},   water:{c:'#4d96ff',line:'mystic'},
   grass:{c:'#5fd068',line:'mystic'},  electric:{c:'#ffd93d',line:'tech'},
@@ -1142,26 +1151,25 @@ const QK={
 function frogPose(P,c,g,o){
   const k=(o.big||1)*g.big, d=[];
   const by=67, bw=23.5*k, bh=10.6*k, bx=47;
-  /* 后腿：粗大腿折在体侧，胫向前下，蹼足外张 */
-  [-1,1].forEach((sx,i)=>{
-    const tx=bx-bw*0.55, ty=by+2;
-    d.push(_facet(el(tx-sx*2.4,ty,8.6*k*(i?1:.94),9.4*k,9),i?P.base:P.dark2,i?P.lite:P.base,P.dark,1.7));
-    d.push(_facet(taper(tx-sx*2.4,ty+4,tx+8*k,by+15,8*k,5*k,3,5),i?P.base:P.dark2,i?P.lite:P.base,P.dark,1.6));
-    d.push(_facet(el(tx+9*k,by+17,6.6*k,2.6*k,7),i?P.base:P.dark2,i?P.lite:P.base,P.dark,1.4));
-  });
+  const tx=bx-bw*0.60;
+  /* 远侧后腿（压暗退后） */
+  d.push(_facet(el(tx-6,by+4,8*k,8.8*k,9),P.dark2,P.base,P.dark,1.6));
+  d.push(_facet(el(tx,by+16,6.2*k,2.5*k,7),P.dark2,P.base,P.dark,1.4));
   /* 身（宽扁） */
   d.push(_facet(el(bx,by,bw,bh,13),P.base,P.lite,P.dark,2.1));
   d.push(_facet(el(bx,by+3,bw*.66,bh*.5,10),P.belly,P.hi,P.dark,1.2));
-  /* 背脊纹 */
   d.push(_pl(`M${bx-12},${by-6} Q${bx},${by-9} ${bx+13},${by-6}`,P.C,2.2,.4));
+  /* 近侧后腿：粗大腿折叠 + 小腿前伸 + 蹼足 */
+  d.push(_facet(el(tx,by+3.5,9.6*k,10.2*k,9),P.base,P.lite,P.dark,1.8));
+  d.push(_facet(taper(tx-1,by+9,tx+9.5*k,by+15.5,8.4*k,5.2*k,3.4,5),P.base,P.lite,P.dark,1.6));
+  d.push(_facet(el(tx+11.5*k,by+17.4,7.2*k,2.9*k,7),P.base,P.lite,P.dark,1.5));
   /* 头：与身连成一块，宽扁 */
-  d.push(_facet(el(72,by-6,13.5*k,10.4*k,12),P.base,P.lite,P.dark,2));
-  d.push(_facet(el(72,by-3,9*k,5.6*k,9),P.belly,P.hi,P.dark,1.1));
+  d.push(_facet(el(72,by-6,13.8*k,10.6*k,12),P.base,P.lite,P.dark,2));
+  d.push(_facet(el(72,by-3,9.2*k,5.8*k,9),P.belly,P.hi,P.dark,1.1));
   /* 前腿：细短 */
   d.push(LEG(P,{hip:[62,by+2],knee:[62,by+10],ankle:[61.5,by+17],foot:[61.5,by+20],w0:6.6*k,w1:5.2*k,w2:4.6*k,bow:1}));
-  /* 蹼趾 */
   for(let i=-1;i<=1;i++) d.push(_cir(61.5+i*3.4,by+21,2.1*k,P.dark2,1,0));
-  return {d,a:{head:[72,by-12,15.5*g.headR,11*g.headR],sh:[bx+bw*.3,by-8],sh2:[bx-bw*.1,by-8],shY:by-8,bc:[bx,by],tl:[bx-bw*.9,by-1],gy:88}};
+  return {d,a:{head:[72,by-12,15.8*g.headR,11.2*g.headR],sh:[bx+bw*.3,by-8],sh2:[bx-bw*.1,by-8],shY:by-8,bc:[bx,by],tl:[bx-bw*.9,by-1],gy:88}};
 }
 
 /* 兔：圆身、后腿折叠成高臀、前腿短、长耳直立 */
