@@ -56,17 +56,20 @@
   @media(max-width:640px){ .viewport{height:52vh;min-height:320px} }
   .map-world{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
   .tile-layer,.entity-layer{position:absolute;left:0;top:0}
-  .tile{position:absolute;width:32px;height:32px}
-  .t-grass{background:#4e9a55}
-  .t-tall{background:#33753c;background-image:repeating-linear-gradient(118deg,rgba(255,255,255,.10) 0 2px,transparent 2px 8px)}
-  .t-path{background:#c9a86a}
-  .t-tree{background:#2c6b3a;display:grid;place-items:center;font-size:19px;line-height:1}
-  .t-water{background:linear-gradient(180deg,#2f6fb0,#255a94)}
-  .t-rock{background:#7b7688}
-  .t-snow{background:#dbeaf3}
-  .t-sand{background:#e3c483}
-  .t-lava{background:linear-gradient(180deg,#ef6a12,#a8320a);box-shadow:inset 0 0 10px rgba(255,190,60,.55)}
-  .t-ruin{background:#6a6379}
+  .tile{position:absolute;width:32px;height:32px;overflow:hidden}
+  .tile::before{content:"";position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(135deg,rgba(255,255,255,.12),transparent 42%),linear-gradient(315deg,rgba(0,0,0,.30),transparent 52%)}
+  .t-grass{background:#3f7a47}
+  .t-tall{background:#2f5f38;background-image:repeating-linear-gradient(118deg,rgba(255,255,255,.10) 0 2px,transparent 2px 8px)}
+  .t-path{background:#b59a63}
+  .t-tree{background:#234e34;display:grid;place-items:center}
+  .t-water{background:linear-gradient(180deg,#2f6fb0,#214e84);box-shadow:inset 0 0 0 1px rgba(77,150,255,.22)}
+  .t-rock{background:#5f5a6c}
+  .t-snow{background:#c3d9e8}
+  .t-sand{background:#cdb173}
+  .t-lava{background:linear-gradient(180deg,#ef6a12,#a8320a);box-shadow:inset 0 0 10px rgba(255,190,60,.5)}
+  .t-ruin{background:#544e63}
+  .tile .spr{width:100%;height:100%}
   .entity{position:absolute;width:32px;height:32px;display:grid;place-items:center;font-size:21px;z-index:4;transition:transform .12s}
   .entity.item{font-size:16px;animation:itemBob 1.6s ease-in-out infinite}
   @keyframes itemBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
@@ -86,6 +89,19 @@
     font-size:18px;cursor:pointer;user-select:none;-webkit-user-select:none}
   .dpad button:active{background:rgba(124,92,255,.35)}
   .dpad .up{grid-area:1/2} .dpad .left{grid-area:2/1} .dpad .right{grid-area:2/3} .dpad .down{grid-area:3/2}
+  /* 手杆（虚拟摇杆） */
+  .joystick{position:relative;width:132px;height:132px;border-radius:50%;touch-action:none;user-select:none;
+    background:radial-gradient(circle at 50% 40%,rgba(124,92,255,.22),rgba(11,16,38,.6) 72%);
+    border:2px solid rgba(124,92,255,.5);
+    box-shadow:inset 0 0 20px rgba(124,92,255,.28),0 6px 18px rgba(0,0,0,.45);flex:0 0 auto}
+  .joystick .joy-base{position:absolute;inset:16px;border-radius:50%;
+    background:radial-gradient(circle at 50% 38%,rgba(58,76,134,.4),rgba(11,16,38,.5))}
+  .joystick .joy-ring{position:absolute;inset:30px;border-radius:50%;border:1px dashed rgba(124,92,255,.4)}
+  .joystick .joy-knob{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;
+    background:radial-gradient(circle at 38% 32%,#c3b2ff,#6c4ff0 58%,#3f29a0);
+    border:2px solid rgba(255,255,255,.55);box-shadow:0 4px 12px rgba(0,0,0,.55);transition:transform .04s linear}
+  .joystick.on{box-shadow:inset 0 0 26px rgba(124,92,255,.5),0 6px 18px rgba(0,0,0,.45)}
+  .joystick.on .joy-knob{background:radial-gradient(circle at 38% 32%,#d9ccff,#8a6bff 58%,#4a2fa0)}
   .hint-box{font-size:12.5px;color:var(--txt-dim);line-height:1.8;flex:1;min-width:220px}
   .kbd{display:inline-block;padding:1px 6px;border-radius:5px;background:rgba(255,255,255,.1);border:1px solid var(--card-border);font-size:11px}
 
@@ -339,14 +355,13 @@
     </div>
 
     <div class="controls">
-      <div class="dpad">
-        <button class="up" onmousedown="tryMove(0,-1)" ontouchstart="event.preventDefault();tryMove(0,-1)">▲</button>
-        <button class="left" onmousedown="tryMove(-1,0)" ontouchstart="event.preventDefault();tryMove(-1,0)">◀</button>
-        <button class="right" onmousedown="tryMove(1,0)" ontouchstart="event.preventDefault();tryMove(1,0)">▶</button>
-        <button class="down" onmousedown="tryMove(0,1)" ontouchstart="event.preventDefault();tryMove(0,1)">▼</button>
+      <div class="joystick" id="joystick" aria-label="移动摇杆">
+        <div class="joy-base"></div>
+        <div class="joy-ring"></div>
+        <div class="joy-knob" id="joyKnob"></div>
       </div>
       <div class="hint-box">
-        <span class="kbd">方向键</span> / <span class="kbd">WASD</span> 移动 · 走进 <b>高草</b>会遇敌 · 撞到 <b>训练家</b>开战 · 走进 <b>🏥</b> 回复 · 战斗中可用 <b>精灵球</b> 捕捉
+        拖动左下 <b>摇杆</b> 移动（也可用 <span class="kbd">方向键</span>/<span class="kbd">WASD</span>）· 走进 <b>高草</b>会遇敌 · 撞到 <b>训练家</b>开战 · 走进 <b>🏥</b> 回复 · 战斗中可用 <b>精灵球</b> 捕捉
       </div>
     </div>
   </section>
@@ -472,7 +487,32 @@ const SPIRITS = [
   {id:'s12',name:'幼叶鹿',type:'grass',emoji:['🦌','🦌','🌳'],stages:['幼叶鹿','森灵鹿','世界树灵'],base:{hp:58,atk:50,def:56,spd:62},talent:'hp',desc:'踏入森林便与草木共鸣，角上生花。'},
   {id:'s13',name:'岩甲蜥',type:'rock',emoji:['🦎','🦎','🐊'],stages:['幼岩蜥','岩甲蜥','熔岩巨蜥'],base:{hp:64,atk:58,def:70,spd:38},talent:'def',desc:'坚硬鳞甲能抵挡滚石，栖息在火山口。'},
   {id:'s14',name:'大地龙',type:'dragon',emoji:['🦕','🦖','🐉'],stages:['幼土龙','岩甲龙','大地龙王'],base:{hp:72,atk:76,def:64,spd:48},talent:'elem',desc:'沉睡于大地深处，苏醒时山岳为之震动。'},
-  {id:'s15',name:'苍穹龙',type:'dragon',emoji:['🐲','🦅','🐉'],stages:['翼龙崽','风翼龙','苍穹龙王'],base:{hp:62,atk:78,def:54,spd:78},talent:'spd',desc:'展开遮天巨翼，翱翔于云海之上。'}
+  {id:'s15',name:'苍穹龙',type:'dragon',emoji:['🐲','🦅','🐉'],stages:['翼龙崽','风翼龙','苍穹龙王'],base:{hp:62,atk:78,def:54,spd:78},talent:'spd',desc:'展开遮天巨翼，翱翔于云海之上。'},
+  {id:'s16',name:'火羽雀',type:'fire',emoji:['🐤','🕊️','🦅'],stages:['火羽雀','烈焰鸢','焚天凤'],base:{hp:46,atk:64,def:42,spd:76},talent:'atk',desc:'尾羽燃着不熄的火苗，越飞火势越盛。'},
+  {id:'s17',name:'熔岩蟹',type:'fire',emoji:['🦀','🦂','🦞'],stages:['熔岩蟹','炽甲蟹','炼狱蟹王'],base:{hp:64,atk:54,def:72,spd:34},talent:'def',desc:'甲壳是冷却的火山岩，钳中藏着熔浆。'},
+  {id:'s18',name:'炎鬃狼',type:'fire',emoji:['🐺','🐺','🐺'],stages:['炎鬃狼','烈焰狼','狱炎狼王'],base:{hp:56,atk:72,def:46,spd:70},talent:'atk',desc:'鬃毛如流动火焰，夜行时像一盏游走的灯。'},
+  {id:'s19',name:'潮汐鱼',type:'water',emoji:['🐟','🐠','🐋'],stages:['潮汐鱼','涌浪鱼','深渊鲸'],base:{hp:50,atk:54,def:48,spd:66},talent:'spd',desc:'随潮起潮落改变体色，是湖中的信使。'},
+  {id:'s20',name:'寒潮鲨',type:'water',emoji:['🐟','🦈','🦈'],stages:['寒潮鲨','齿鲨','磷光鲨王'],base:{hp:58,atk:70,def:50,spd:68},talent:'atk',desc:'背鳍切开寒流，磷光在深水中指引方向。'},
+  {id:'s21',name:'泡沫蛙',type:'water',emoji:['🐸','🐊','🐉'],stages:['泡沫蛙','潮汐蛙','碧海蛙神'],base:{hp:58,atk:50,def:56,spd:48},talent:'hp',desc:'鼓起的腮能吐出治愈的泡沫。'},
+  {id:'s22',name:'藤蔓蛇',type:'grass',emoji:['🐍','🐲','🐉'],stages:['藤蔓蛇','绞藤蟒','世界树蟒'],base:{hp:54,atk:58,def:52,spd:64},talent:'spd',desc:'缠绕古树而生，绞缠间绽放新芽。'},
+  {id:'s23',name:'苔原熊',type:'grass',emoji:['🐻','🐻','🐻'],stages:['苔原熊','林熊','森灵熊王'],base:{hp:66,atk:56,def:64,spd:40},talent:'def',desc:'背披苔藓，沉睡时与森林融为一体。'},
+  {id:'s24',name:'花灵蝶',type:'grass',emoji:['🐛','🦋','🦋'],stages:['花灵蝶','花裳蝶','花界女王'],base:{hp:48,atk:58,def:44,spd:78},talent:'spd',desc:'翅上花开引来蜂群，是草原的园丁。'},
+  {id:'s25',name:'雷角牛',type:'electric',emoji:['🐂','🐃','🐮'],stages:['雷角牛','雷蹄牛','雷霆牛王'],base:{hp:62,atk:74,def:58,spd:52},talent:'atk',desc:'双角积蓄雷电，踏地便引发小型风暴。'},
+  {id:'s26',name:'电尾鼠',type:'electric',emoji:['🐭','🐹','🐭'],stages:['电尾鼠','雷光鼠','暴雷鼠王'],base:{hp:44,atk:64,def:40,spd:82},talent:'spd',desc:'尾巴如天线般竖起，感应远处的雷云。'},
+  {id:'s27',name:'晨光鹿',type:'light',emoji:['🦌','🦌','🌟'],stages:['晨光鹿','辉鹿','朝阳神鹿'],base:{hp:60,atk:52,def:56,spd:62},talent:'hp',desc:'鹿角承住第一缕晨光，所到之处阴霾退散。'},
+  {id:'s28',name:'辉羽枭',type:'light',emoji:['🐣','🦉','👁️'],stages:['辉羽枭','圣光枭','曜日枭神'],base:{hp:54,atk:60,def:48,spd:66},talent:'crit',desc:'羽翼滤下暖光，为迷途者指路。'},
+  {id:'s29',name:'影蝙蝠',type:'dark',emoji:['🦇','🦇','😈'],stages:['影蝙蝠','夜魇蝠','永夜蝠王'],base:{hp:50,atk:62,def:44,spd:80},talent:'spd',desc:'翼膜吸纳夜色，飞行时无声无息。'},
+  {id:'s30',name:'暗影蛛',type:'dark',emoji:['🕷️','🕷️','🕸️'],stages:['暗影蛛','毒丝蛛','虚空蛛后'],base:{hp:52,atk:66,def:50,spd:60},talent:'atk',desc:'在遗迹暗角结网，丝线带着沉睡的毒。'},
+  {id:'s31',name:'磐石龟',type:'rock',emoji:['🐢','🐢','🗿'],stages:['磐石龟','岩磐龟','山岳龟神'],base:{hp:72,atk:50,def:76,spd:30},talent:'def',desc:'背负整座小山前行，是移动的堡垒。'},
+  {id:'s32',name:'岩爪蟹',type:'rock',emoji:['🦀','🦀','🦞'],stages:['岩爪蟹','碎岩蟹','巨钳蟹将'],base:{hp:60,atk:56,def:70,spd:38},talent:'def',desc:'钳子能夹碎顽石，守护矿脉入口。'},
+  {id:'s33',name:'冰晶熊',type:'ice',emoji:['🐻','🐺','🐻'],stages:['冰晶熊','霜铠熊','极地熊帝'],base:{hp:64,atk:58,def:62,spd:44},talent:'def',desc:'呼出的白雾凝成铠甲，踏雪无痕。'},
+  {id:'s34',name:'霜翼鸟',type:'ice',emoji:['🐤','🕊️','🦅'],stages:['霜翼鸟','冰羽鹰','寒霜鸟王'],base:{hp:52,atk:58,def:46,spd:74},talent:'spd',desc:'翅尖结霜，掠过湖面留下冰纹。'},
+  {id:'s35',name:'疾风隼',type:'wind',emoji:['🐤','🦅','🦅'],stages:['疾风隼','裂空隼','天风隼王'],base:{hp:48,atk:62,def:44,spd:84},talent:'spd',desc:'翅如弯刀切开气流，俯冲快过视线。'},
+  {id:'s36',name:'旋风蛇',type:'wind',emoji:['🐍','🐍','🐉'],stages:['旋风蛇','气旋蟒','飓风蛇王'],base:{hp:52,atk:56,def:48,spd:72},talent:'spd',desc:'盘旋成风口，所过之处落叶飞舞。'},
+  {id:'s37',name:'飘羽蝶',type:'wind',emoji:['🐛','🦋','🦋'],stages:['飘羽蝶','风裳蝶','天穹蝶后'],base:{hp:46,atk:58,def:42,spd:80},talent:'spd',desc:'翅上生有气孔，乘风飘行不落地面。'},
+  {id:'s38',name:'念力章',type:'psychic',emoji:['🐙','🦑','🐙'],stages:['念力章','灵能章','虚空章王'],base:{hp:56,atk:60,def:54,spd:58},talent:'crit',desc:'触腕编织精神丝线，能使物体悬浮。'},
+  {id:'s39',name:'幻梦枭',type:'psychic',emoji:['🐣','🦉','👁️'],stages:['幻梦枭','迷梦枭','梦境主宰'],base:{hp:54,atk:64,def:48,spd:66},talent:'crit',desc:'目光所及便织出幻梦，猎物在安宁中沉眠。'},
+  {id:'s40',name:'深渊龙',type:'dragon',emoji:['🐲','🐉','🐉'],stages:['深渊幼龙','幽渊龙','深渊龙王'],base:{hp:70,atk:78,def:66,spd:60},talent:'atk',desc:'来自地脉最深处，鳞间渗着幽蓝的微光。'}
 ];
 SPIRITS.forEach(s=>{ s.ability=ABILITIES[s.type]; s.talentObj=TALENTS[s.talent]; });
 
@@ -491,7 +531,11 @@ const ART_TYPE={
 /* 体态原型：决定剪影。每只精灵全 3 阶不变，保证「进化了还是同一只」 */
 const ART_FORM={
   s1:'beast', s2:'frog', s3:'rabbit', s4:'beast', s5:'bird', s6:'beast', s7:'turtle', s8:'beast',
-  s9:'bug', s10:'owl', s11:'beast', s12:'deer', s13:'lizard', s14:'dragon', s15:'dragon'
+  s9:'bug', s10:'owl', s11:'beast', s12:'deer', s13:'lizard', s14:'dragon', s15:'dragon',
+  s16:'bird', s17:'crab', s18:'wolf', s19:'fish', s20:'shark', s21:'frog',
+  s22:'serpent', s23:'bear', s24:'bug', s25:'bull', s26:'beast', s27:'deer', s28:'owl',
+  s29:'bat', s30:'spider', s31:'turtle', s32:'crab', s33:'bear', s34:'bird',
+  s35:'bird', s36:'serpent', s37:'bug', s38:'crab', s39:'owl', s40:'dragon'
 };
 const ART_SHAPE={
   beast:{head:'34,30 50,20 66,30 62,44 38,44',body:'30,48 50,40 70,48 66,70 34,70',
@@ -534,7 +578,47 @@ const ART_SHAPE={
   dragon:{head:'38,22 50,14 62,22 58,35 42,35',body:'36,46 50,38 64,46 62,74 38,74',
     lite:'36,46 50,38 50,74 38,74',ears:['40,20 33,4 47,16','60,20 67,4 53,16'],
     horn:'M41,18 L34,2 M59,18 L66,2',tail:'62,70 82,75 91,65 87,58',
-    legs:[[38,70],[56,70]],wing:'36,48 6,20 14,52 2,38',crown:'38,18 50,2 62,18'}
+    legs:[[38,70],[56,70]],wing:'36,48 6,20 14,52 2,38',crown:'38,18 50,2 62,18'},
+  /* —— 新增体态原型（扩充至 40 种精灵，保证剪影各异）—— */
+  serpent:{head:'40,28 50,18 60,28 58,40 42,40',
+    body:'30,44 50,38 70,46 66,72 38,72 32,58',lite:'30,44 50,38 50,72 32,58',
+    ears:[],tail:'68,66 86,60 92,50 86,46',legs:[],wing:'30,48 12,32 18,54 8,44',crown:'40,22 50,8 60,22'},
+  wolf:{head:'36,30 50,20 64,30 60,44 40,44',
+    body:'30,48 50,42 70,48 66,70 34,70',lite:'30,48 50,42 50,70 34,70',
+    ears:['36,30 30,12 46,26','64,30 70,12 54,26'],tail:'66,62 84,58 90,46 84,42',
+    legs:[[34,66],[58,66]],wing:'30,50 10,28 16,50 8,40',crown:'40,22 50,8 60,22'},
+  bear:{head:'34,30 50,22 66,30 62,46 38,46',
+    body:'26,50 50,44 74,50 70,72 30,72',lite:'26,50 50,44 50,72 30,72',
+    ears:['34,30 30,18 44,28','66,30 70,18 56,28'],tail:'',
+    legs:[[32,68],[58,68]],wing:'26,52 8,34 14,56 6,46',crown:'38,24 50,12 62,24'},
+  crab:{head:'40,32 50,26 60,32 58,42 42,42',
+    body:'24,46 50,40 76,46 72,66 28,66',lite:'24,46 50,40 50,66 28,66',
+    shell:'30,48 50,44 70,48 66,62 34,62',ears:[],tail:'',horn:'M24,50 L10,44 M76,50 L90,44',
+    legs:[[28,62],[60,62]],wing:'24,48 6,30 12,52 4,42',crown:'38,28 50,16 62,28'},
+  fish:{head:'42,30 54,24 62,32 58,42 44,42',
+    body:'28,40 56,34 72,48 56,62 28,56',lite:'28,40 56,34 56,62 28,56',
+    ears:['34,40 26,30 38,46','34,56 26,66 38,52'],tail:'66,48 90,38 86,54 92,60 66,56',legs:[],
+    wing:'28,44 12,28 18,50 8,40',crown:'44,26 54,14 62,26'},
+  shark:{head:'44,32 60,28 72,40 60,50 46,46',
+    body:'26,42 60,36 74,52 60,64 26,58',lite:'26,42 60,36 60,64 26,58',
+    ears:['40,40 34,26 52,38'],tail:'72,52 94,42 90,60',legs:[],
+    wing:'26,46 10,30 16,52 6,42',crown:'46,28 60,18 72,30'},
+  bat:{head:'40,26 50,18 60,26 56,38 44,38',
+    body:'38,38 50,34 62,38 58,58 42,58',lite:'38,38 50,34 50,58 42,58',
+    ears:['40,26 36,14 48,24','60,26 64,14 52,24'],tail:'',legs:[[42,54],[54,54]],
+    wing:'38,40 4,14 14,46 2,34',crown:'42,22 50,12 58,22'},
+  bull:{head:'34,30 50,22 66,30 62,44 38,44',
+    body:'28,48 50,42 72,48 68,70 32,70',lite:'28,48 50,42 50,70 32,70',
+    ears:['34,30 30,18 46,26','66,30 70,18 54,26'],horn:'M36,28 L24,14 M64,28 L76,14',
+    tail:'68,64 86,60 90,50 84,46',legs:[[32,66],[58,66]],wing:'28,50 8,28 14,50 6,40',crown:'38,24 50,12 62,24'},
+  spider:{head:'42,30 50,24 58,30 56,40 44,40',
+    body:'30,40 50,34 70,40 66,62 34,62',lite:'30,40 50,34 50,62 34,62',
+    ears:[],tail:'',legs:[[30,46],[62,46],[28,54],[66,54],[30,62],[62,62],[28,70],[66,70]],
+    wing:'30,42 12,26 18,48 8,38',crown:'44,26 50,16 56,26'},
+  mantis:{head:'44,28 50,22 56,28 54,38 46,38',
+    body:'42,40 58,40 60,72 40,72',lite:'42,40 50,40 50,72 40,72',
+    antenna:'M46,26 L40,12 M54,26 L60,12',horn:'M42,46 L28,40 M58,46 L72,40',tail:'',
+    legs:[[42,66],[56,66],[44,72],[54,72]],wing:'42,44 12,22 10,54 40,66',crown:'44,24 50,12 56,24'}
 };
 const ART_MOTIF={
   flame:'M42,66 L46,56 L50,62 L54,51 L58,60 L62,55',
@@ -552,7 +636,8 @@ const ART_MOTIF={
 /* 一阶就存在的体态辨识翼：蝶/鸟/龙/枭，保证 10% 缩略图仍能认出体态 */
 const ART_BASEWING={
   bug:'44,44 16,18 10,42 40,62',   bird:'38,48 17,32 21,54 36,58',
-  dragon:'36,48 15,26 19,50 34,56', owl:'34,48 15,30 19,52 32,56'
+  dragon:'36,48 15,26 19,50 34,56', owl:'34,48 15,30 19,52 32,56',
+  bat:'38,42 6,16 12,46 2,34'
 };
 const ART_INK='#0b1026', ART_BASE='#3A4C86', ART_DARK='#161F45', ART_LITE='#5A70B0', ART_HI='#E8F4FF';
 function _pg(pts,fill,op,sw){ return `<polygon points="${pts}" fill="${fill}"${op?` opacity="${op}"`:''} stroke="${ART_INK}" stroke-width="${sw||1.7}" stroke-linejoin="round"/>`; }
@@ -721,6 +806,12 @@ function markSVG(kind){
   if(kind==='heal') return `<svg class="spr spr-static" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">`+
     _pg(`50,12 76,50 50,88 24,50`,ART_DARK,1,2)+_pg(`50,12 76,50 50,50 24,50`,C,.75,1.5)+
     _pg(`44,36 56,36 56,44 64,44 64,56 56,56 56,64 44,64 44,56 36,56 36,44 44,44`,ART_HI,1,1)+`</svg>`;
+  if(kind==='tree') return `<svg class="spr spr-static" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">`+
+    _pg(`50,66 56,50 56,40 44,40 44,50 50,66`,ART_DARK,1,2)+
+    _pg(`50,12 74,46 50,42 26,46`,'#2f5f38',1,1.6)+
+    _pg(`50,12 74,46 50,30`,'#3f7a47',.9,1.3)+
+    _pg(`50,12 26,46 50,30`,'#4e9a55',.9,1.1)+
+    _pg(`50,10 58,20 42,20`,ART_HI,.25,1)+`</svg>`;
   return `<svg class="spr spr-static" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">`+
     `<circle cx="50" cy="50" r="30" fill="${ART_DARK}" stroke="${ART_INK}" stroke-width="2.5"/>`+
     `<path d="M20,50 A30,30 0 0,1 80,50 Z" fill="${C}"/>`+
@@ -758,26 +849,26 @@ const ENC_CHANCE={}; ENC_CHANCE[T.TALL]=.16; ENC_CHANCE[T.SNOW]=.16; ENC_CHANCE[
 
 const HUB={x:25,y:17};
 const BIOMES=[
-  {key:'plains', name:'微风草原', cx:8,  cy:8,  r:7, pools:['s1','s3','s11','s9'], rare:'s15'},
-  {key:'forest', name:'低语森林', cx:8,  cy:26, r:7, pools:['s3','s12','s1','s10'], rare:'s14'},
-  {key:'lake',   name:'碧波湖',   cx:22, cy:7,  r:7, pools:['s2','s9','s4'],       rare:'s15'},
-  {key:'volcano',name:'灰烬火山', cx:41, cy:8,  r:7, pools:['s1','s11','s13','s7'],rare:'s14'},
-  {key:'snow',   name:'霜白雪原', cx:41, cy:26, r:7, pools:['s8','s13','s7'],      rare:'s15'},
-  {key:'desert', name:'流沙荒漠', cx:22, cy:27, r:6, pools:['s7','s13','s4'],      rare:'s13'},
-  {key:'ruins',  name:'遗忘遗迹', cx:13, cy:17, r:4, pools:['s10','s6','s14'],     rare:'s14'},
-  {key:'ridge',  name:'龙脊山道', cx:35, cy:17, r:4, pools:['s14','s15','s7'],     rare:'s15'}
+  {key:'plains', name:'微风草原', cx:8,  cy:8,  r:7, pools:['s1','s3','s11','s9','s18','s23','s35'], rare:'s18'},
+  {key:'forest', name:'低语森林', cx:8,  cy:26, r:7, pools:['s3','s12','s1','s10','s22','s24','s39'], rare:'s39'},
+  {key:'lake',   name:'碧波湖',   cx:22, cy:7,  r:7, pools:['s2','s9','s4','s19','s20','s21'],       rare:'s20'},
+  {key:'volcano',name:'灰烬火山', cx:41, cy:8,  r:7, pools:['s1','s11','s13','s7','s16','s17','s33'],rare:'s17'},
+  {key:'snow',   name:'霜白雪原', cx:41, cy:26, r:7, pools:['s8','s13','s7','s33','s34'],      rare:'s33'},
+  {key:'desert', name:'流沙荒漠', cx:22, cy:27, r:6, pools:['s7','s13','s4','s32','s25'],      rare:'s25'},
+  {key:'ruins',  name:'遗忘遗迹', cx:13, cy:17, r:4, pools:['s10','s6','s14','s29','s30','s38'],     rare:'s38'},
+  {key:'ridge',  name:'龙脊山道', cx:35, cy:17, r:4, pools:['s14','s15','s7','s40','s36'],     rare:'s40'}
 ];
 const BIOME_BY_KEY={}; BIOMES.forEach(b=>BIOME_BY_KEY[b.key]=b);
 
 const TRAINER_DEFS=[
-  {key:'plains', name:'草原少年 阿澈', emoji:'🧑‍🌾', cloth:'#6BBF59', cloth2:'#3E8E41', hair:'#6B4A2B', acc:'straw',       pool:['s3','s1'],   stage:1},
-  {key:'forest', name:'巡林人 苔',     emoji:'🧝', cloth:'#2E8B6B', cloth2:'#1C5E47', hair:'#3A2A1A', acc:'hood',        pool:['s12','s3'],  stage:1},
-  {key:'lake',   name:'湖畔钓手 澜',   emoji:'🎣', cloth:'#3E9BD6', cloth2:'#2A6DA0', hair:'#2A2A3A', acc:'cap',         pool:['s2','s9'],   stage:1},
-  {key:'volcano',name:'熔岩使 炎',     emoji:'🔥', cloth:'#E2603A', cloth2:'#A8351C', hair:'#2A1A14', acc:'horn',        pool:['s11','s13'], stage:2},
-  {key:'snow',   name:'冰晶使 霜',     emoji:'❄️', cloth:'#7FD3E8', cloth2:'#4FA8C4', hair:'#D9E8F0', acc:'iccrown',     pool:['s8','s13'],  stage:2},
-  {key:'desert', name:'沙盗 漠',       emoji:'🥷', cloth:'#D9A441', cloth2:'#A8762A', hair:'#3A2A1A', acc:'scarf',       pool:['s13','s4'],  stage:1},
-  {key:'ruins',  name:'守夜人 冥',     emoji:'🕯️', cloth:'#46506B', cloth2:'#2E3550', hair:'#15131F', acc:'darkhood',    pool:['s10','s6'],  stage:2},
-  {key:'ridge',  name:'龙骑士 玦',     emoji:'🐲', cloth:'#8A5CD6', cloth2:'#5A2FA0', hair:'#2A2A3A', acc:'dragoncrown', pool:['s15','s14'], stage:2, boss:true}
+  {key:'plains', name:'草原少年 阿澈', emoji:'🧑‍🌾', cloth:'#6BBF59', cloth2:'#3E8E41', hair:'#6B4A2B', acc:'straw',       pool:['s1','s18'],   stage:1},
+  {key:'forest', name:'巡林人 苔',     emoji:'🧝', cloth:'#2E8B6B', cloth2:'#1C5E47', hair:'#3A2A1A', acc:'hood',        pool:['s12','s24'],  stage:1},
+  {key:'lake',   name:'湖畔钓手 澜',   emoji:'🎣', cloth:'#3E9BD6', cloth2:'#2A6DA0', hair:'#2A2A3A', acc:'cap',         pool:['s2','s19'],   stage:1},
+  {key:'volcano',name:'熔岩使 炎',     emoji:'🔥', cloth:'#E2603A', cloth2:'#A8351C', hair:'#2A1A14', acc:'horn',        pool:['s11','s17'], stage:2},
+  {key:'snow',   name:'冰晶使 霜',     emoji:'❄️', cloth:'#7FD3E8', cloth2:'#4FA8C4', hair:'#D9E8F0', acc:'iccrown',     pool:['s8','s33'],  stage:2},
+  {key:'desert', name:'沙盗 漠',       emoji:'🥷', cloth:'#D9A441', cloth2:'#A8762A', hair:'#3A2A1A', acc:'scarf',       pool:['s4','s25'],  stage:1},
+  {key:'ruins',  name:'守夜人 冥',     emoji:'🕯️', cloth:'#46506B', cloth2:'#2E3550', hair:'#15131F', acc:'darkhood',    pool:['s6','s30'],  stage:2},
+  {key:'ridge',  name:'龙骑士 玦',     emoji:'🐲', cloth:'#8A5CD6', cloth2:'#5A2FA0', hair:'#2A2A3A', acc:'dragoncrown', pool:['s15','s40'], stage:2, boss:true}
 ];
 
 let map=[], biomeMap=[];
@@ -1029,7 +1120,7 @@ function buildTileDOM(){
     const d=document.createElement('div');
     d.className='tile '+TILE_CLASS[map[y][x]];
     d.style.left=(x*TILE)+'px'; d.style.top=(y*TILE)+'px';
-    if(map[y][x]===T.TREE) d.textContent='🌲';
+    if(map[y][x]===T.TREE) d.innerHTML=markSVG('tree');
     frag.appendChild(d);
   }
   layer.appendChild(frag);
@@ -1569,6 +1660,8 @@ function openBattle(cfg){
   if(B.player.species.ability.kind==='intimidate') B.enemy.stats.atk=Math.floor(B.enemy.stats.atk*0.9);
   mode='battle';
   document.getElementById('battleScreen').hidden=false;
+  /* 进入对战前清理精灵容器的瞬时状态类，避免上一场残留的 faint/hit 导致我方精灵不可见 */
+  ['bPlayerSprite','bEnemySprite'].forEach(id=>{const e=document.getElementById(id); if(e) e.classList.remove('faint','hit','hurt','lunge-r','lunge-l');});
   document.getElementById('player').style.opacity='0';
   initFxCanvases(); resetFx(); ensurePFX();
   updateBattleUI();
@@ -1587,6 +1680,7 @@ function closeBattle(){
     saveColl();
   }
   B=null;
+  ['bPlayerSprite','bEnemySprite'].forEach(id=>{const e=document.getElementById(id); if(e) e.classList.remove('faint','hit','hurt','lunge-r','lunge-l');});
   document.getElementById('battleScreen').hidden=true;
   resetFx();
   document.getElementById('player').style.opacity='1';
@@ -1871,6 +1965,7 @@ async function loseBattle(){
   collection.forEach(c=>{ c.hp=maxHpOf(c); });
   saveColl();
   B=null;
+  ['bPlayerSprite','bEnemySprite'].forEach(id=>{const e=document.getElementById(id); if(e) e.classList.remove('faint','hit','hurt','lunge-r','lunge-l');});
   document.getElementById('battleScreen').hidden=true;
   resetFx();
   document.getElementById('player').style.opacity='1';
@@ -2077,6 +2172,42 @@ window.addEventListener('keydown',e=>{
 });
 window.addEventListener('resize',()=>{ if(map.length) updateCamera(); });
 
+/* ===================== 手杆（虚拟摇杆）操控 ===================== */
+const joy={el:null,knob:null,active:false,dx:0,dy:0,raf:0};
+function joyInit(){
+  joy.el=document.getElementById('joystick'); joy.knob=document.getElementById('joyKnob');
+  if(!joy.el) return;
+  const pt=(e)=> (e.touches&&e.touches[0])?{x:e.touches[0].clientX,y:e.touches[0].clientY}
+    :(e.changedTouches&&e.changedTouches[0])?{x:e.changedTouches[0].clientX,y:e.changedTouches[0].clientY}
+    :{x:e.clientX,y:e.clientY};
+  const apply=(cx,cy)=>{
+    const r=joy.el.getBoundingClientRect();
+    let x=cx-(r.left+r.width/2), y=cy-(r.top+r.height/2);
+    const rad=r.width/2-joy.knob.offsetWidth/2;
+    const d=Math.hypot(x,y)||1, k=Math.min(d,rad)/d;
+    joy.knob.style.transform=`translate(${x*k}px,${y*k}px)`;
+    const dead=r.width*0.16;
+    if(d<dead){ joy.dx=0; joy.dy=0; }
+    else if(Math.abs(x)>=Math.abs(y)){ joy.dx=x>0?1:-1; joy.dy=0; }
+    else { joy.dx=0; joy.dy=y>0?1:-1; }
+  };
+  const start=(e)=>{ if(mode!=='overworld') return; e.preventDefault(); joy.active=true; joy.el.classList.add('on'); const p=pt(e); apply(p.x,p.y); if(!joy.raf) joy.raf=requestAnimationFrame(joyLoop); };
+  const move=(e)=>{ if(!joy.active) return; e.preventDefault(); const p=pt(e); apply(p.x,p.y); };
+  const end=()=>{ if(!joy.active) return; joy.active=false; joy.el.classList.remove('on'); joy.dx=0; joy.dy=0; joy.knob.style.transform='translate(0,0)'; };
+  joy.el.addEventListener('touchstart',start,{passive:false});
+  joy.el.addEventListener('touchmove',move,{passive:false});
+  joy.el.addEventListener('touchend',end);
+  joy.el.addEventListener('touchcancel',end);
+  joy.el.addEventListener('mousedown',start);
+  window.addEventListener('mousemove',move);
+  window.addEventListener('mouseup',end);
+}
+function joyLoop(){
+  if(!joy.active){ joy.raf=0; return; }
+  if(joy.dx||joy.dy) tryMove(joy.dx,joy.dy);   // tryMove 自带 moving 锁，仅在可移动时步进
+  joy.raf=requestAnimationFrame(joyLoop);
+}
+
 /* ===================== 启动 ===================== */
 function boot(){
   loadAll();
@@ -2084,6 +2215,7 @@ function boot(){
   buildWorld();
   buildEntities();
   buildTileDOM();
+  joyInit();
   if(!inBounds(player.x,player.y)||!WALKABLE.has(tileAt(player.x,player.y))||!reachable.has(keyOf(player.x,player.y))){
     player.x=HUB.x; player.y=HUB.y+2;
   }
