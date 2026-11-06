@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>灵契大陆 · Phaser 4 原型 (batch 7 建筑地标/昼夜天气)</title>
+<title>灵契大陆 · Phaser 4 原型 (batch 8 虚拟摇杆/打击感动效)</title>
 <style>
   html,body{margin:0;height:100%;background:#101018;overflow:hidden;font-family:system-ui,"PingFang SC",sans-serif;
             -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
@@ -18,20 +18,25 @@
   #toast.show{opacity:1}
   #err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;color:#ff6b6b;
        font-size:16px;text-align:center;padding:24px;white-space:pre-line;line-height:1.7}
-  /* 触屏方向键：仅触摸设备显示；避开刘海与手势条 */
-  #pad{position:fixed;display:none;z-index:20;width:168px;height:168px;
-       left:calc(12px + env(safe-area-inset-left,0px));
-       bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+  /* 虚拟摇杆：仅触摸设备显示；避开刘海与手势条。四向刻度只作视觉参照，不接收点击 */
+  #pad{position:fixed;display:none;z-index:20;width:142px;height:142px;border-radius:50%;
+       left:calc(14px + env(safe-area-inset-left,0px));
+       bottom:calc(14px + env(safe-area-inset-bottom,0px));
+       touch-action:none;
+       background:radial-gradient(circle at 50% 50%,rgba(255,255,255,.10),rgba(255,255,255,.05) 64%,rgba(255,255,255,.02));
+       border:2px solid rgba(255,255,255,.28)}
   #pad.on{display:block}
-  #pad b{position:absolute;width:56px;height:56px;background:rgba(255,255,255,.15);
-         border:2px solid rgba(255,255,255,.40);border-radius:14px;color:#fff;font-size:20px;
-         display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px);
-         transition:background .08s,transform .08s}
-  #pad b.on,#pad b:active{background:rgba(120,170,255,.55);transform:scale(.94)}
-  #pad b[data-d="up"]{left:56px;top:0}
-  #pad b[data-d="down"]{left:56px;bottom:0}
-  #pad b[data-d="left"]{left:0;top:56px}
-  #pad b[data-d="right"]{right:0;top:56px}
+  #pad u{position:absolute;width:0;height:0;border:6px solid transparent;opacity:.30}
+  #pad u[data-t="u"]{left:50%;top:6px;margin-left:-6px;border-top-width:0;border-bottom-color:#fff}
+  #pad u[data-t="d"]{left:50%;bottom:6px;margin-left:-6px;border-bottom-width:0;border-top-color:#fff}
+  #pad u[data-t="l"]{top:50%;left:6px;margin-top:-6px;border-left-width:0;border-right-color:#fff}
+  #pad u[data-t="r"]{top:50%;right:6px;margin-top:-6px;border-right-width:0;border-left-color:#fff}
+  /* 摇杆头：位移由 JS 写 transform；过渡只给颜色，避免跟手迟滞 */
+  #pad i{position:absolute;left:50%;top:50%;width:60px;height:60px;margin:-30px 0 0 -30px;
+         border-radius:50%;background:rgba(255,255,255,.26);border:2px solid rgba(255,255,255,.58);
+         box-shadow:0 4px 14px rgba(0,0,0,.38);
+         transition:background .12s,border-color .12s;will-change:transform}
+  #pad i.on{background:rgba(120,170,255,.60);border-color:rgba(196,220,255,.95)}
 
   /* 设置入口与面板（音乐/音效独立音量 + 静音） */
   #gear{position:fixed;z-index:30;width:40px;height:40px;border-radius:12px;cursor:pointer;
@@ -98,13 +103,18 @@
     #menuBar b i{font-size:8px}
     #zone{font-size:17px;letter-spacing:2px;padding:9px 22px 8px;top:12%}
     #clock{font-size:11px;padding:4px 10px;bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+    /* 小屏摇杆缩到 118px，摇杆头同步缩小；半径由 JS 按实际宽度换算，仍跟手 */
+    #pad{width:118px;height:118px;
+         left:calc(10px + env(safe-area-inset-left,0px));
+         bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+    #pad i{width:50px;height:50px;margin:-25px 0 0 -25px}
   }
 </style>
 </head>
 <body>
 <div id="game"></div>
 <div id="hud">加载中…</div>
-<div id="hint">方向键 / WASD 移动 · 走进高草/雪地/沙地/遗迹遇敌 · 撞上训练家开战 · 右上 ⚙ 调音量 · Q/E/B 开图鉴/队伍/背包 · 右下角显示当前时段与天气</div>
+<div id="hint">摇杆拖动 / 方向键 / WASD 移动 · 走进高草/雪地/沙地/遗迹遇敌 · 撞上训练家开战 · 右上 ⚙ 调音量 · Q/E/B 开图鉴/队伍/背包 · 右下角显示当前时段与天气</div>
 <div id="toast"></div>
 <div id="zone"></div>
 <div id="clock"></div>
@@ -125,7 +135,7 @@
     <button id="cfgClose">关闭</button>
   </div>
 </div>
-<div id="pad"><b data-d="up">▲</b><b data-d="down">▼</b><b data-d="left">◀</b><b data-d="right">▶</b></div>
+<div id="pad"><u data-t="u"></u><u data-t="d"></u><u data-t="l"></u><u data-t="r"></u><i></i></div>
 
 <script src="phaser.min.js"></script>
 <script src="phaser-assets.js"></script>
@@ -285,7 +295,8 @@
   var G = {
     party: [ { id:'s1', stage:0, lv:12, exp:0, hp:null, nature:'固执', bond:2, count:1 },
              { id:'s2', stage:0, lv:11, exp:0, hp:null, nature:'坦率', bond:1, count:1 } ],
-    balls: 5,
+    balls: 1000,
+    ballTopUp: false,
     activeIdx: 0,
     defeated: [],
     pos: { x:HUB.x, y:HUB.y+2 },
@@ -338,7 +349,11 @@
       if (s && Array.isArray(s.party) && s.party.length){
         G.party = s.party.filter(function(p){ return p && spOf(p.id); });
         if (!G.party.length) throw 0;
-        G.balls = (typeof s.balls==='number') ? s.balls : 5;
+        G.balls = (typeof s.balls==='number') ? s.balls : 1000;
+        // 一次性补足到 1000：老存档起步只有 5 颗，直接改默认值对已存档无效
+        // 用 ballTopUp 标记只补一次，之后照常消耗，不会每读档又回满
+        if (!s.ballTopUp){ G.balls = Math.max(G.balls, 1000); G.ballTopUp = true; }
+        else { G.ballTopUp = true; }
         G.activeIdx = clamp(s.activeIdx||0, 0, G.party.length-1);
         G.defeated = Array.isArray(s.defeated) ? s.defeated : [];
         if (s.pos && Number.isInteger(s.pos.x) && Number.isInteger(s.pos.y)) G.pos = s.pos;
@@ -355,7 +370,7 @@
   function saveG(){
     try{
       localStorage.setItem(SAVE_KEY, JSON.stringify({
-        party:G.party, balls:G.balls, activeIdx:G.activeIdx, defeated:G.defeated,
+        party:G.party, balls:G.balls, ballTopUp:true, activeIdx:G.activeIdx, defeated:G.defeated,
         pos:G.pos, dex:G.dex, bag:G.bag
       }));
     }catch(e){}
@@ -648,6 +663,7 @@
         case 'shake':    tone(320, t, 0.055, 'square', 0.06); break;
         case 'caught':   [0,4,7,12,16,19].forEach(function(s,i){ tone(mf(72+s), t+i*0.075, 0.34, 'triangle', 0.09); }); break;
         case 'escape':   tone(300, t, 0.16, 'square', 0.065, null, 160); break;
+        case 'land':     tone(150, t, 0.10, 'sine', 0.075, null, 90); break;
         default: break;
       }
     }
@@ -697,6 +713,25 @@
     mute.addEventListener('click', function(){
       AUDIO.setMuted(!AUDIO.cfg.muted); paintMute(); AUDIO.sfx('select');
     });
+  }
+
+  /* =====================================================================
+     虚拟摇杆数学（纯函数，与 DOM 无关，便于单测）
+     · 格子上不允许对角移动，所以斜推时按位移大的那根轴取整
+     · 死区内返回 null，避免手指轻微抖动导致连续走路
+     ===================================================================== */
+  function stickClamp(dx, dy, radius){
+    var len = Math.sqrt(dx*dx + dy*dy);
+    if (len > radius && len > 0){ dx = dx/len*radius; dy = dy/len*radius; }
+    return { x:dx, y:dy, len:Math.min(len, radius) };
+  }
+  function stickDir(dx, dy, radius, dead){
+    if (!(radius > 0)) return null;        // 底座还没布局（宽 0）时一律无输入，防"永远在上"
+    var c = stickClamp(dx, dy, radius);
+    if (c.len < dead) return null;
+    return Math.abs(c.x) > Math.abs(c.y)
+      ? (c.x > 0 ? 'right' : 'left')
+      : (c.y > 0 ? 'down' : 'up');
   }
 
   /* =====================================================================
@@ -1978,50 +2013,82 @@
     window.addEventListener('keydown', unlockAudio);
     window.addEventListener('touchstart', unlockAudio, { passive:true });
 
-    // ---- 触屏方向键：按下即走 + 长按连续行走 ----
+    // ---- 虚拟摇杆：拖动即走，方向按主导轴取整，持续拖动连续行走 ----
     var pad = document.getElementById('pad');
+    var knob = pad ? pad.querySelector('i') : null;
     var isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
     this.isTouch = isTouch;
-    if (isTouch){
+    this.releasePad = function(){};
+    if (isTouch && pad && knob){
       pad.classList.add('on');
-      var holdDir = null, holdDelay = null, holdRep = null;
+      var REPEAT = 145;              // 连续行走间隔，与旧方向键一致（单步动画 120ms）
+      var cx = 0, cy = 0, radius = 40, dead = 12, padId = null;
+      var curDir = null, repTimer = null;
 
-      function dirOf(ev){
-        var el = ev.target;
-        while (el && el !== pad && !(el.getAttribute && el.getAttribute('data-d'))) el = el.parentNode;
-        return (el && el.getAttribute) ? el.getAttribute('data-d') : null;
-      }
       function doStep(d){
-        if (self.inBattle) return;
         if (d==='up') self.step(0,-1);
         else if (d==='down') self.step(0,1);
         else if (d==='left') self.step(-1,0);
         else if (d==='right') self.step(1,0);
       }
-      function releasePad(){
-        holdDir = null;
-        if (holdDelay){ clearTimeout(holdDelay); holdDelay = null; }
-        if (holdRep){ clearInterval(holdRep); holdRep = null; }
-        var bs = pad.querySelectorAll('b.on');
-        for (var i=0;i<bs.length;i++) bs[i].classList.remove('on');
+      function measure(){
+        var r = pad.getBoundingClientRect();
+        cx = r.left + r.width/2; cy = r.top + r.height/2;
+        radius = r.width ? r.width * 0.29 : 40;   // 按实际宽度换算，小屏 118px 时仍跟手；宽 0 时兜底
+        dead = radius * 0.30;
       }
-      pad.addEventListener('touchstart', function(ev){
-        var d = dirOf(ev);
-        if (!d) return;
-        ev.preventDefault();
-        releasePad();
-        if (ev.target.classList) ev.target.classList.add('on');
-        holdDir = d;
+      function placeKnob(dx,dy){
+        var c = stickClamp(dx, dy, radius);
+        knob.style.transform = 'translate('+c.x.toFixed(1)+'px,'+c.y.toFixed(1)+'px)';
+      }
+      function setDir(d){
+        if (d === curDir) return;
+        curDir = d;
+        if (d){
+          knob.classList.add('on');
+          doStep(d);                                  // 推到方向立刻走一格
+          if (!repTimer) repTimer = setInterval(function(){ if (curDir) doStep(curDir); }, REPEAT);
+        } else {
+          knob.classList.remove('on');
+          if (repTimer){ clearInterval(repTimer); repTimer = null; }
+        }
+      }
+      function release(){
+        padId = null;
+        placeKnob(0,0);
+        setDir(null);
+      }
+      this.releasePad = release;
+
+      function onMove(ev){
+        if (padId === null || ev.pointerId !== padId) return;
+        if (ev.preventDefault) ev.preventDefault();
+        var dx = ev.clientX - cx, dy = ev.clientY - cy;
+        var d = stickDir(dx, dy, radius, dead);
+        if (!d){ placeKnob(0,0); setDir(null); return; }   // 死区内回中，避免抖动连走
+        placeKnob(dx,dy);
+        setDir(d);
+      }
+      function onDown(ev){
+        if (self.inBattle) return;
+        measure();
+        padId = ev.pointerId;
+        try { pad.setPointerCapture(padId); } catch(e){}
         AUDIO.unlock();
-        doStep(d);
-        // 长按 240ms 后以 145ms 间隔连续移动
-        holdDelay = setTimeout(function(){
-          holdRep = setInterval(function(){ if (holdDir) doStep(holdDir); }, 145);
-        }, 240);
-      }, { passive:false });
-      pad.addEventListener('touchend', function(ev){ ev.preventDefault(); releasePad(); }, { passive:false });
-      pad.addEventListener('touchcancel', releasePad);
-      window.addEventListener('blur', releasePad);
+        onMove(ev);
+        if (ev.preventDefault) ev.preventDefault();
+      }
+      function onUp(ev){
+        if (padId !== null && ev.pointerId !== padId) return;
+        release();
+      }
+      pad.addEventListener('pointerdown', onDown, { passive:false });
+      pad.addEventListener('pointermove', onMove, { passive:false });
+      pad.addEventListener('pointerup', onUp);
+      pad.addEventListener('pointercancel', onUp);
+      window.addEventListener('blur', release);
+      window.addEventListener('orientationchange', function(){ release(); measure(); });
+      this.events.once('shutdown', release);
     }
 
     // 从战斗返回
@@ -2038,11 +2105,12 @@
     if (x<0||y<0||x>=MAP_W||y>=MAP_H) return true;
     return !WALK[this.grid[y][x]];
   };
-  // 战斗中收起虚拟方向键，避免压住战斗按钮（手机端）
+  // 战斗中收起虚拟摇杆，避免压住战斗按钮（手机端）；收起时松杆，防止战后自己走
   WorldScene.prototype.setPad = function(on){
     var pad = document.getElementById('pad');
     if (!pad) return;
     pad.classList.toggle('on', !!on && !!this.isTouch);
+    if (!on && this.releasePad) this.releasePad();
   };
 
   // ---- 打开 / 关闭 UI 页面（图鉴 · 队伍 · 背包）----
@@ -2156,7 +2224,7 @@
     var lead = G.party[G.activeIdx] ? spOf(G.party[G.activeIdx].id).stages[G.party[G.activeIdx].stage] : '—';
     var dt = dexTotals();
     this.hud.innerHTML =
-      '灵契大陆 · Phaser 4 (batch 7)<br>' +
+      '灵契大陆 · Phaser 4 (batch 8)<br>' +
       '坐标 ('+gx+', '+gy+') · '+TNAME[tile]+' · '+(bio?bio.name:'灵契镇')+'<br>' +
       '队伍 '+G.party.length+' 只 · 出战 '+lead+' · 精灵球 ×'+G.balls+'<br>' +
       '图鉴 '+dt.got+'/'+dt.total+' 收服 · '+dt.seen+'/'+dt.total+' 见过';
@@ -2446,13 +2514,14 @@
     this.enemySpr.setFlipX(true);   // 敌方朝左，面向我方
     this.layoutSprites();
 
-    // 入场动画
+    // 入场动画：滑入 → 落地压扁回弹 + 地面光圈 → 转入待机呼吸
     var ew = this.enemySpr.x, pw = this.playerSpr.x;
     this.enemySpr.x = ew + 260; this.enemySpr.alpha = 0;
     this.playerSpr.x = pw - 200; this.playerSpr.alpha = 0;
     this.tweens.add({ targets:this.enemySpr, x:ew, alpha:1, duration:420, ease:'Cubic.easeOut',
-      onComplete:function(){ self.enemySpr.setScale(self.enemySpr.scaleX*1.04); self.tweens.add({targets:self.enemySpr, scaleX:self.enemySpr.scaleX/1.04, scaleY:self.enemySpr.scaleY/1.04, duration:160}); } });
-    this.tweens.add({ targets:this.playerSpr, x:pw, alpha:1, duration:380, delay:120, ease:'Cubic.easeOut' });
+      onComplete:function(){ if (self.enemySpr && self.enemySpr.active) self.land(self.enemySpr); } });
+    this.tweens.add({ targets:this.playerSpr, x:pw, alpha:1, duration:380, delay:120, ease:'Cubic.easeOut',
+      onComplete:function(){ if (self.playerSpr && self.playerSpr.active) self.land(self.playerSpr); } });
 
     this.buildUI();
     this.renderMenu();
@@ -2525,6 +2594,8 @@
   BattleScene.prototype.layoutSprites = function(){
     var w = this.scale.width, h = this.scale.height;
     if (!this.enemySpr || !this.playerSpr) return;
+    // 重排会覆写 scale，先停呼吸补间，排完按新基准重新起步（否则补间会一直用旧基准）
+    this.stopBreath(this.enemySpr); this.stopBreath(this.playerSpr);
     var M = this.mode(), eSize, pSize;
     if (M === 'P'){
       eSize = Math.min(w*0.42, h*0.19);
@@ -2542,7 +2613,12 @@
       this.enemySpr.setPosition(w*0.735, h*0.60).setScale(eSize/256);
       this.playerSpr.setPosition(w*0.255, h*0.785).setScale(pSize/256);
     }
+    this.enemySpr._bs = eSize/256;    // 基准 scale，呼吸与落地回弹都以它为准
+    this.playerSpr._bs = pSize/256;
     this.drawStands();
+    // 双方错开相位，否则会像同一个节奏的两个木偶
+    this.idleBreath(this.enemySpr, 0);
+    this.idleBreath(this.playerSpr, 380);
   };
 
   // 台座：跟着立绘脚底走，竖屏横屏都不会飘
@@ -2909,6 +2985,20 @@
     }
   };
 
+  // 落地光圈：压扁的地面椭圆（不是正圆，正圆会读成球体特效而不是脚印/冲击纹）
+  BattleScene.prototype.fxGround = function(x, y, color){
+    var g = this.add.graphics().setDepth(9); this.fx.push(g);
+    g.lineStyle(3, color, 0.9);
+    if (g.strokeEllipse) g.strokeEllipse(0, 0, 62, 20);   // Phaser4 有则用椭圆
+    else g.strokeCircle(0, 0, 26);                        // 兜底：拿不到就当圆用，不报错
+    g.setPosition(x, y);
+    var self = this;
+    this.tweens.add({ targets:g, scaleX:2.0, scaleY:2.0, alpha:0, duration:430, ease:'Cubic.easeOut',
+      onComplete:function(){ var i=self.fx.indexOf(g); if(i>=0) self.fx.splice(i,1); g.destroy(); } });
+    return g;
+  };
+
+
   // 按属性播放不同特效（火/水/雷/草/冰/岩/暗/光/风/超/龙/普通）
   BattleScene.prototype.playFx = function(type, x, y, power){
     var c = typeC(type), self=this;
@@ -3023,6 +3113,47 @@
     }
   };
 
+  // ---------- 动效基础件：待机呼吸 / 顿帧 / 落地回弹 ----------
+  // 待机呼吸：只动缩放不动位置，避免和受击位移、倒地位移抢同一属性
+  BattleScene.prototype.idleBreath = function(spr, phase){
+    if (!spr || !spr.active || spr._breath) return;
+    var b = spr._bs || spr.scaleY;      // _bs 是 layoutSprites 算出的基准scale，不取当前值
+    spr.setScale(b, b);                 // 先归位，避免上次残留的小幅缩放被当成基准
+    spr._breath = this.tweens.add({
+      targets: spr,
+      scaleX: { from: b, to: b * 1.012 },   // 压扁时横向略张，体积守恒才不像果冻
+      scaleY: { from: b, to: b * 0.978 },
+      duration: 1320, delay: phase || 0, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+  };
+  BattleScene.prototype.stopBreath = function(spr){
+    if (spr && spr._breath){ spr._breath.stop(); spr._breath = null; }
+  };
+  // 顿帧：命中瞬间把补间放慢再恢复。用 setTimeout 而非引擎时间，慢放期间也能准时还原
+  BattleScene.prototype.hitStop = function(ms, factor){
+    try {
+      if (!this.tweens || typeof this.tweens.timeScale !== 'number') return;
+      var self = this;
+      if (this._hsTimer) clearTimeout(this._hsTimer);
+      this.tweens.timeScale = factor || 0.12;
+      this._hsTimer = setTimeout(function(){
+        if (self.tweens) self.tweens.timeScale = 1;
+        self._hsTimer = null;
+      }, ms || 70);
+    } catch(e){}
+  };
+  // 落地：压扁回弹 + 地面光圈 + 闷响，入场双方共用同一套手感
+  BattleScene.prototype.land = function(spr){
+    if (!spr || !spr.active) return;
+    this.stopBreath(spr);
+    var b = spr._bs || spr.scaleY, self = this;
+    spr.setScale(b * 1.045, b * 0.94);
+    this.tweens.add({ targets:spr, scaleX:b, scaleY:b, duration:180, ease:'Back.easeOut',
+      onComplete:function(){ if (spr.active) self.idleBreath(spr); } });
+    this.fxGround(spr.x, spr.y - 2, 0xdfe7ff);
+    AUDIO.sfx('land');
+  };
+
   BattleScene.prototype.hurt = function(spr){
     if (!spr) return;
     var self=this;
@@ -3032,6 +3163,10 @@
     var ox = spr.x;
     this.tweens.add({ targets:spr, x:ox+8, duration:45, yoyo:true, repeat:2,
       onComplete:function(){ spr.x=ox; } });
+    // 受击倾斜：用角度而不是缩放，避开待机呼吸正在占用的 scaleX/scaleY
+    var oa = spr.angle || 0;
+    this.tweens.add({ targets:spr, angle: oa + 6, duration:55, yoyo:true, repeat:2, ease:'Sine.easeInOut',
+      onComplete:function(){ spr.angle = oa; } });
   };
 
   BattleScene.prototype.lunge = function(spr, dir){
@@ -3083,6 +3218,7 @@
       AUDIO.typeHit(mv.type);
       this.playFx(mv.type, dstSpr.x, dstSpr.y - dstSpr.displayHeight*0.5, power);
       await sleep(140);
+      this.hitStop(strong || r.crit ? 95 : 70, strong || r.crit ? 0.06 : 0.14);  // 克制/暴击顿得更重
       this.hurt(dstSpr);
       if (strong || r.crit) this.cameras.main.shake(160, 0.006);
     } else {
@@ -3118,6 +3254,7 @@
     var B = this.B; if (!B) return;
     if (who === 'enemy'){
       var spr = this.enemySpr;
+      this.stopBreath(spr);          // 倒地过程中别再呼吸，否则边淡出边脉动
       AUDIO.sfx('faint');
       this.tweens.add({ targets:spr, alpha:0, y:spr.y+40, duration:420 });
       await sleep(520);
@@ -3137,12 +3274,14 @@
         this.layoutSprites();
         this.enemySpr.setAlpha(0);
         this.tweens.add({ targets:this.enemySpr, alpha:1, duration:280 });
+        this.idleBreath(this.enemySpr, 0);   // 换上的新对手继续呼吸，不然像贴纸
         this.refreshBars();
         this.B.busy=false; this.B.menuState='root'; this.renderMenu();
         return;
       }
       await this.winBattle();
     } else {
+      this.stopBreath(this.playerSpr);
       this.tweens.add({ targets:this.playerSpr, alpha:0.15, duration:400 });
       var inst = G.party[this.B.activeIdx];
       if (inst) inst.hp = 0;
