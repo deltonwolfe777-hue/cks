@@ -290,7 +290,9 @@
     return { dmg:Math.max(0,dmg), tm:tm, crit:crit>1 };
   }
 
-  // ===== 全局进度（独立测试键，不碰真实存档 sr_game_v2）=====
+  // ===== 全局进度 =====
+  // 键名沿用原型期的 sr_phaser_test_v2：改名会让所有已有存档凭空消失，所以不动它。
+  // 旧版（DOM 版）的 sr_game_v2 / sr_coll_v2 只读不写，见 migrateLegacySave()。
   var SAVE_KEY = 'sr_phaser_test_v2';
   var G = {
     party: [ { id:'s1', stage:0, lv:12, exp:0, hp:null, nature:'固执', bond:2, count:1 },
@@ -375,6 +377,57 @@
       }));
     }catch(e){}
   }
+  // ===== 旧版（DOM 版）存档迁移 =====
+  // 旧版把进度拆成两个键：sr_coll_v2（队伍）+ sr_game_v2（balls/candy/stone/defeated/pos），
+  // 新版合成一个键、candy/stone 收进 bag。只在「没有新存档」时跑一次，绝不覆盖已有进度。
+  // 旧键一律不删：万一迁移判错，玩家还能靠旧版页面找回。
+  function migrateLegacySave(){
+    try{
+      if (localStorage.getItem(SAVE_KEY)) return false;       // 已有新存档，直接放行
+      var coll = null, old = null;
+      try{ coll = JSON.parse(localStorage.getItem('sr_coll_v2')); }catch(e){}
+      try{ old  = JSON.parse(localStorage.getItem('sr_game_v2')); }catch(e){}
+      if (!Array.isArray(coll) || !coll.length) return false;
+
+      var party = [], seen = {};
+      coll.forEach(function(p){
+        if (!p || !p.id || !spOf(p.id)) return;               // 物种对不上宁可丢掉，不塞脏数据
+        if (seen[p.id]) return;                               // 同一物种只留一只，避免重复条目
+        seen[p.id] = 1;
+        var lv = (typeof p.lv === 'number' && p.lv >= 1) ? Math.floor(p.lv) : 10;
+        var st = (typeof p.stage === 'number') ? clamp(Math.floor(p.stage), 0, 2) : 0;
+        party.push({
+          id: p.id, stage: st, lv: lv,
+          exp: (typeof p.exp === 'number' && p.exp > 0) ? Math.floor(p.exp) : 0,
+          hp: (typeof p.hp === 'number') ? p.hp : null,       // null = 满血，交给 hpOf 处理
+          nature: p.nature || '坦率',
+          bond: clamp((typeof p.bond === 'number') ? Math.floor(p.bond) : 0, 0, SR.CFG.MAX_BOND),
+          count: Math.max(1, (typeof p.count === 'number') ? Math.floor(p.count) : 1)
+        });
+      });
+      if (!party.length) return false;
+
+      G.party = party;
+      G.activeIdx = 0;
+      G.defeated = (old && Array.isArray(old.defeated)) ? old.defeated : [];
+      // 老玩家也补到 1000，和当前默认值一致，免得看起来很像是"迁移把球弄丢了"
+      G.balls = Math.max(1000, (old && typeof old.balls === 'number') ? old.balls : 0);
+      G.ballTopUp = true;
+      G.bag = {
+        candy: (old && typeof old.candy === 'number') ? Math.max(0, Math.floor(old.candy)) : 0,
+        stone: (old && typeof old.stone === 'number') ? Math.max(0, Math.floor(old.stone)) : 0
+      };
+      // 坐标可能已经落在 batch7 新增的建筑下方，越界先丢掉，交由 create() 兜底回枢纽
+      if (old && old.pos && typeof old.pos.x === 'number' && typeof old.pos.y === 'number'
+          && old.pos.x >= 2 && old.pos.x < MAP_W-2 && old.pos.y >= 2 && old.pos.y < MAP_H-2){
+        G.pos = { x: Math.floor(old.pos.x), y: Math.floor(old.pos.y) };
+      }
+      saveG();                                                // 立刻落盘，下次走正常分支
+      return true;
+    }catch(e){ return false; }
+  }
+
+  migrateLegacySave();   // 老玩家第一次打开新版时，把旧版存档搬过来（无新存档才执行）
   loadG();
 
   // ===== 地图生成（与 index.html 同种子，逐格一致）=====
@@ -1943,6 +1996,11 @@
         }
       }
     });
+
+    // 存档坐标可能已经被 batch7 的地标推平成岩块，落进墙里会直接卡死 → 回到枢纽
+    if (!this.grid[G.pos.y] || !WALK[this.grid[G.pos.y][G.pos.x]]){
+      G.pos = { x: HUB.x, y: HUB.y + 2 };
+    }
 
     this.player = this.add.sprite(G.pos.x*TILE+TILE/2, G.pos.y*TILE+TILE/2, 'hero_down_0')
       .setDepth(G.pos.y*TILE+18);
