@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>灵契大陆 · Phaser 4 原型 (batch 4 战斗UI/音效/手机端)</title>
+<title>灵契大陆 · Phaser 4 原型 (batch 7 建筑地标/昼夜天气)</title>
 <style>
   html,body{margin:0;height:100%;background:#101018;overflow:hidden;font-family:system-ui,"PingFang SC",sans-serif;
             -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
@@ -68,8 +68,14 @@
   #zone small{display:block;font-size:11px;letter-spacing:1.5px;color:#9fb0dd;
               margin-top:4px;font-weight:400}
 
-  /* 右上角菜单入口：图鉴 / 队伍 / 背包 */
-  #menuBar{position:fixed;z-index:19;display:flex;flex-direction:column;gap:7px;
+  /* 时段 / 天气胶囊：昼夜与区域天气都从这儿读，不占画面 */
+  #clock{position:fixed;z-index:17;right:calc(10px + env(safe-area-inset-right,0px));
+         bottom:calc(12px + env(safe-area-inset-bottom,0px));
+         padding:5px 13px;border-radius:20px;color:#dfe7ff;font-size:12px;letter-spacing:1px;
+         background:rgba(11,16,38,.80);border:1px solid rgba(88,106,158,.85);
+         pointer-events:none;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.55)}
+
+  /* 右上角菜单入口：图鉴 / 队伍 / 背包 */  #menuBar{position:fixed;z-index:19;display:flex;flex-direction:column;gap:7px;
            right:calc(10px + env(safe-area-inset-right,0px));
            top:calc(58px + env(safe-area-inset-top,0px))}
   #menuBar b{width:44px;height:44px;border-radius:12px;cursor:pointer;user-select:none;
@@ -91,15 +97,17 @@
     #menuBar b{width:38px;height:38px;border-radius:10px;font-size:15px}
     #menuBar b i{font-size:8px}
     #zone{font-size:17px;letter-spacing:2px;padding:9px 22px 8px;top:12%}
+    #clock{font-size:11px;padding:4px 10px;bottom:calc(8px + env(safe-area-inset-bottom,0px))}
   }
 </style>
 </head>
 <body>
 <div id="game"></div>
 <div id="hud">加载中…</div>
-<div id="hint">方向键 / WASD 移动 · 走进高草/雪地/沙地/遗迹遇敌 · 撞上训练家开战 · 右上 ⚙ 调音量 · Q/E/B 开图鉴/队伍/背包</div>
+<div id="hint">方向键 / WASD 移动 · 走进高草/雪地/沙地/遗迹遇敌 · 撞上训练家开战 · 右上 ⚙ 调音量 · Q/E/B 开图鉴/队伍/背包 · 右下角显示当前时段与天气</div>
 <div id="toast"></div>
 <div id="zone"></div>
+<div id="clock"></div>
 <div id="err"></div>
 <div id="gear" title="设置">⚙</div>
 <div id="menuBar">
@@ -968,7 +976,7 @@
   var GROUNDY = { 0:1, 1:1, 2:1, 6:1, 7:1, 9:1 };
 
   // ---- 整图烘焙：瓦片 → 柔边 → 湿润边缘 → 装饰 ----
-  function bakeMap(grid, biomeMap){
+  function bakeMap(grid, biomeMap, lmMask){
     var W=MAP_W*TILE, H=MAP_H*TILE;
     var cv=document.createElement('canvas'); cv.width=W; cv.height=H;
     var ctx=cv.getContext('2d');
@@ -1040,10 +1048,11 @@
       }
     }
 
-    // 4) 装饰：16% 密度，确定性哈希，保证每次打开一致
+    // 4) 装饰：22% 密度，确定性哈希，保证每次打开一致
     for (y=0;y<MAP_H;y++) for (x=0;x<MAP_W;x++){
       if (!WALK[grid[y][x]]) continue;
       if (isHubCore(x,y)) continue;                        // 广场保持干净
+      if (lmMask && lmMask[y] && lmMask[y][x]) continue;   // 地标脚下不长草叶
       if (h2(x,y,41)>0.22) continue;
       bio=biomeAt(x,y,biomeMap);
       ctx.save(); ctx.translate(x*TILE,y*TILE);
@@ -1267,6 +1276,536 @@
     g.generateTexture('heal',40,40); g.destroy();
   }
 
+  /* =====================================================================
+     场景建筑与地标（batch 7）
+     —— 枢纽「灵契中心」+ 8 群系各 1 座地标。
+     统一画法：每个结构只用「暗 / 中 / 亮」三阶平涂，转角压一条干净阴影边；
+     不描线、不用渐变、不加噪点 —— 与立绘、UI、地面瓦片同一套语言。
+     配色一律从该群系 PAL 派生，保证与地面/树/角色属于同一颜色家族。
+     放置规则见 placeLandmarks：只占用玩家本来就进不去的格，不动碰撞、不改可达性。
+     ===================================================================== */
+  var MARK_SIZE = {
+    center:[152,210], windmill:[76,124], shrine:[84,118], dock:[80,92],
+    obelisk:[64,118], cabin:[80,110], pillar:[64,110], arch:[92,126], cairn:[64,94],
+    fountain:[96,92], banner:[62,112]
+  };
+  // 加法混合：Phaser 4 的常量挂在 Phaser.BlendModes 上；拿不到就退回普通混合（发光弱一点，但不会崩）
+  var BLEND_ADD = (typeof Phaser!=='undefined' && Phaser.BlendModes && Phaser.BlendModes.ADD != null)
+    ? Phaser.BlendModes.ADD : null;
+  // 加法混合拿不到时静默跳过：发光会弱一点，但不会因为传 null 把渲染搞崩
+  function blendAdd(o){ if (BLEND_ADD != null && o && o.setBlendMode) o.setBlendMode(BLEND_ADD); return o; }
+  var MARK_FP = {
+    center:[4,3], windmill:[2,2], shrine:[2,2], dock:[2,2],
+    obelisk:[2,2], cabin:[2,2], pillar:[2,2], arch:[3,2], cairn:[2,2],
+    fountain:[3,2], banner:[2,2]
+  };
+  var MARK_FOR = {
+    plains:'windmill', forest:'shrine', lake:'dock', volcano:'obelisk',
+    snow:'cabin', desert:'pillar', ruins:'arch', ridge:'cairn'
+  };
+  // 夜间发光点：[贴图内 x, y, 半径, 色]
+  var MARK_GLOW = {
+    center:[76,150,54,0xfff1cf], windmill:[38,66,17,0xffe6ae], shrine:[42,90,24,0xc9ffd8],
+    dock:[65,6,22,0xffd28a], obelisk:[32,30,22,0xff7a3c], cabin:[58,80,26,0xffdca0],
+    pillar:[32,40,14,0xfff1cf], arch:[46,52,28,0xa8e0ff], cairn:[32,54,13,0xffe6ae],
+    fountain:[48,46,32,0x9fd8ff], banner:[31,32,16,0xffd28a]
+  };
+
+  // 旋转部件的轴心（贴图内坐标）：目前只有风车叶轮
+  var MARK_PIVOT = { windmill:[38,48] };
+
+  // 建材三阶色：只保留「竹木 / 灰石 / 白墙 / 瓦顶 / 雪 / 玻璃 / 金属 / 金」八种，
+  // 石头取自该群系 PAL.rock —— 所以遗迹的拱门是灰紫、山道的石堆是青灰，天然同族。
+  function markMat(bioKey){
+    var p = PAL[bioKey] || PAL.plains;
+    return {
+      wood : [[0.33,0.22,0.14],[0.49,0.34,0.22],[0.65,0.48,0.32]],
+      woodL: [[0.45,0.31,0.20],[0.63,0.46,0.31],[0.79,0.61,0.42]],
+      stone: [shade(p.rock[0],0.78), p.rock[0], shade(p.rock[0],1.22)],
+      wall : [[0.70,0.67,0.60],[0.85,0.82,0.75],[0.96,0.94,0.89]],
+      roof : [[0.50,0.16,0.15],[0.71,0.25,0.23],[0.87,0.41,0.37]],
+      snow : [[0.82,0.88,0.95],[0.93,0.96,1.00],[1.00,1.00,1.00]],
+      leaf : p.tree,
+      glass: [[0.26,0.45,0.58],[0.50,0.72,0.85],[0.84,0.95,1.00]],
+      metal: [[0.30,0.31,0.35],[0.48,0.50,0.54],[0.70,0.72,0.76]],
+      gold : [[0.60,0.43,0.11],[0.85,0.67,0.23],[1.00,0.90,0.55]]
+    };
+  }
+
+  function paintMark(scene, kind, bioKey){
+    var sz = MARK_SIZE[kind], W = sz[0], H = sz[1];
+    var M = markMat(bioKey), g = scene.add.graphics();
+    var cx = W/2, i, a, ca, sa;
+    // P = 平涂，S = 落地投影（统一 0.20 黑，和树/人物一致）
+    var P = function(c, al){ g.fillStyle(rgbInt(c), al==null?1:al); };
+    var S = function(rx, ry, y){ g.fillStyle(0x0a1020, 0.20); g.fillEllipse(cx, y, rx, ry); };
+
+    if (kind === 'center'){
+      /* 灵契中心：白墙 + 红圆顶 + 拱门，广场上的绝对视觉锚点。
+         绘制顺序 = 投影 → 翼楼 → 圆顶 → 墙（压住圆顶下半）→ 檐口 → 门窗 → 徽记，
+         圆顶因此只露出上半，不会变成一个球。 */
+      S(W*0.96, 34, H-9);
+      // 圆顶（下半会被主墙压住，只留上半）
+      P(M.roof[1]); g.fillEllipse(cx, 106, 124, 100);
+      P(M.roof[0]); g.fillEllipse(cx+13, 108, 84, 58);
+      P(M.roof[2]); g.fillEllipse(cx-21, 82, 58, 34);
+      // 两侧翼楼（必须在圆顶之后画，否则会被圆顶整个盖掉）
+      P(M.wall[1]); g.fillRoundedRect(4, H-100, 34, 90, 6); g.fillRoundedRect(W-38, H-100, 34, 90, 6);
+      P(M.wall[0]); g.fillRect(4, H-97, 34, 9); g.fillRect(W-38, H-97, 34, 9);
+      P(M.wall[2]); g.fillRect(4, H-100, 8, 90); g.fillRect(W-12, H-100, 8, 90);
+      P(M.glass[1]); g.fillRoundedRect(7, H-84, 16, 26, 4); g.fillRoundedRect(W-23, H-84, 16, 26, 4);
+      P(M.glass[2]); g.fillRect(10, H-81, 5, 9); g.fillRect(W-20, H-81, 5, 9);
+      // 主墙
+      P(M.wall[1]); g.fillRoundedRect(cx-50, 106, 100, H-114, 9);
+      P(M.wall[2]); g.fillRoundedRect(cx-50, 106, 100, 19, 9);
+      P(M.wall[0]); g.fillRect(cx-50, H-22, 100, 13);
+      // 檐口线
+      P(M.roof[0]); g.fillRect(cx-55, 106, 110, 9);
+      P(M.roof[2], 0.5); g.fillRect(cx-55, 106, 110, 2.6);
+      // 顶尖
+      P(M.metal[1]); g.fillRect(cx-4, 22, 8, 40);
+      P(M.roof[2]); g.fillCircle(cx, 21, 10.5);
+      P(M.wall[2]); g.fillCircle(cx-3.4, 17, 3.6);
+      // 窗（在主墙两侧，与门错开）
+      P(M.glass[1]); g.fillRoundedRect(cx-46, 132, 19, 25, 4); g.fillRoundedRect(cx+27, 132, 19, 25, 4);
+      P(M.glass[2]); g.fillRect(cx-43, 135, 6, 9); g.fillRect(cx+30, 135, 6, 9);
+      // 门（拱）：宽度控制在立面的 1/3，否则一扇门就把整面墙吃掉
+      P(M.wood[0]); g.fillRoundedRect(cx-17, H-70, 34, 52, 15);
+      P(M.wood[1]); g.fillRoundedRect(cx-13.5, H-66, 27, 48, 12);
+      P(M.wood[0], 0.45); g.fillRect(cx-0.9, H-66, 1.8, 48);
+      P(M.gold[1]); g.fillRect(cx-2, H-44, 4, 4);
+      // 门阶
+      P(M.stone[1]); g.fillRect(cx-23, H-19, 46, 6);
+      P(M.stone[2]); g.fillRect(cx-23, H-19, 46, 2);
+      // 门楣 + 精灵球徽记
+      P(M.wall[2]); g.fillRect(cx-26, H-84, 52, 13);
+      P(M.wall[0], 0.6); g.fillRect(cx-26, H-72, 52, 2);
+      P(M.roof[1]); g.fillCircle(cx, H-77.5, 7);
+      P(M.wall[2]); g.fillRect(cx-7, H-78.9, 14, 2.8);
+      P(M.wall[2]); g.fillCircle(cx, H-77.5, 2.4);
+
+    } else if (kind === 'fountain'){
+      /* 广场喷泉：椭圆石池 + 双层水盘 + 水花，白天是装饰、夜里是冷光 */
+      P([0.10,0.13,0.20], 0.20); g.fillEllipse(cx, H-8, 92, 20);
+      P(M.stone[1]); g.fillEllipse(cx, H-16, 92, 34);
+      P(M.stone[2]); g.fillEllipse(cx, H-19, 92, 30);
+      P(M.stone[0]); g.fillEllipse(cx, H-20, 78, 24);
+      P([0.24,0.47,0.62]); g.fillEllipse(cx, H-20, 74, 21);
+      P([0.36,0.62,0.78]); g.fillEllipse(cx, H-22, 60, 14);
+      P([0.62,0.84,0.95], 0.55); g.fillEllipse(cx-8, H-24, 26, 6);
+      // 中心柱与上层水盘
+      P(M.stone[1]); g.fillRect(cx-5, H-44, 10, 24);
+      P(M.stone[2]); g.fillRect(cx-5, H-44, 3.4, 24);
+      P(M.stone[1]); g.fillEllipse(cx, H-46, 46, 14);
+      P(M.stone[2]); g.fillEllipse(cx, H-48, 46, 12);
+      P([0.30,0.55,0.70]); g.fillEllipse(cx, H-48, 36, 9);
+      P(M.stone[1]); g.fillRect(cx-3, H-60, 6, 14);
+      P(M.stone[2]); g.fillEllipse(cx, H-62, 20, 8);
+      // 水柱与水花（竖向细条 + 落点小球，全部扁平色）
+      P([0.78,0.92,1.00], 0.85);
+      g.fillRect(cx-1.4, H-70, 2.8, 10);
+      g.fillRect(cx-16, H-58, 2.4, 12); g.fillRect(cx+14, H-58, 2.4, 12);
+      P([0.90,0.97,1.00], 0.9);
+      g.fillCircle(cx-17, H-44, 3.2); g.fillCircle(cx+15, H-44, 3.2);
+      g.fillCircle(cx-1, H-72, 3.6);
+
+    } else if (kind === 'banner'){
+      /* 广场旗杆：两根木杆 + 横担 + 两面垂旗（垂旗比三角旗更好认，也贴合俯视角度） */
+      P([0.10,0.13,0.20], 0.18); g.fillEllipse(cx, H-7, 46, 12);
+      P(M.stone[1]); g.fillRoundedRect(cx-21, H-13, 15, 8, 2); g.fillRoundedRect(cx+6, H-13, 15, 8, 2);
+      P(M.wood[0]); g.fillRect(cx-18, 18, 5, H-26); g.fillRect(cx+13, 18, 5, H-26);
+      P(M.woodL[1]); g.fillRect(cx-18, 18, 2, H-26); g.fillRect(cx+13, 18, 2, H-26);
+      P(M.wood[0]); g.fillRect(cx-20, 15, 40, 4.6);
+      P(M.woodL[2]); g.fillRect(cx-20, 15, 40, 1.6);
+      P(M.metal[1]); g.fillCircle(cx-19, 17.4, 2.8); g.fillCircle(cx+19, 17.4, 2.8);
+      // 左旗（红）
+      P([0.70,0.23,0.22]); g.fillPoints([{x:cx-15,y:22},{x:cx-3,y:22},{x:cx-3,y:44},{x:cx-15,y:38}], true);
+      P([0.88,0.35,0.32]); g.fillPoints([{x:cx-13,y:25},{x:cx-5,y:25},{x:cx-5,y:35},{x:cx-13,y:32}], true);
+      // 右旗（蓝）
+      P([0.29,0.44,0.71]); g.fillPoints([{x:cx+3,y:22},{x:cx+15,y:22},{x:cx+15,y:44},{x:cx+3,y:38}], true);
+      P([0.45,0.61,0.85]); g.fillPoints([{x:cx+5,y:25},{x:cx+13,y:25},{x:cx+13,y:35},{x:cx+5,y:32}], true);
+      // 旗杆顶饰
+      P(M.gold[1]); g.fillCircle(cx-15.5, 17.4, 2.4); g.fillCircle(cx+15.5, 17.4, 2.4);
+
+    } else if (kind === 'windmill'){
+      /* 草原风车：石基 + 白塔 + 小尖顶，叶片是独立纹理（在 update 里旋转） */
+      S(46, 16, H-6);
+      P(M.stone[1]); g.fillRoundedRect(cx-19, H-14, 38, 10, 3);
+      P(M.stone[0]); g.fillRect(cx-19, H-7, 38, 3);
+      // 塔身：梯形，右侧压暗成背光面
+      P(M.wall[1]); g.fillPoints([{x:cx-14,y:44},{x:cx+14,y:44},{x:cx+18,y:H-12},{x:cx-18,y:H-12}], true);
+      P(M.wall[0]); g.fillPoints([{x:cx+4,y:44},{x:cx+14,y:44},{x:cx+18,y:H-12},{x:cx+4,y:H-12}], true);
+      P(M.wall[2]); g.fillPoints([{x:cx-14,y:44},{x:cx-8,y:44},{x:cx-9,y:H-12},{x:cx-18,y:H-12}], true);
+      // 小尖顶
+      P(M.roof[1]); g.fillPoints([{x:cx-17,y:46},{x:cx+17,y:46},{x:cx,y:26}], true);
+      P(M.roof[2]); g.fillPoints([{x:cx-4,y:44},{x:cx,y:26},{x:cx+3,y:36}], true);
+      // 门与窗
+      P(M.wood[0]); g.fillRoundedRect(cx-7, H-30, 14, 18, 6);
+      P(M.wood[1]); g.fillRoundedRect(cx-5, H-28, 10, 16, 4);
+      P(M.glass[1]); g.fillCircle(cx, 66, 4.6);
+      P(M.glass[2]); g.fillCircle(cx-1.4, 64.6, 1.8);
+
+    } else if (kind === 'shrine'){
+      /* 森林神木祠：一根老树 + 挖出来的龛，顶上三团树冠 */
+      S(52, 18, H-6);
+      // 根须
+      P(M.wood[0]);
+      g.fillPoints([{x:cx-14,y:H-22},{x:cx-30,y:H-6},{x:cx-6,y:H-6}], true);
+      g.fillPoints([{x:cx+14,y:H-22},{x:cx+30,y:H-6},{x:cx+6,y:H-6}], true);
+      // 树干
+      P(M.wood[1]); g.fillRoundedRect(cx-17, 44, 34, H-52, 9);
+      P(M.wood[0]); g.fillRoundedRect(cx+3, 44, 14, H-52, 9);
+      P(M.wood[2]); g.fillRoundedRect(cx-15, 46, 8, H-58, 4);
+      // 树皮竖纹
+      P(M.wood[0], 0.45);
+      g.fillRect(cx-10, 60, 2, H-80); g.fillRect(cx-2, 56, 1.6, H-76); g.fillRect(cx+12, 62, 2, H-82);
+      // 龛洞
+      P([0.13,0.11,0.10]); g.fillRoundedRect(cx-11, 74, 22, 30, 10);
+      P(M.gold[1], 0.55); g.fillCircle(cx, 90, 5.2);
+      P(M.gold[2]); g.fillCircle(cx, 90, 2.2);
+      // 树冠
+      P(M.leaf[0]);
+      g.fillEllipse(cx, 46, 74, 46); g.fillEllipse(cx-24, 54, 34, 28); g.fillEllipse(cx+24, 53, 32, 26);
+      P(M.leaf[1]);
+      g.fillEllipse(cx-3, 38, 52, 34); g.fillEllipse(cx-25, 46, 22, 16); g.fillEllipse(cx+22, 45, 21, 15);
+      P(M.leaf[2]); g.fillEllipse(cx-9, 30, 30, 18);
+      // 台阶
+      P(M.stone[1]); g.fillRoundedRect(cx-20, H-12, 40, 8, 3);
+      P(M.stone[0]); g.fillRect(cx-20, H-6, 40, 3);
+
+    } else if (kind === 'dock'){
+      /* 湖畔木栈道：矩形甲板 + 纵向板缝 + 四角桩柱 + 系泊小舟 + 灯杆。
+         刻意不用梯形透视 —— 32px 尺度下梯形会读成"木槽"，矩形反而一眼是"路"。 */
+      var DECK_L = cx-20, DECK_R = cx+20, TOPY = 14, BOTY = 54;
+      // 水下木桩
+      P(M.wood[0]);
+      g.fillRect(cx-16, 56, 5.4, 28); g.fillRect(cx+11, 56, 5.4, 28);
+      P(M.wood[0], 0.38); g.fillRect(cx-20, 76, 12, 3.4); g.fillRect(cx+8, 79, 12, 3.4);
+      // 甲板 4 条纵向木板
+      for (i=0;i<4;i++){
+        P(i%2 ? M.woodL[1] : M.woodL[2]);
+        g.fillRect(DECK_L + i*10, TOPY, 10, BOTY-TOPY);
+      }
+      P(M.woodL[0], 0.42);
+      for (i=1;i<4;i++) g.fillRect(DECK_L + i*10 - 0.6, TOPY, 1.2, BOTY-TOPY);
+      // 远端深色断面 + 近端挡板
+      P(M.wood[1]); g.fillRect(DECK_L, TOPY, DECK_R-DECK_L, 5);
+      P(M.wood[0]); g.fillRect(DECK_L, BOTY-5, DECK_R-DECK_L, 5.5);
+      // 四角桩柱（高出甲板，是"架空的"最直观信号）
+      P(M.wood[0]);
+      g.fillRect(DECK_L-3, TOPY-8, 6, 18); g.fillRect(DECK_R-3, TOPY-8, 6, 18);
+      g.fillRect(DECK_L-3, BOTY-14, 6, 18); g.fillRect(DECK_R-3, BOTY-14, 6, 18);
+      P(M.woodL[1]);
+      g.fillRect(DECK_L-3, TOPY-8, 2, 18); g.fillRect(DECK_R-3, TOPY-8, 2, 18);
+      g.fillRect(DECK_L-3, BOTY-14, 2, 18); g.fillRect(DECK_R-3, BOTY-14, 2, 18);
+      // 系船柱与绳（绳子一路牵到船上）
+      P(M.wood[0]); g.fillRoundedRect(DECK_R-1, BOTY-10, 8, 15, 3);
+      P([0.62,0.55,0.40], 0.85); g.fillRect(DECK_R-1, BOTY+1, 14, 2.2);
+      // 小舟：船壳用更深的木色 + 亮内舱，才不会和甲板糊成一片
+      P(shade(M.wood[0], 0.82)); g.fillEllipse(cx+4, H-11, 54, 20);
+      P(M.wood[0]); g.fillEllipse(cx+4, H-13, 50, 16);
+      P(M.woodL[2]); g.fillEllipse(cx+4, H-14, 42, 11);
+      P(M.woodL[1]); g.fillEllipse(cx+4, H-14, 30, 7);
+      P(M.wall[1], 0.85); g.fillRect(cx-12, H-16, 20, 2);   // 座板
+      P(M.wood[1]); g.fillRect(cx-24, H-6, 16, 2.8);        // 船桨
+      P(M.wood[1]); g.fillRect(cx+16, H-4, 14, 2.6);
+      // 灯杆
+      P(M.wood[0]); g.fillRect(DECK_R+2, 4, 3.6, 30);
+      P(M.gold[0]); g.fillRoundedRect(DECK_R-3, 0, 13, 10, 3);
+      P(M.gold[1]); g.fillRoundedRect(DECK_R-1, 0, 9, 6, 2);
+      P(M.gold[2]); g.fillRect(DECK_R+1, 1, 4, 3.4);
+
+    } else if (kind === 'obelisk'){
+      /* 火山黑曜石方尖碑：三层台基 + 收窄碑身 + 顶端赤晶 */
+      S(52, 16, H-6);
+      P(M.stone[1]); g.fillRoundedRect(cx-26, H-14, 52, 11, 3);
+      P(M.stone[2]); g.fillRect(cx-26, H-14, 52, 3);
+      P(M.stone[0]); g.fillRect(cx-26, H-4, 52, 4);
+      P(M.stone[1]); g.fillRoundedRect(cx-20, H-24, 40, 11, 3);
+      P(M.stone[2]); g.fillRect(cx-20, H-24, 40, 3);
+      // 碑身（暗紫黑）
+      var OB = [[0.13,0.10,0.18],[0.21,0.16,0.29],[0.36,0.28,0.48]];
+      P(OB[1]); g.fillPoints([{x:cx-13,y:H-24},{x:cx+13,y:H-24},{x:cx+8,y:34},{x:cx-8,y:34}], true);
+      P(OB[0]); g.fillPoints([{x:cx+2,y:H-24},{x:cx+13,y:H-24},{x:cx+8,y:34},{x:cx+2,y:34}], true);
+      P(OB[2]); g.fillPoints([{x:cx-13,y:H-24},{x:cx-9,y:H-24},{x:cx-5,y:34},{x:cx-8,y:34}], true);
+      // 裂纹发光
+      P([1.00,0.42,0.16], 0.85);
+      g.fillRect(cx-2, 48, 2, 12); g.fillRect(cx-6, 64, 2, 9); g.fillRect(cx+3, 76, 1.6, 14);
+      // 顶端赤晶
+      P([0.86,0.24,0.12]); g.fillPoints([{x:cx,y:14},{x:cx+11,y:32},{x:cx,y:40},{x:cx-11,y:32}], true);
+      P([1.00,0.62,0.24]); g.fillPoints([{x:cx,y:18},{x:cx+6,y:31},{x:cx,y:35},{x:cx-6,y:31}], true);
+      P([1.00,0.94,0.72]); g.fillPoints([{x:cx,y:22},{x:cx+3,y:30},{x:cx,y:32},{x:cx-3,y:30}], true);
+
+    } else if (kind === 'cabin'){
+      /* 雪原小木屋：原木横墙 + 深色尖顶压厚雪 + 暖窗 + 烟囱 */
+      S(48, 16, H-6);
+      // 烟囱
+      P(M.stone[1]); g.fillRect(cx+14, 22, 11, 24);
+      P(M.stone[0]); g.fillRect(cx+14, 22, 4, 24);
+      P(M.snow[1]); g.fillRect(cx+13, 20, 13, 4);
+      // 墙
+      P(M.woodL[1]); g.fillRect(cx-27, 52, 54, H-60);
+      for (i=0;i<7;i++){
+        P(i%2 ? M.woodL[2] : M.woodL[1]); g.fillRect(cx-27, 52+i*7, 54, 6);
+        P(M.woodL[0], 0.55); g.fillRect(cx-27, 57.4+i*7, 54, 1.3);
+      }
+      P(M.wood[0]); g.fillRect(cx-27, H-10, 54, 6);
+      // 屋顶（深色）+ 积雪
+      P(M.wood[0]); g.fillPoints([{x:cx-34,y:56},{x:cx+34,y:56},{x:cx,y:20}], true);
+      P(M.snow[1]); g.fillPoints([{x:cx-30,y:52},{x:cx+30,y:52},{x:cx,y:26}], true);
+      P(M.snow[2]); g.fillPoints([{x:cx-16,y:44},{x:cx+2,y:44},{x:cx-4,y:30}], true);
+      P(M.snow[0], 0.9); g.fillRect(cx-34, 53, 68, 4);
+      // 窗与门
+      P(M.gold[1]); g.fillRoundedRect(cx-22, 64, 15, 14, 3);
+      P(M.gold[2]); g.fillRoundedRect(cx-20, 66, 5, 5, 2);
+      P(M.wood[0]); g.fillRoundedRect(cx+4, 78, 18, H-88, 4);
+      P(M.woodL[1]); g.fillRoundedRect(cx+6, 80, 14, H-92, 3);
+      P(M.gold[2]); g.fillRect(cx+16, 92, 2.4, 2.4);
+
+    } else if (kind === 'pillar'){
+      /* 荒漠断柱：两层柱基 + 竖向着色的柱身 + 斜切断口 + 脚边陶罐 */
+      S(46, 15, H-6);
+      P(M.stone[1]); g.fillRoundedRect(cx-24, H-14, 48, 11, 3);
+      P(M.stone[2]); g.fillRect(cx-24, H-14, 48, 3);
+      P(M.stone[0]); g.fillRect(cx-24, H-4, 48, 4);
+      P(M.stone[1]); g.fillRoundedRect(cx-19, H-26, 38, 13, 3);
+      P(M.stone[2]); g.fillRect(cx-19, H-26, 38, 3);
+      // 柱身：整体一根，靠竖向着色出圆柱感（不要一条条横带，会像易拉罐）
+      var PY0 = 30, PY1 = H-26;
+      P(M.stone[1]); g.fillRect(cx-14, PY0, 28, PY1-PY0);
+      P(M.stone[2]); g.fillRect(cx-14, PY0, 9, PY1-PY0);
+      P(M.stone[0]); g.fillRect(cx+7, PY0, 7, PY1-PY0);
+      // 两道凹槽（细，不断开整体）
+      P(M.stone[0], 0.5);
+      g.fillRect(cx-14, PY0+34, 28, 1.8); g.fillRect(cx-14, PY0+72, 28, 1.8);
+      // 台阶式断口：左半截高空出，右半截塌掉一截，断面朝上可见
+      P(M.stone[1]);
+      g.fillPoints([{x:cx-14,y:PY0},{x:cx-14,y:PY0-15},{x:cx-3,y:PY0-15},
+                    {x:cx-3,y:PY0-5},{x:cx+7,y:PY0-9},{x:cx+14,y:PY0-9},{x:cx+14,y:PY0}], true);
+      // 顶面（断面）用亮面，才有"被砸断"的体积感
+      P(M.stone[2]);
+      g.fillPoints([{x:cx-14,y:PY0-15},{x:cx-3,y:PY0-15},{x:cx-3,y:PY0-11},{x:cx-14,y:PY0-11}], true);
+      g.fillPoints([{x:cx-3,y:PY0-5},{x:cx+7,y:PY0-9},{x:cx+14,y:PY0-9},{x:cx+14,y:PY0-5},{x:cx-3,y:PY0-1}], true);
+      P(M.stone[0], 0.55);
+      g.fillPoints([{x:cx+7,y:PY0-9},{x:cx+14,y:PY0-9},{x:cx+14,y:PY0-2},{x:cx+7,y:PY0-4}], true);
+      // 裂纹
+      P(M.stone[0], 0.45);
+      g.fillRect(cx-4, PY0+18, 1.6, 16); g.fillRect(cx+2, PY0+52, 1.6, 22);
+      // 陶罐
+      P([0.70,0.42,0.25]); g.fillEllipse(cx+21, H-13, 16, 18);
+      P([0.84,0.58,0.36]); g.fillEllipse(cx+18, H-16, 7, 10);
+      P([0.50,0.28,0.15]); g.fillRect(cx+17, H-24, 7, 4);
+
+    } else if (kind === 'arch'){
+      /* 遗迹断拱：两根立柱 + 半环拱圈，一侧塌掉 */
+      S(56, 16, H-6);
+      var OR = 34, IR = 15, AY = 50;
+      // 立柱
+      P(M.stone[1]); g.fillRect(cx-OR, AY, 19, H-AY-10);
+      P(M.stone[2]); g.fillRect(cx-OR, AY, 6, H-AY-10);
+      P(M.stone[0]); g.fillRect(cx-OR+14, AY, 5, H-AY-10);
+      P(M.stone[1]); g.fillRect(cx+IR, AY, 19, H-AY-34);
+      P(M.stone[2]); g.fillRect(cx+IR, AY, 6, H-AY-34);
+      P(M.stone[0]); g.fillRect(cx+IR+14, AY, 5, H-AY-34);
+      // 拱圈：外弧 R=34 → 内弧 R=15 的环
+      var arc = [];
+      for (i=0;i<=20;i++){ a = Math.PI - Math.PI*i/20; arc.push({x:cx+OR*Math.cos(a), y:AY-OR*Math.sin(a)*0.92}); }
+      for (i=20;i>=0;i--){ a = Math.PI - Math.PI*i/20; arc.push({x:cx+IR*Math.cos(a), y:AY-IR*Math.sin(a)*0.92}); }
+      P(M.stone[1]); g.fillPoints(arc, true);
+      // 拱圈高光边（左上）
+      var hl = [];
+      for (i=0;i<=20;i++){ a = Math.PI - Math.PI*i/20; hl.push({x:cx+(OR-3)*Math.cos(a), y:AY-(OR-3)*Math.sin(a)*0.92}); }
+      for (i=20;i>=0;i--){ a = Math.PI - Math.PI*i/20; hl.push({x:cx+(OR-8)*Math.cos(a), y:AY-(OR-8)*Math.sin(a)*0.92}); }
+      P(M.stone[2]); g.fillPoints(hl, true);
+      // 拱顶石
+      P(M.stone[2]); g.fillRect(cx-7, AY-OR*0.92-4, 14, 12);
+      P(M.stone[0]); g.fillRect(cx+1, AY-OR*0.92-4, 6, 12);
+      // 断口：右柱顶部塌掉一块
+      P(M.stone[0]); g.fillPoints([{x:cx+IR,y:AY},{x:cx+IR+19,y:AY},{x:cx+IR+19,y:AY-9},{x:cx+IR+9,y:AY-4}], true);
+      // 苔痕
+      P([0.36,0.52,0.28], 0.55);
+      g.fillEllipse(cx-OR+8, AY+18, 20, 12); g.fillEllipse(cx-OR+10, H-26, 26, 14);
+      g.fillEllipse(cx+IR+10, AY+40, 14, 10);
+      // 散落石块
+      P(M.stone[1]); g.fillEllipse(cx+OR+2, H-9, 16, 9);
+      P(M.stone[2]); g.fillEllipse(cx+OR, H-11, 7, 4);
+      P(M.stone[0]); g.fillEllipse(cx-OR-4, H-7, 12, 7);
+
+    } else {  // cairn —— 山道石堆路标
+      S(42, 14, H-6);
+      // 三块石头（下大上小），每块左上高光
+      P(M.stone[1]); g.fillEllipse(cx-2, H-16, 42, 24);
+      P(M.stone[2]); g.fillEllipse(cx-9, H-22, 20, 11);
+      P(M.stone[0]); g.fillEllipse(cx+11, H-12, 20, 10);
+      P(M.stone[1]); g.fillEllipse(cx-1, H-34, 30, 19);
+      P(M.stone[2]); g.fillEllipse(cx-7, H-39, 14, 8);
+      P(M.stone[1]); g.fillEllipse(cx+1, H-49, 20, 14);
+      P(M.stone[2]); g.fillEllipse(cx-3, H-53, 9, 6);
+      P(M.stone[0], 0.5); g.fillEllipse(cx+5, H-46, 9, 5);
+      // 木牌
+      P(M.wood[0]); g.fillRect(cx+17, H-58, 3.6, 44);
+      P(M.woodL[1]); g.fillPoints([{x:cx+20,y:H-56},{x:cx+37,y:H-52},{x:cx+37,y:H-42},{x:cx+20,y:H-46}], true);
+      P(M.woodL[0], 0.6); g.fillRect(cx+24, H-52, 10, 1.6);
+      // 小旗
+      P([0.86,0.32,0.28]); g.fillPoints([{x:cx+18,y:H-58},{x:cx+32,y:H-54},{x:cx+18,y:H-49}], true);
+    }
+
+    g.generateTexture('mk_' + kind + '_' + bioKey, W, H);
+    g.destroy();
+  }
+
+  /* 地标放置：候选位置按「离群系中心的距离 → 需要推平的格数」排序，
+     每放一座都会重算一次可达性，只有「切断地图」的候选才被拒绝。
+     这样开阔草原（本来没有障碍物）也能立起风车，而不会把玩家封死在某一块里。
+     三条硬约束：不压商道（PATH）、不压枢纽中心与出生点、不与已有地标重叠。 */
+  function placeLandmarks(grid){
+    var out = [], used = {};
+
+    function cellsOf(x, y, w, h){
+      var a = [], i, j;
+      for (j=y; j<y+h; j++) for (i=x; i<x+w; i++) a.push([i, j]);
+      return a;
+    }
+    // 能不能放：返回 { bad:原因 } 或 { ok:1, pave:需要推平的格数 }
+    function probe(x, y, w, h, opts){
+      var cells = cellsOf(x, y, w, h), pave = 0, water = 0, i, c, k;
+      for (i=0;i<cells.length;i++){
+        c = cells[i];
+        if (c[0] < 1 || c[1] < 1 || c[0] > MAP_W-2 || c[1] > MAP_H-2) return { bad:'边界' };
+        if (used[kOf(c[0], c[1])]) return { bad:'重叠' };
+        if (c[0] === HUB.x && c[1] === HUB.y) return { bad:'枢纽中心' };
+        if (opts.noSpawn && c[0] === HUB.x && c[1] === HUB.y+2) return { bad:'出生点' };
+        k = grid[c[1]][c[0]];
+        if (k === T.PATH){
+          if (!opts.allowPath) return { bad:'商道' };    // 群系地标不压路；枢纽广场本身就是商道砖
+          pave++;
+          continue;
+        }
+        if (k === T.WATER) water++;
+        if (WALK[k]) pave++;
+      }
+      if (opts.needWater && water === 0) return { bad:'要水面' };
+      return { ok:1, pave:pave };
+    }
+    // 真正落地：把格改成 ROCK（不可通行），并确认可达面积只少了这些格
+    function commit(x, y, w, h, rec){
+      var before = computeReachable(grid), i;
+      var cells = cellsOf(x, y, w, h), orig = [], walkBefore = 0;
+      for (i=0;i<cells.length;i++){
+        var kk = grid[cells[i][1]][cells[i][0]];
+        orig.push(kk);
+        if (WALK[kk]) walkBefore++;
+      }
+      for (i=0;i<cells.length;i++) grid[cells[i][1]][cells[i][0]] = T.ROCK;
+      var after = computeReachable(grid);
+      if (before.size - after.size !== walkBefore){       // 会切断地图 → 原样回滚
+        for (i=0;i<cells.length;i++) grid[cells[i][1]][cells[i][0]] = orig[i];
+        return false;
+      }
+      for (i=0;i<cells.length;i++) used[kOf(cells[i][0], cells[i][1])] = 1;
+      out.push(rec);
+      return true;
+    }
+
+    // 1) 枢纽：灵契中心 + 广场道具（喷泉 / 旗杆）—— 顺序固定，中心先占位
+    function tryHub(kind, cands){
+      var w = MARK_FP[kind][0], h = MARK_FP[kind][1];
+      for (var i=0;i<cands.length;i++){
+        var p = probe(cands[i][0], cands[i][1], w, h, { noSpawn:true, allowPath:true });
+        if (p.bad) continue;
+        if (commit(cands[i][0], cands[i][1], w, h,
+            { id:'hub-'+kind, kind:kind, bio:'plains', x:cands[i][0], y:cands[i][1],
+              w:w, h:h, base:(cands[i][1]+h)*TILE, paved:p.pave })) return true;
+      }
+      return false;
+    }
+    // 注意：南北向商道在 x=HUB.x-3 上，建筑压上去会把主路"盖住"（走过去会被楼挡住）。
+    // 所以优先放在广场东北角，让出纵向商道。
+    tryHub('center',   [[HUB.x+1,HUB.y-4],[HUB.x-3,HUB.y-4],[HUB.x+1,HUB.y+1],[HUB.x-3,HUB.y+1]]);
+    tryHub('fountain', [[HUB.x+2,HUB.y+1],[HUB.x-4,HUB.y+1],[HUB.x+2,HUB.y-3],[HUB.x-4,HUB.y-3]]);
+    tryHub('banner',   [[HUB.x-4,HUB.y+1],[HUB.x+4,HUB.y+1],[HUB.x-3,HUB.y+1],[HUB.x+1,HUB.y+1],
+                        [HUB.x+4,HUB.y-3],[HUB.x-5,HUB.y-3],[HUB.x-5,HUB.y],[HUB.x+4,HUB.y]]);
+
+    // 2) 8 群系：各自取「最靠中心且最省地」的候选
+    BIOMES.forEach(function(b){
+      var kind = MARK_FOR[b.key];
+      if (!kind) return;
+      var w = MARK_FP[kind][0], h = MARK_FP[kind][1];
+      var opts = { noSpawn:true, needWater: kind === 'dock' };
+      var cands = [], r, dx, dy;
+      for (r=1; r<=13; r++){
+        for (dy=-r; dy<=r; dy++) for (dx=-r; dx<=r; dx++){
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          var x = b.cx + dx, y = b.cy + dy;
+          var p = probe(x, y, w, h, opts);
+          if (!p.bad) cands.push({ x:x, y:y, r:r, pave:p.pave });
+        }
+      }
+      // 距离优先，其次少推平（保留原有地形），最后按坐标定序 → 每次打开完全一致
+      cands.sort(function(A, B){
+        return (A.r - B.r) || (A.pave - B.pave) || (A.y - B.y) || (A.x - B.x);
+      });
+      for (var i=0;i<cands.length;i++){
+        var c = cands[i];
+        if (commit(c.x, c.y, w, h,
+            { id:b.key, kind:kind, bio:b.key, x:c.x, y:c.y, w:w, h:h, base:(c.y+h)*TILE,
+              paved:c.pave })) return;
+      }
+    });
+    return out;
+  }
+  function markMask(lm){
+    var m = [], x, y, i, k;
+    for (y=0; y<MAP_H; y++){ m.push([]); for (x=0; x<MAP_W; x++) m[y].push(0); }
+    for (i=0;i<lm.length;i++) for (y=lm[i].y; y<lm[i].y+lm[i].h; y++) for (x=lm[i].x; x<lm[i].x+lm[i].w; x++){
+      if (m[y]) m[y][x] = 1;
+    }
+    return m;
+  }
+
+  // 风车叶片：独立纹理，在 update 里按帧旋转（地标本体不动，只有叶轮转）
+  // 尺寸刻意压到 56px：塔身宽 76，叶轮再大就会把整个塔盖住、读成一团黑叉
+  function drawBlade(scene){
+    var M = markMat('plains'), g = scene.add.graphics(), C = 28, R = 20, i, a, ca, sa;
+    function rot(px, py, ca, sa){ return { x:C+px*ca-py*sa, y:C+px*sa+py*ca }; }
+    for (i=0;i<4;i++){
+      a = i*Math.PI/2; ca = Math.cos(a); sa = Math.sin(a);
+      // 桨臂（浅木，不要深色，深色会让整轮变黑叉）
+      g.fillStyle(rgbInt(M.woodL[1]),1);
+      g.fillPoints([rot(0,-2.2,ca,sa), rot(R,-2.2,ca,sa), rot(R,2.2,ca,sa), rot(0,2.2,ca,sa)], true);
+      // 帆布：靠轴一侧留空，外侧一大块白
+      g.fillStyle(rgbInt(M.wall[2]),1);
+      g.fillPoints([rot(6,-8.4,ca,sa), rot(R-2,-8.4,ca,sa), rot(R-2,-2.6,ca,sa), rot(6,-2.6,ca,sa)], true);
+      g.fillStyle(rgbInt(M.wall[0]),1);
+      g.fillPoints([rot(6,-4.6,ca,sa), rot(R-2,-4.6,ca,sa), rot(R-2,-2.6,ca,sa), rot(6,-2.6,ca,sa)], true);
+    }
+    g.fillStyle(rgbInt(M.metal[1]),1); g.fillCircle(C,C,3.6);
+    g.fillStyle(rgbInt(M.metal[2]),1); g.fillCircle(C-1.2,C-1.2,1.3);
+    g.generateTexture('mk_blade',56,56); g.destroy();
+  }
+
+  // 环境纹理：柔光圆（发光点/雾/萤火）+ 雨丝 + 叶/雪/尘颗粒
+  function radialTex(scene, key, size, stops){
+    var cv = document.createElement('canvas'); cv.width = cv.height = size;
+    var c = cv.getContext('2d');
+    var gr = c.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+    for (var i=0;i<stops.length;i++) gr.addColorStop(stops[i][0], stops[i][1]);
+    c.fillStyle = gr; c.fillRect(0, 0, size, size);
+    if (scene.textures.exists(key)) scene.textures.remove(key);
+    scene.textures.addCanvas(key, cv);
+  }
+  function drawAmbientTex(scene){
+    radialTex(scene, 'a_glow', 128, [[0,'rgba(255,255,255,0.72)'],[0.42,'rgba(255,255,255,0.26)'],[1,'rgba(255,255,255,0)']]);
+    radialTex(scene, 'a_dot',  16,  [[0,'rgba(255,255,255,1)'],[0.55,'rgba(255,255,255,0.72)'],[1,'rgba(255,255,255,0)']]);
+    radialTex(scene, 'a_mist', 128, [[0,'rgba(255,255,255,0.30)'],[0.55,'rgba(255,255,255,0.12)'],[1,'rgba(255,255,255,0)']]);
+    var g = scene.add.graphics();
+    g.fillStyle(0xffffff,1); g.fillRect(0,0,2.2,13);
+    g.generateTexture('a_rain', 4, 14); g.destroy();
+    var l = scene.add.graphics();
+    l.fillStyle(0xffffff,1); l.fillEllipse(5,4,9,7);
+    l.generateTexture('a_leaf', 10, 8); l.destroy();
+  }
+
   WorldScene.prototype.preload = function(){
     // 人物：4 向 × 4 帧
     var dirs=['down','up','left','right'], d, f;
@@ -1275,19 +1814,30 @@
     // 树：8 群系 × 2 变体
     for (var i=0;i<BIOMES.length;i++){ drawTree(this, BIOMES[i].key, 0); drawTree(this, BIOMES[i].key, 1); }
     drawItems(this); drawHeal(this);
+    // 地标：灵契中心（枢纽）+ 8 群系各一座（按群系配色生成，键名带群系）
+    paintMark(this, 'center', 'plains');
+    paintMark(this, 'fountain', 'plains');
+    paintMark(this, 'banner', 'plains');
+    for (var bi=0; bi<BIOMES.length; bi++) paintMark(this, MARK_FOR[BIOMES[bi].key], BIOMES[bi].key);
+    drawBlade(this);
     // 水面流动高光
     var wg=this.add.graphics();
     wg.fillStyle(0xffffff,1); wg.fillRoundedRect(0,0,14,3.4,1.7);
     wg.generateTexture('wsh',14,4); wg.destroy();
+    drawAmbientTex(this);
   };
 
   WorldScene.prototype.create = function(){
     var world = buildWorld();
     this.grid = world.grid; this.biomeMap = world.biomeMap;
 
+    // 地标先于烘焙放置：地标占的格不上装饰、不长树（碰撞不变，见 placeLandmarks 注释）
+    this.lm = placeLandmarks(this.grid);
+    var lmMask = markMask(this.lm);
+
     // 地表：整图烘焙成单张纹理（1632 格 → 1 个 draw call）
     if (this.textures.exists('mapbake')) this.textures.remove('mapbake');
-    this.textures.addCanvas('mapbake', bakeMap(this.grid, this.biomeMap));
+    this.textures.addCanvas('mapbake', bakeMap(this.grid, this.biomeMap, lmMask));
     this.add.image(0,0,'mapbake').setOrigin(0,0).setDepth(0);
 
     // 树与水面高光：从瓦片层抽成独立物件，实现遮挡与流动
@@ -1296,6 +1846,7 @@
     for (ty=0; ty<MAP_H; ty++) for (tx=0; tx<MAP_W; tx++){
       c = this.grid[ty][tx];
       bio = biomeAt(tx,ty,this.biomeMap);
+      if (lmMask[ty][tx]) continue;      // 地标脚下的树由建筑代替
       if (c===T.TREE){
         tv = Math.floor(h2(tx,ty,7)*2);
         var tr = this.add.image(tx*TILE+TILE/2, ty*TILE+TILE*0.86, 'tree_'+(bio?bio.key:'plains')+'_'+tv);
@@ -1335,10 +1886,32 @@
       self.itemMap[kOf(it.x,it.y)] = it;
     });
 
+    // 地标：深度 = 底边所在行，走到建筑北侧会被挡住、走到南侧则挡住建筑
+    this.marks = []; this.glows = []; this.blades = [];
+    this.lm.forEach(function(m){
+      var bx = m.x*TILE + m.w*TILE/2, by = m.base + 2;
+      var im = self.add.image(bx, by, 'mk_'+m.kind+'_'+m.bio).setOrigin(0.5,1).setDepth(m.base + 12);
+      self.marks.push(im);
+      var gl = MARK_GLOW[m.kind];
+      if (gl){
+        var tex = MARK_SIZE[m.kind];
+        // 贴图内坐标 → 世界坐标（贴图原点在底边中点）
+        var gx = bx - tex[0]/2 + gl[0], gy = by - tex[1] + gl[1];
+        var gs = blendAdd(self.add.image(gx, gy, 'a_glow').setDepth(m.base + 13)
+          .setTint(gl[3]).setAlpha(0).setDisplaySize(gl[2]*2, gl[2]*2));
+        self.glows.push({ spr:gs, r:gl[2] });
+        var pv = MARK_PIVOT[m.kind];
+        if (pv){
+          var bl = self.add.image(bx - tex[0]/2 + pv[0], by - tex[1] + pv[1], 'mk_blade')
+            .setDepth(m.base + 14);
+          self.blades.push(bl);
+        }
+      }
+    });
+
     this.player = this.add.sprite(G.pos.x*TILE+TILE/2, G.pos.y*TILE+TILE/2, 'hero_down_0')
       .setDepth(G.pos.y*TILE+18);
     this.face = 'down';
-
     this.cameras.main.setBounds(0,0,MAP_W*TILE,MAP_H*TILE);
     this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
 
@@ -1351,6 +1924,23 @@
     this.curBiome = startBio ? startBio.key : 'town';
     this.hud = document.getElementById('hud');
     this.toastEl = document.getElementById('toast');
+    this.clockEl = document.getElementById('clock');
+
+    // 昼夜蒙版：锁相机 + depth 5000（世界物件的 depth 是 y*TILE+偏移，最高约 1110）
+    this.dayRect = this.add.rectangle(0,0,4096,4096,0x0c1630,0)
+      .setOrigin(0,0).setScrollFactor(0).setDepth(5000);
+    // 天气粒子池：按当前群系初始化，跨区域时在 onArrive 里换
+    this.amb = new Ambience(this);
+    this.amb.set(this.curBiome === 'town' ? 'plains' : this.curBiome);
+    // 精灵中心与主角脚下的柔光（夜里能看清自己站哪儿）
+    if (this.ent.heal){
+      var hlx = this.ent.heal.x*TILE+TILE/2, hly = this.ent.heal.y*TILE+TILE/2;
+      this.glows.push({ r:46, spr: blendAdd(this.add.image(hlx, hly-2, 'a_glow')
+        .setTint(0xfff1cf).setAlpha(0).setDisplaySize(92,92).setDepth(this.ent.heal.y*TILE+9)) });
+    }
+    this.pGlow = blendAdd(this.add.image(0,0,'a_glow').setTint(0xbfd4ff)
+      .setAlpha(0).setDisplaySize(56,44).setDepth(3));
+
     this.refreshHud(G.pos.x, G.pos.y);
 
     // 开场地名条
@@ -1516,6 +2106,7 @@
     if (this.curBiome !== bioKey){
       this.curBiome = bioKey;
       this.showZone(bio ? bio.name : '灵契镇', bio ? bio.sub : '中央枢纽 · 十字商道');
+      if (this.amb) this.amb.set(bioKey === 'town' ? 'plains' : bioKey);   // 天气跟着区域走
     }
 
     var it = this.itemMap[kOf(nx,ny)];
@@ -1565,7 +2156,7 @@
     var lead = G.party[G.activeIdx] ? spOf(G.party[G.activeIdx].id).stages[G.party[G.activeIdx].stage] : '—';
     var dt = dexTotals();
     this.hud.innerHTML =
-      '灵契大陆 · Phaser 4 (batch 5)<br>' +
+      '灵契大陆 · Phaser 4 (batch 7)<br>' +
       '坐标 ('+gx+', '+gy+') · '+TNAME[tile]+' · '+(bio?bio.name:'灵契镇')+'<br>' +
       '队伍 '+G.party.length+' 只 · 出战 '+lead+' · 精灵球 ×'+G.balls+'<br>' +
       '图鉴 '+dt.got+'/'+dt.total+' 收服 · '+dt.seen+'/'+dt.total+' 见过';
@@ -1629,13 +2220,152 @@
     });
   };
 
-  WorldScene.prototype.update = function(){
+  /* =====================================================================
+     昼夜与天气（batch 7）
+     - 昼夜：5 分钟一个完整循环。全屏一层色调蒙版（相机锁定，depth 5000 盖住所有世界物件），
+       入夜后点亮地标窗光/熔岩晶簇/精灵中心，白天全灭。
+     - 天气：按群系固定（草原浮叶 / 湖面细雨 / 火山飞灰 / 雪原落雪 / 荒漠风沙 /
+       遗迹浮尘 / 山道薄雾），跨区域时整池重建并淡入。
+     - 实现：手写粒子池（屏幕空间 sprite + 手动积分），不依赖粒子系统 API，
+       数量固定 ≤56 —— 手机上不会因为粒子数失控掉帧。
+     ===================================================================== */
+  var CLOCK = { t: 0.31 };                    // 全局时间 0..1（0.31 ≈ 上午）
+  var DAY_LEN = 300000;                       // 一昼夜 = 5 分钟
+  var DAY_PH = [
+    [0.00, '午夜', 0x0c1630, 0.48],
+    [0.14, '黎明', 0xff9a5c, 0.20],
+    [0.22, '清晨', 0xffe2b4, 0.08],
+    [0.32, '上午', 0xffffff, 0.00],
+    [0.60, '午后', 0xffffff, 0.00],
+    [0.70, '黄昏', 0xff8a4c, 0.17],
+    [0.80, '暮色', 0x2b3a7c, 0.31],
+    [0.90, '夜晚', 0x0c1630, 0.48],
+    [1.00, '午夜', 0x0c1630, 0.48]
+  ];
+  function lerpC(a, b, k){
+    var ar=(a>>16)&255, ag=(a>>8)&255, ab=a&255;
+    var br=(b>>16)&255, bg=(b>>8)&255, bb=b&255;
+    return (Math.round(ar+(br-ar)*k)<<16) | (Math.round(ag+(bg-ag)*k)<<8) | Math.round(ab+(bb-ab)*k);
+  }
+  function dayPhase(t){
+    t = ((t % 1) + 1) % 1;
+    for (var i=1; i<DAY_PH.length; i++){
+      var p0=DAY_PH[i-1], p1=DAY_PH[i];
+      if (t >= p0[0] && t <= p1[0]){
+        var k = (t - p0[0]) / Math.max(1e-4, p1[0] - p0[0]);
+        return { name: k < 0.5 ? p0[1] : p1[1],
+                 tint: lerpC(p0[2], p1[2], k),
+                 a: p0[3] + (p1[3] - p0[3]) * k };
+      }
+    }
+    return { name:'午夜', tint:0x0c1630, a:0.48 };
+  }
+
+  var WTHR = {
+    plains : { name:'微风·浮叶', tex:'a_leaf', tint:0x9ed86a, n:22, vy:[14,28],  vx:[10,24],  sway:16, sz:[0.7,1.2],  a:[0.30,0.72], spin:40, mode:'float' },
+    forest : { name:'林间·落叶', tex:'a_leaf', tint:0x7cc45c, n:26, vy:[12,24],  vx:[8,18],   sway:14, sz:[0.7,1.3],  a:[0.28,0.68], spin:55, mode:'float' },
+    lake   : { name:'细雨',      tex:'a_rain', tint:0xbfe0ff, n:54, vy:[520,760],vx:[70,130], sway:0,  sz:[0.8,1.0],  a:[0.26,0.58], spin:0,  mode:'rain' },
+    volcano: { name:'火山·飞灰', tex:'a_dot',  tint:0xff8a3c, n:34, vy:[-52,-24],vx:[6,22],   sway:10, sz:[1.0,2.2],  a:[0.35,0.90], spin:0,  mode:'up',   fire:true },
+    snow   : { name:'落雪',      tex:'a_dot',  tint:0xffffff, n:46, vy:[18,44],  vx:[-16,16], sway:18, sz:[1.0,2.4],  a:[0.45,0.95], spin:0,  mode:'float' },
+    desert : { name:'风沙',      tex:'a_dot',  tint:0xf0dcaa, n:30, vy:[6,16],   vx:[90,150], sway:6,  sz:[1.0,1.8],  a:[0.16,0.44], spin:0,  mode:'float' },
+    ruins  : { name:'遗迹·浮尘', tex:'a_dot',  tint:0xc8f0ff, n:26, vy:[-10,8],  vx:[-10,10], sway:8,  sz:[1.2,2.2],  a:[0.22,0.70], spin:0,  mode:'float' },
+    ridge  : { name:'山道·薄雾', tex:'a_mist', tint:0xdfe9ff, n:16, vy:[4,12],   vx:[26,54],  sway:8,  sz:[0.7,1.1],  a:[0.10,0.22], spin:0,  mode:'float' }
+  };
+
+  function Ambience(scene){
+    this.s = scene; this.key = null; this.ps = []; this.t = 0; this.fade = 0; this.cfg = null;
+  }
+  Ambience.prototype.set = function(key){
+    if (!WTHR[key]) key = 'plains';
+    if (this.key === key) return;
+    this.key = key;
+    var cfg = this.cfg = WTHR[key], i;
+    for (i=0;i<this.ps.length;i++) if (this.ps[i].spr) this.ps[i].spr.destroy();
+    this.ps = []; this.fade = 0;
+    var W = this.s.scale.width, H = this.s.scale.height;
+    for (i=0;i<cfg.n;i++) this.spawn(Math.random()*W, Math.random()*H);
+  };
+  Ambience.prototype.spawn = function(x, y){
+    var cfg = this.cfg, s = this.s;
+    var spr = s.add.image(x, y, cfg.tex).setScrollFactor(0).setDepth(5100);
+    if (cfg.fire && BLEND_ADD != null) spr.setBlendMode(BLEND_ADD);
+    spr.setTint(cfg.tint);
+    var sc = cfg.sz[0] + Math.random()*(cfg.sz[1]-cfg.sz[0]);
+    spr.setScale(sc);
+    var baseA = cfg.a[0] + Math.random()*(cfg.a[1]-cfg.a[0]);
+    spr.setAlpha(baseA);
+    this.ps.push({
+      spr: spr,
+      a: baseA,
+      vx: cfg.vx[0] + Math.random()*(cfg.vx[1]-cfg.vx[0]),
+      vy: cfg.vy[0] + Math.random()*(cfg.vy[1]-cfg.vy[0]),
+      ph: Math.random()*6.2832,
+      spin: cfg.spin ? (Math.random()*2-1)*cfg.spin : 0
+    });
+  };
+  Ambience.prototype.update = function(dt){
+    if (!this.cfg || !this.ps.length) return;
+    var W = this.s.scale.width, H = this.s.scale.height;
+    var k = dt/1000, cfg = this.cfg, i, p, spr;
+    this.t += k;
+    this.fade = Math.min(1, this.fade + k*2.2);
+    for (i=0;i<this.ps.length;i++){
+      p = this.ps[i]; spr = p.spr;
+      if (!spr) continue;
+      p.spr.x += (p.vx + (cfg.sway ? Math.sin(this.t*1.6 + p.ph)*cfg.sway : 0)) * k;
+      p.spr.y += p.vy * k;
+      if (p.spin) spr.angle += p.spin * k;
+      // 环绕回卷：出屏即从对侧回来，永不消失、永不累积
+      if (spr.y > H+30) { spr.y = -30; spr.x = Math.random()*W; }
+      else if (spr.y < -30) { spr.y = H+30; spr.x = Math.random()*W; }
+      if (spr.x > W+40) spr.x = -40;
+      else if (spr.x < -40) spr.x = W+40;
+      if (cfg.mode === 'rain') spr.angle = Math.atan2(p.vx, p.vy) * 57.2958;
+      spr.setAlpha(p.a * this.fade);
+    }
+  };
+  Ambience.prototype.clear = function(){
+    for (var i=0;i<this.ps.length;i++) if (this.ps[i].spr) this.ps[i].spr.destroy();
+    this.ps = [];
+  };
+
+  WorldScene.prototype.update = function(time, delta){
+    this.tickAmbient(Math.min(60, delta || 16));
     if (this.moving || this.inBattle) return;
     var c=this.cursors, k=this.keys;
     if (c.left.isDown  || k.A.isDown)  this.step(-1,0);
     else if (c.right.isDown || k.D.isDown) this.step(1,0);
     else if (c.up.isDown    || k.W.isDown) this.step(0,-1);
     else if (c.down.isDown  || k.S.isDown) this.step(0,1);
+  };
+
+  WorldScene.prototype.tickAmbient = function(dt){
+    CLOCK.t = (CLOCK.t + dt/DAY_LEN) % 1;
+    var ph = dayPhase(CLOCK.t);
+    if (this.dayRect) this.dayRect.setFillStyle(ph.tint, ph.a);
+
+    // 灯光：入夜渐亮、天亮渐灭；灯芯用轻微呼吸，避免死板的静态光斑
+    var glow = clamp((ph.a - 0.10) / 0.36, 0, 1);
+    var i, gg, pulse;
+    for (i=0;i<this.glows.length;i++){
+      gg = this.glows[i];
+      pulse = 0.88 + 0.12*Math.sin(CLOCK.t*300 + i*1.7);
+      gg.spr.setAlpha(0.70 * glow * pulse);
+    }
+    for (i=0;i<this.blades.length;i++) this.blades[i].angle += dt * 0.018;
+    if (this.pGlow && this.player){
+      this.pGlow.setPosition(this.player.x, this.player.y + 11).setAlpha(0.34 * glow);
+    }
+
+    if (this.amb) this.amb.update(dt);
+
+    // 时钟/天气小胶囊：每 700ms 刷一次，不必每帧动 DOM
+    this.clockAcc = (this.clockAcc || 0) + dt;
+    if (this.clockEl && this.clockAcc > 700){
+      this.clockAcc = 0;
+      var wn = this.amb && this.amb.cfg ? this.amb.cfg.name : '';
+      this.clockEl.textContent = ph.name + (wn ? ' · ' + wn : '');
+    }
   };
 
   /* =====================================================================
@@ -1773,6 +2503,13 @@
     var d = this.decoG;
     d.clear();
     // 台座在 layoutSprites 里按立绘真实位置绘制（竖屏/横屏都贴脚）
+
+    // 昼夜色调：与地图共用同一个时钟，白天清爽、黄昏暖、夜里压暗
+    var ph = dayPhase(CLOCK.t);
+    if (!this.dayTint){
+      this.dayTint = this.add.rectangle(0,0,4096,4096,0x0c1630,0).setOrigin(0,0).setDepth(12);
+    }
+    this.dayTint.setFillStyle(ph.tint, ph.a * 0.85);
   };
   function rgb2n(c){ return (Math.round(clamp(c[0],0,1)*255)<<16) | (Math.round(clamp(c[1],0,1)*255)<<8) | Math.round(clamp(c[2],0,1)*255); }
 
