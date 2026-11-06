@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>灵契大陆 · Phaser 4 (batch 10 浮动摇杆/双击全屏)</title>
+<title>灵契大陆 · Phaser 4 (batch 11 技能特效重做/升级习得)</title>
 <style>
   html,body{margin:0;height:100%;background:#101018;overflow:hidden;font-family:system-ui,"PingFang SC",sans-serif;
             -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
@@ -93,6 +93,10 @@
   #quest b{color:#ffd98a;font-weight:700;letter-spacing:1px;flex:0 0 auto}
   #quest span{overflow:hidden;text-overflow:ellipsis}
   #quest em{font-style:normal;color:#8fb8ff;font-variant-numeric:tabular-nums;flex:0 0 auto}
+  /* 竖屏时任务条落到底部，会压住战斗招式菜单的第一行，进战斗直接收起 */
+  body.battle #quest{display:none}
+  /* 浮层提示同理：战斗里改到天空中段显示，别去糊消息框和招式名 */
+  body.battle #toast{bottom:auto;top:32%}
 
   /* 剧情对话框：底部横条，点任意处推进 */
   #dlg{position:fixed;z-index:45;display:none;left:50%;transform:translateX(-50%);
@@ -379,6 +383,120 @@
     }
     return list;
   }
+
+  /* ===== 招式学习（batch11）=====
+     基础招式仍按等级 1 / 8 / 16 解锁，老玩家的手感不变；在此之上加一层「灵光」判定：
+     每次升级掷一次骰，命中就从候选池里学一招。
+     - 起步 34%，连续没学会每次 +13%，最高 95%，最坏情况练 4 级也必得一招
+     - 候选池 = 本属性 3 招 + 相性属性 3 招 + 通用 4 招，按威力平方加权，不奖励学垃圾招
+     - 上限 4 招，超出时挤掉威力最低的那一招，并提示「忘记了 X」
+     - 额外招式存在 inst.moves 上；旧存档没有这个字段，等同于「还没学过」，完全兼容 */
+  var COMMON_MOVES = [
+    { name:'猛撞',     power:58, acc:96,  type:'none' },
+    { name:'连环爪',   power:48, acc:100, type:'none' },
+    { name:'全力一击', power:86, acc:82,  type:'none' },
+    { name:'回身闪击', power:64, acc:98,  type:'none' }
+  ];
+  // 相性属性：给每只精灵留一个「可以跨属性学」的方向，克制关系才有搭配可言
+  var SUB_TYPE = {
+    fire:'wind', water:'ice', grass:'rock', electric:'light', light:'psychic',
+    dark:'rock', rock:'grass', ice:'water', wind:'electric', psychic:'light', dragon:'fire'
+  };
+  var MOVE_BY_NAME = {};
+  (function(){
+    var t, i, k;
+    for (t in SR.TYPE_MOVES){
+      for (i=0;i<SR.TYPE_MOVES[t].length;i++){
+        var m = SR.TYPE_MOVES[t][i];
+        MOVE_BY_NAME[m.name] = { name:m.name, power:m.power, acc:m.acc, type:t };
+      }
+    }
+    for (k=0;k<COMMON_MOVES.length;k++) MOVE_BY_NAME[COMMON_MOVES[k].name] = COMMON_MOVES[k];
+    MOVE_BY_NAME['撞击'] = { name:'撞击', power:40, acc:100, type:'none' };
+  })();
+  var MAX_MOVES = 4;
+  var LEARN_BASE = 0.34, LEARN_STEP = 0.13, LEARN_CAP = 0.95;
+
+  function moveByName(n){ return MOVE_BY_NAME[n] || null; }
+  function learnPool(sp){
+    var out = [], seen = {};
+    function add(list, tp){
+      for (var i=0;i<list.length;i++){
+        var it = list[i];
+        if (seen[it.name]) continue;
+        seen[it.name] = 1;
+        out.push({ name:it.name, power:it.power, acc:it.acc, type:tp });
+      }
+    }
+    add(SR.TYPE_MOVES[sp.type] || [], sp.type);
+    var sub = SUB_TYPE[sp.type];
+    if (sub && sub !== sp.type) add(SR.TYPE_MOVES[sub] || [], sub);
+    add(COMMON_MOVES, 'none');
+    return out;
+  }
+  // 实例的真实招式集：等级解锁的基础招 + 额外学到的招，去重后按威力取前 4
+  function movesOf(inst){
+    if (!inst) return [];
+    var sp = spOf(inst.id); if (!sp) return [];
+    var base = movesFor(sp, inst.lv || 20);
+    var list = [], seen = {}, i;
+    function push(m){
+      if (m && m.name && !seen[m.name]){ seen[m.name] = 1; list.push(m); }
+    }
+    for (i=0;i<base.length;i++) push(base[i]);
+    var extra = inst.moves || [];
+    for (i=0;i<extra.length;i++) push(moveByName(extra[i]));
+    if (list.length > MAX_MOVES){
+      list.sort(function(a,b){
+        var dp = (b.power||0) - (a.power||0);
+        return dp !== 0 ? dp : (a.name < b.name ? -1 : 1);
+      });
+      list.length = MAX_MOVES;
+    }
+    return list;
+  }
+  // 一次升级的掷骰：返回 { got, lost }，没学成返回 null
+  function tryLearn(inst, sp){
+    if (!inst || !sp) return null;
+    var beforeList = movesOf(inst);
+    var before = beforeList.map(function(m){ return m.name; });
+    var pool = learnPool(sp), cand = [], i;
+    for (i=0;i<pool.length;i++) if (before.indexOf(pool[i].name) < 0) cand.push(pool[i]);
+    if (!cand.length) return null;
+    // 招式满 4 时只考虑「真能挤进前 4」的招：威力必须高于当前最弱的那招。
+    // 不过滤的话会演成「学会了 —— 但其实没有任何变化」，空欢喜比不学更伤。
+    if (beforeList.length >= MAX_MOVES){
+      var weakest = Infinity;
+      for (i=0;i<beforeList.length;i++) weakest = Math.min(weakest, beforeList[i].power || 40);
+      cand = cand.filter(function(m){ return (m.power || 40) > weakest; });
+      if (!cand.length){
+        inst.learnStreak = (inst.learnStreak || 0) + 1;   // 池子里没有更强的，概率继续攒
+        return null;
+      }
+    }
+    if (typeof inst.learnStreak !== 'number') inst.learnStreak = 0;
+    if (Math.random() > Math.min(LEARN_CAP, LEARN_BASE + LEARN_STEP * inst.learnStreak)){
+      inst.learnStreak++;              // 这次没学会，下次概率提高
+      return null;
+    }
+    var total = 0, w = [];
+    for (i=0;i<cand.length;i++){ w[i] = Math.pow(cand[i].power || 40, 2); total += w[i]; }
+    var roll = Math.random() * total, idx = cand.length - 1;
+    for (i=0;i<cand.length;i++){ roll -= w[i]; if (roll <= 0){ idx = i; break; } }
+    var mv = cand[idx];
+    if (!inst.moves) inst.moves = [];
+    inst.moves.push(mv.name);
+    var after = movesOf(inst).map(function(m){ return m.name; });
+    if (after.indexOf(mv.name) < 0){   // 威力不够挤进前 4，当成没学到，别弹提示骗人
+      inst.moves.pop();
+      inst.learnStreak = 0;
+      return null;
+    }
+    inst.learnStreak = 0;
+    var lost = [];
+    for (i=0;i<before.length;i++) if (after.indexOf(before[i]) < 0) lost.push(before[i]);
+    return { got:mv.name, lost:lost };
+  }
   function buildStats(sp, nature, stage, lv){
     var sc = stageScale(stage)*lvScale(lv), hpSc = stageScale(stage)*lvHpScale(lv);
     var hp = (sp.base.hp*2+60)*hpSc, atk = sp.base.atk*sc, def = sp.base.def*sc, spd = sp.base.spd*sc;
@@ -406,12 +524,13 @@
     var f = buildFighter(s, inst.stage, findNature(inst.nature), inst.lv||20);
     if (inst.hp==null || inst.hp>f.maxHp) inst.hp = f.maxHp;
     f.hp = inst.hp;
+    f.moves = movesOf(inst);     // 战斗里用的是「实例招式集」，含灵光学到的招
     return f;
   }
   function baseExp(sp){ var b=sp.base; return Math.round((b.hp*0.5+b.atk+b.def+b.spd)/4); }
   function expNeed(lv){ lv = clamp(lv||1, 1, SR.CFG.MAX_LV-1); return 3*lv*lv+3*lv+1; }
   function gainExp(inst, amount){
-    var empty = { ups:0, learned:[], gain:amount||0, from:0, to:0 };
+    var empty = { ups:0, learned:[], extra:[], gain:amount||0, from:0, to:0 };
     if (!inst || !amount) return empty;
     var s = spOf(inst.id); if(!s) return empty;
     if (typeof inst.lv!=='number') inst.lv=20;
@@ -428,7 +547,13 @@
     }
     if (inst.lv >= SR.CFG.MAX_LV) inst.exp = 0;
     var learned = movesFor(s, inst.lv).slice(beforeMoves).map(function(m){ return m.name; });
-    return { ups:ups, learned:learned, gain:amount, from:from, to:inst.lv };
+    // 每升一级额外掷一次「灵光」判定；多级连升就掷多次
+    var extra = [];
+    for (var u=0; u<ups; u++){
+      var lr = tryLearn(inst, s);
+      if (lr) extra.push(lr);
+    }
+    return { ups:ups, learned:learned, extra:extra, gain:amount, from:from, to:inst.lv };
   }
   function expGain(enemy, inst, tierKey){
     var t = SR.TIERS[tierKey]||SR.TIERS.wild;
@@ -2874,7 +2999,7 @@
     var lead = G.party[G.activeIdx] ? spOf(G.party[G.activeIdx].id).stages[G.party[G.activeIdx].stage] : '—';
     var dt = dexTotals();
     this.hud.innerHTML =
-      '灵契大陆 · Phaser 4 (batch 10)<br>' +
+      '灵契大陆 · Phaser 4 (batch 11)<br>' +
       '坐标 ('+gx+', '+gy+') · '+TNAME[tile]+' · '+bio.name+'<br>' +
       '队伍 '+G.party.length+' 只 · 出战 '+lead+' · 精灵球 ×'+G.balls+'<br>' +
       '徽章 '+G.badges.length+'/'+GYMS.length+' · 图鉴 '+dt.got+'/'+dt.total+' 收服';
@@ -3267,6 +3392,8 @@
 
   BattleScene.prototype.create = function(){
     var self = this;
+    // 战斗期间收掉任务条：它固定在底部，正好压住招式菜单第一行
+    document.body.classList.add('battle');
     AUDIO.sfx('encounter');
     AUDIO.track('battle');
     this.bgG = this.add.graphics().setDepth(0);
@@ -3279,6 +3406,7 @@
     this.scale.on('resize', this.onResize, this);
     this.events.once('shutdown', function(){
       self.scale.off('resize', self.onResize, self);
+      document.body.classList.remove('battle');
     });
   };
 
@@ -3498,8 +3626,9 @@
       G = {
         e:{ x:w*0.03, y:h*0.045, w:w*0.94, h:h*0.070 },
         p:{ x:w*0.03, y:h*0.462, w:w*0.94, h:h*0.070 },
-        m:{ x:w*0.03, y:h*0.715, w:w*0.94, h:h*0.070 },
-        menu:{ x:w*0.03, y:h*0.795, w:w*0.94, h:h*0.190 }
+        // 4 招 + 返回 = 3 行按钮，菜单必须整体下移，否则第一行会被消息框压住
+        m:{ x:w*0.03, y:h*0.700, w:w*0.94, h:h*0.072 },
+        menu:{ x:w*0.03, y:h*0.812, w:w*0.94, h:h*0.176 }
       };
     } else if (M === 'C'){
       G = {
@@ -3736,179 +3865,288 @@
   };
 
   // ---------- 特效 ----------
+  /* 口径（batch11 重写）
+     1. 只用「预生成纹理 + 属性补间」，绝不给 Graphics 做 scale 放大。
+        旧版靠 tween 把 strokeCircle 从 r=10 放大到 r=80，描边线宽跟着放大 8 倍，
+        在手机上糊成一个几十像素宽的白盘，把精灵和血条一起盖住 —— 玩家看到的就是「特效没了」。
+     2. 深度 15 / 16：压在精灵(10)之上、UI(20+)之下。血条与招式名永远优先可读，不被特效糊住。
+     3. 单次特效对象数 ≤ 22，最长 560ms，补间结束立刻自毁并从 this.fx 摘掉，不留泄漏。
+     4. 颜色一律取自 TYPEC，不许用白色顶替属性色（白球是最典型的「看不出是什么技能」）。 */
+
   BattleScene.prototype.dotTex = function(){
     if (this.textures.exists('fxdot')) return 'fxdot';
     var g = this.add.graphics();
-    g.fillStyle(0xffffff,1); g.fillCircle(8,8,7);
-    g.generateTexture('fxdot',16,16); g.destroy();
+    g.fillStyle(0xffffff, 1); g.fillCircle(8, 8, 7);
+    g.generateTexture('fxdot', 16, 16); g.destroy();
     return 'fxdot';
   };
-  BattleScene.prototype.fxDot = function(x,y,color,life,toX,toY,size){
-    var d = this.add.image(x,y,this.dotTex()).setTint(color).setDepth(30);
-    d.setScale((size||1)*0.9);
-    this.fx.push(d);
-    var self=this;
-    this.tweens.add({
-      targets:d, x:toX===undefined?x:toX, y:toY===undefined?y:toY,
-      alpha:0, scale:(size||1)*0.2, duration:life||420, ease:'Cubic.easeOut',
-      onComplete:function(){
-        var i=self.fx.indexOf(d); if(i>=0) self.fx.splice(i,1);
-        d.destroy();
-      }
-    });
-    return d;
+  BattleScene.prototype.glowTex = function(){
+    if (this.textures.exists('fxglow')) return 'fxglow';
+    var S = 128, g = this.add.graphics();
+    // 用 12 圈同心圆累积出径向柔光：中心最亮，边缘几乎透明
+    for (var i=12;i>=1;i--){
+      g.fillStyle(0xffffff, 0.13);
+      g.fillCircle(S/2, S/2, (S/2) * (i/12));
+    }
+    g.generateTexture('fxglow', S, S); g.destroy();
+    return 'fxglow';
   };
-  BattleScene.prototype.fxRing = function(x,y,color,r0,r1,life,thick){
-    var g = this.add.graphics().setDepth(29); this.fx.push(g);
-    g.lineStyle(thick||5, color, 0.95); g.strokeCircle(0,0,r0);
-    g.setPosition(x,y);
-    var self=this;
-    this.tweens.add({ targets:g, scaleX:r1/r0, scaleY:r1/r0, alpha:0, duration:life||420, ease:'Cubic.easeOut',
-      onComplete:function(){ var i=self.fx.indexOf(g); if(i>=0) self.fx.splice(i,1); g.destroy(); } });
+  BattleScene.prototype.shardTex = function(){
+    if (this.textures.exists('fxshard')) return 'fxshard';
+    var g = this.add.graphics();
+    g.fillStyle(0xffffff, 1);
+    g.fillPoints([{x:6,y:0},{x:12,y:6},{x:6,y:12},{x:0,y:6}], true);
+    g.generateTexture('fxshard', 12, 12); g.destroy();
+    return 'fxshard';
+  };
+  BattleScene.prototype.fxRelease = function(o){
+    var i = this.fx.indexOf(o);
+    if (i >= 0) this.fx.splice(i, 1);
+    if (o && o.destroy) o.destroy();
+  };
+
+  // 柔光：属性色光团，从小涨大再消失
+  // 淡出走 Quad.easeIn（先保持再快速消隐）。用 easeOut 的话第 180ms 就只剩 17% 不透明度，
+  // 手机上等于「闪一下就没」，是上一版特效被玩家当成不存在的主因。
+  BattleScene.prototype.fxGlow = function(x, y, color, from, to, life, alpha){
+    var im = this.add.image(x, y, this.glowTex()).setTint(color).setDepth(15);
+    im.setScale(from || 0.5);
+    im.setAlpha(alpha === undefined ? 0.85 : alpha);
+    var self = this; this.fx.push(im);
+    this.tweens.add({ targets:im, scale: to || 1.4, duration: life || 380, ease:'Cubic.easeOut' });
+    this.tweens.add({ targets:im, alpha:0, duration: life || 380, ease:'Quad.easeIn',
+      onComplete:function(){ self.fxRelease(im); } });
+    return im;
+  };
+
+  // 冲击环：逐帧重绘半径，线宽恒定 —— 这是不复刻旧版糊盘的关键
+  BattleScene.prototype.fxRing = function(x, y, color, r0, r1, life, thick){
+    var g = this.add.graphics().setPosition(x, y).setDepth(15);
+    g._p = 0; this.fx.push(g);
+    var self = this, t = life || 420, w = Math.max(2, thick || 4);
+    this.tweens.add({ targets:g, _p:1, duration:t, ease:'Cubic.easeOut',
+      onUpdate:function(){
+        var p = clamp(g._p, 0, 1);
+        g.clear();
+        // alpha 用 pow(1-p,0.7) 而不是线性：线性衰减会让环在中段就淡到看不见，
+        // 手机上 300ms 一闪而过，等于没画。
+        g.lineStyle(Math.max(1.8, w * (1 - p * 0.45)), color, Math.pow(1 - p, 0.55));
+        g.strokeCircle(0, 0, r0 + (r1 - r0) * p);
+      },
+      onComplete:function(){ self.fxRelease(g); } });
     return g;
   };
-  BattleScene.prototype.fxBolt = function(x,y,color){
+
+  // 命中爆点：正中一下白闪，给「打到了」一个最直接的信号
+  BattleScene.prototype.fxCore = function(x, y, life, size){
+    var d = this.add.image(x, y, this.dotTex()).setTint(0xffffff).setDepth(17);
+    d.setScale(size || 3.4);
+    var self = this; this.fx.push(d);
+    this.tweens.add({ targets:d, scale:(size || 3.4) * 0.35, alpha:0, duration:life || 170, ease:'Cubic.easeOut',
+      onComplete:function(){ self.fxRelease(d); } });
+    return d;
+  };
+
+  // 火花：小圆点，从原位飞向目标点并缩小淡出（位移 easeOut / 淡出 easeIn，两条补间分开）
+  BattleScene.prototype.fxSpark = function(x, y, color, life, tx, ty, size){
+    var d = this.add.image(x, y, this.dotTex()).setTint(color).setDepth(16);
+    d.setScale((size || 1) * 0.85);
+    var self = this, t = life || 420; this.fx.push(d);
+    this.tweens.add({ targets:d, x: (tx === undefined ? x : tx), y: (ty === undefined ? y : ty),
+      scale:(size || 1) * 0.15, duration:t, ease:'Cubic.easeOut' });
+    this.tweens.add({ targets:d, alpha:0, duration:t, ease:'Quad.easeIn',
+      onComplete:function(){ self.fxRelease(d); } });
+    return d;
+  };
+
+  // 碎片：菱形，旋转飞散。冰/岩/龙用它，比圆点有材质感
+  BattleScene.prototype.fxShard = function(x, y, color, spread, life){
+    var s = this.add.image(x, y, this.shardTex()).setTint(color).setDepth(16);
+    s.setRotation(Math.random() * Math.PI * 2);
+    var a = Math.random() * Math.PI * 2, r = spread || 70;
+    var self = this, t = life || 420; this.fx.push(s);
+    this.tweens.add({ targets:s, x:x + Math.cos(a) * r, y:y + Math.sin(a) * r * 0.72,
+      rotation:s.rotation + 2.4, scale:0.4, duration:t, ease:'Cubic.easeOut' });
+    this.tweens.add({ targets:s, alpha:0, duration:t, ease:'Quad.easeIn',
+      onComplete:function(){ self.fxRelease(s); } });
+    return s;
+  };
+
+  // 闪电：线段描边，只淡出不缩放，所以线宽不会被拉爆
+  BattleScene.prototype.fxBolt = function(x, y, color){
     var self = this;
-    for (var k=0;k<3;k++){
+    for (var k=0;k<2;k++){
       (function(kk){
-        var g = self.add.graphics().setDepth(31); self.fx.push(g);
-        var pts=[{x:x+(Math.random()*60-30),y:y-130}];
-        for (var s=1;s<=5;s++) pts.push({ x:x+(Math.random()*70-35), y:y-130+s*26 });
-        g.lineStyle(kk===0?6:3, color, 0.95);
+        var g = self.add.graphics().setDepth(16); self.fx.push(g);
+        var pts = [{ x:x + (Math.random()*40-20), y:y-104 }];
+        for (var s=1;s<=5;s++) pts.push({ x:x + (Math.random()*50-25), y:y-104 + s*22 });
+        g.lineStyle(kk === 0 ? 5 : 2.5, color, 0.95);
         g.strokePoints(pts, false);
-        g.lineStyle(2, 0xffffff, 0.9); g.strokePoints(pts, false);
-        self.tweens.add({ targets:g, alpha:0, duration:180, delay:kk*70,
-          onComplete:function(){ var i=self.fx.indexOf(g); if(i>=0) self.fx.splice(i,1); g.destroy(); } });
+        g.lineStyle(1.6, 0xffffff, 0.9);
+        g.strokePoints(pts, false);
+        self.tweens.add({ targets:g, alpha:0, duration:190, delay:kk*60,
+          onComplete:function(){ self.fxRelease(g); } });
       })(k);
     }
   };
-  BattleScene.prototype.fxShards = function(x,y,color,n,spread){
-    for (var i=0;i<n;i++){
-      var g = this.add.graphics().setDepth(31); this.fx.push(g);
-      var a = Math.random()*Math.PI*2, r = 16+Math.random()*10;
-      g.fillStyle(color,1);
-      g.fillPoints([{x:0,y:-r},{x:r*0.5,y:0},{x:0,y:r},{x:-r*0.5,y:0}], true);
-      g.setPosition(x,y);
-      g.setRotation(Math.random()*3);
-      var self=this, tx=x+Math.cos(a)*(spread||90), ty=y+Math.sin(a)*(spread||90);
-      this.tweens.add({ targets:g, x:tx, y:ty, alpha:0, scale:0.3, rotation:g.rotation+2, duration:400+Math.random()*180,
-        onComplete:function(){ var i2=self.fx.indexOf(g); if(i2>=0) self.fx.splice(i2,1); g.destroy(); } });
+
+  // 施法前摇：施法者身上先聚一层属性色光 + 五颗火星向内收
+  BattleScene.prototype.fxAura = function(spr, type){
+    if (!spr || !spr.active) return;
+    var c = typeC(type), main = Array.isArray(c) ? c[0] : c, hi = Array.isArray(c) ? (c[1] || c[0]) : c;
+    var y = spr.y - spr.displayHeight * 0.32;
+    var im = this.add.image(spr.x, y, this.glowTex()).setTint(main).setDepth(15).setScale(0.85).setAlpha(0);
+    var self = this; this.fx.push(im);
+    this.tweens.add({ targets:im, alpha:0.5, scale:0.5, duration:150, yoyo:true, hold:30,
+      onComplete:function(){ self.fxRelease(im); } });
+    for (var i=0;i<5;i++){
+      var ang = (Math.PI*2/5)*i + Math.random()*0.6, r = spr.displayWidth*0.5 + 12;
+      this.fxSpark(spr.x + Math.cos(ang)*r, y + Math.sin(ang)*r*0.55, hi, 250, spr.x, y, 0.7);
     }
   };
 
-  // 落地光圈：压扁的地面椭圆（不是正圆，正圆会读成球体特效而不是脚印/冲击纹）
-  BattleScene.prototype.fxGround = function(x, y, color){
-    var g = this.add.graphics().setDepth(9); this.fx.push(g);
-    g.lineStyle(3, color, 0.9);
-    if (g.strokeEllipse) g.strokeEllipse(0, 0, 62, 20);   // Phaser4 有则用椭圆
-    else g.strokeCircle(0, 0, 26);                        // 兜底：拿不到就当圆用，不报错
-    g.setPosition(x, y);
-    var self = this;
-    this.tweens.add({ targets:g, scaleX:2.0, scaleY:2.0, alpha:0, duration:430, ease:'Cubic.easeOut',
-      onComplete:function(){ var i=self.fx.indexOf(g); if(i>=0) self.fx.splice(i,1); g.destroy(); } });
-    return g;
+  // 招式名浮字：属性色，从施法者头顶上浮。没有这行字，玩家很难把特效和招式对上号
+  BattleScene.prototype.fxMoveName = function(spr, name, type){
+    if (!spr || !spr.active || !name) return;
+    var c = typeC(type), main = Array.isArray(c) ? c[0] : c;
+    var col = '#' + ('000000' + main.toString(16)).slice(-6);
+    var y = spr.y - spr.displayHeight * 0.62;
+    var t = this.add.text(spr.x, y, name, {
+      fontFamily:FONT, fontSize:this.fz(14)+'px', color:col,
+      stroke:'#0b1026', strokeThickness:this.fz(4)
+    }).setOrigin(0.5, 1).setDepth(41);
+    this.tweens.add({ targets:t, y:y - this.fz(26), alpha:0, duration:640, ease:'Cubic.easeOut',
+      onComplete:function(){ t.destroy(); } });
   };
 
-
-  // 按属性播放不同特效（火/水/雷/草/冰/岩/暗/光/风/超/龙/普通）
+  // 按属性播放命中特效（12 属性各一套）
   BattleScene.prototype.playFx = function(type, x, y, power){
-    var c = typeC(type), self=this;
-    var n = Math.round(10 + 8*(power||1));
+    var c = typeC(type), p = clamp(power || 1, 0.5, 1.6);
+    var main = Array.isArray(c) ? c[0] : c;
+    var hi   = Array.isArray(c) ? (c[1] || c[0]) : c;
+    var top  = Array.isArray(c) ? (c[2] || c[1] || c[0]) : c;
+    var n = Math.round(8 + 6*p), i, a, r;
+
+    // 共用底子：白闪 + 一层柔光 + 一道冲击环，保证任何属性都「打得有反应」
+    // 白闪要克制：直径超过 45px 就会把属性色糊成一个白球，读不出是什么属性。
+    // 柔光半径收到 1.0 左右、不透明度 0.6：再大就把精灵整只染色，读起来像滤镜不像打击。
+    this.fxCore(x, y, 150, 1.7 + p*0.5);
+    this.fxGlow(x, y, main, 0.5, 1.0 + p*0.25, 400, 0.6);
+    this.fxRing(x, y, hi, 8, 64 + 20*p, 400, 7);
+
     switch(type){
       case 'fire':
-        for (var i=0;i<n;i++){
-          this.fxDot(x+(Math.random()*90-45), y+20+Math.random()*20, c[i%3], 380+Math.random()*220,
-                     x+(Math.random()*70-35), y-60-Math.random()*70, 0.9+Math.random());
+        for (i=0;i<n;i++){
+          a = Math.random()*Math.PI*2; r = Math.random()*30;
+          this.fxSpark(x + Math.cos(a)*r, y + Math.sin(a)*r*0.6 + 14, i%3===0 ? top : main,
+                       360 + Math.random()*200, x + (Math.random()*44-22), y - 46 - Math.random()*44,
+                       1.1 + Math.random()*0.8);
         }
-        this.fxRing(x,y,c[0],10,80,420,6);
+        this.fxRing(x, y-8, hi, 5, 38, 260, 3);
         break;
+
       case 'water':
-        this.fxRing(x,y+10,c[0],8,90,460,5);
-        this.fxRing(x,y+10,c[1],14,60,380,3);
-        for (var i2=0;i2<n;i2++){
-          this.fxDot(x+(Math.random()*80-40), y-90+Math.random()*40, c[i2%3], 420,
-                     x+(Math.random()*110-55), y+40, 0.8+Math.random()*0.8);
+        for (i=0;i<n;i++){
+          this.fxSpark(x + (Math.random()*72-36), y - 62 + Math.random()*26, i%3===0 ? top : hi,
+                       400, x + (Math.random()*38-19), y + 16, 0.95 + Math.random()*0.7);
         }
+        this.fxRing(x, y+10, hi, 10, 58, 420, 3);
         break;
+
       case 'electric':
-        this.fxBolt(x,y,c[0]); this.fxBolt(x,y,c[2]);
-        this.cameras.main.flash(90, 255, 250, 160);
-        for (var i3=0;i3<n;i3++){
-          this.fxDot(x+(Math.random()*100-50), y-100+Math.random()*130, c[i3%3], 260, undefined, undefined, 0.6);
+        this.fxBolt(x, y, main);
+        if (p >= 1.1) this.cameras.main.flash(70, 255, 250, 190);
+        for (i=0;i<n;i++){
+          this.fxSpark(x + (Math.random()*76-38), y - 66 + Math.random()*86, i%2 ? top : main,
+                       240, undefined, undefined, 0.6);
         }
         break;
+
       case 'grass':
-        for (var i4=0;i4<n;i4++){
-          this.fxDot(x+(Math.random()*70-35), y, c[i4%3], 460+Math.random()*200,
-                     x+(Math.random()*130-65), y-70-Math.random()*70, 0.9);
+        for (i=0;i<n;i++){
+          a = -Math.PI*0.5 + (Math.random()-0.5)*1.6;
+          this.fxSpark(x + (Math.random()*46-23), y + 10, i%3===0 ? top : hi,
+                       420 + Math.random()*150, x + Math.cos(a)*66, y + Math.sin(a)*56 - 18, 0.75);
         }
-        this.fxShards(x,y,c[1],5,70);
+        for (i=0;i<4;i++) this.fxShard(x, y-8, hi, 54, 380);
         break;
+
       case 'ice':
-        this.fxShards(x,y-20,c[1],8,96);
-        this.fxRing(x,y-10,c[0],8,76,420,4);
-        this.cameras.main.flash(70, 200, 240, 255);
-        for (var i5=0;i5<6;i5++){
-          this.fxDot(x+(Math.random()*80-40), y-60+Math.random()*50, c[2], 400, undefined, undefined, 0.7);
-        }
+        for (i=0;i<6;i++) this.fxShard(x, y-12, i%2 ? hi : top, 60, 380);
+        this.fxRing(x, y-10, hi, 8, 50, 360, 3);
+        if (p >= 1.1) this.cameras.main.flash(60, 210, 240, 255);
         break;
+
       case 'rock':
-        this.fxShards(x,y-30,c[0],7,110);
-        this.cameras.main.shake(200, 0.01);
-        for (var i6=0;i6<6;i6++){ this.fxDot(x+(Math.random()*60-30), y+10, c[2], 340, undefined, y+50, 1.1); }
+        for (i=0;i<6;i++) this.fxShard(x, y-16, main, 64, 420);
+        this.cameras.main.shake(160, 0.006);
+        for (i=0;i<4;i++) this.fxSpark(x + (Math.random()*38-19), y+12, hi, 320, undefined, y+40, 1.0);
         break;
+
       case 'dark':
-        this.fxRing(x,y,c[1],14,104,520,7);
-        this.fxRing(x,y,c[2],26,70,440,4);
-        for (var i7=0;i7<n;i7++){
-          var ang = Math.random()*Math.PI*2, r = 60;
-          this.fxDot(x+Math.cos(ang)*r, y+Math.sin(ang)*r, c[0], 460, x, y, 0.9);
+        this.fxRing(x, y, hi, 36, 8, 460, 5);       // 向内收的黑紫环
+        for (i=0;i<n;i++){
+          a = Math.random()*Math.PI*2; r = 50 + Math.random()*16;
+          this.fxSpark(x + Math.cos(a)*r, y + Math.sin(a)*r*0.7, i%2 ? main : hi, 420, x, y, 0.8);
         }
         break;
+
       case 'light':
-        this.fxRing(x,y,c[2],6,120,480,6);
-        this.fxRing(x,y,c[0],16,80,400,3);
-        for (var i8=0;i8<n;i8++){
-          var a2 = (Math.PI*2/n)*i8;
-          this.fxDot(x,y,c[1],460,x+Math.cos(a2)*130, y+Math.sin(a2)*130, 1.0);
+        this.fxRing(x, y, top, 6, 74, 420, 4);
+        for (i=0;i<8;i++){
+          a = (Math.PI*2/8)*i;
+          this.fxSpark(x, y, i%2 ? hi : top, 420, x + Math.cos(a)*72, y + Math.sin(a)*72*0.8, 0.9);
         }
         break;
+
       case 'wind':
-        for (var i9=0;i9<4;i9++){
-          var g = this.add.graphics().setDepth(29); this.fx.push(g);
-          var oy = -70 + i9*34;
-          g.lineStyle(4, c[i9%3], 0.9);
-          g.beginPath(); g.arc(-70, oy, 70, -0.9, 0.9, false); g.strokePath();
-          g.setPosition(x+60, y);
-          this.tweens.add({ targets:g, x:x-90, alpha:0, duration:420+i9*60, delay:i9*50,
-            onComplete:function(){ var i10=self.fx.indexOf(g); if(i10>=0) self.fx.splice(i10,1); g.destroy(); } });
+        for (i=0;i<3;i++) this.fxRing(x - 8 + i*6, y - 4, i%2 ? hi : main, 16 + i*8, 56 + i*10, 340 + i*70, 3);
+        for (i=0;i<6;i++){
+          this.fxSpark(x + 44, y - 24 + Math.random()*44, hi, 300, x - 54, y - 24 + Math.random()*38, 0.6);
         }
-        for (var i11=0;i11<6;i11++) this.fxDot(x+40,y-30+Math.random()*60,c[1],300,x-90,y-20+Math.random()*50,0.7);
         break;
+
       case 'psychic':
-        for (var i12=0;i12<3;i12++) this.fxRing(x,y,c[i12%3],18+i12*14,110+i12*20,520+i12*90,4);
-        for (var i13=0;i13<n;i13++){
-          var a3 = Math.random()*Math.PI*2, r2=20+Math.random()*70;
-          this.fxDot(x+Math.cos(a3)*r2, y+Math.sin(a3)*r2, c[i13%3], 420, x+Math.cos(a3+1.2)*r2*1.4, y+Math.sin(a3+1.2)*r2*1.4, 0.7);
+        for (i=0;i<3;i++) this.fxRing(x, y, i===1 ? hi : main, 12 + i*12, 44 + i*16, 380 + i*90, 3);
+        for (i=0;i<n;i++){
+          a = Math.random()*Math.PI*2; r = 16 + Math.random()*42;
+          this.fxSpark(x + Math.cos(a)*r, y + Math.sin(a)*r*0.8, i%3 ? main : top, 380,
+                       x + Math.cos(a+1.3)*r*1.5, y + Math.sin(a+1.3)*r*1.2, 0.7);
         }
         break;
+
       case 'dragon':
-        this.fxRing(x,y,c[0],10,130,520,8);
-        this.fxRing(x,y,c[2],24,90,440,4);
-        this.fxShards(x,y-30,c[2],6,120);
-        this.cameras.main.shake(240, 0.012);
-        for (var i14=0;i14<n;i14++){
-          this.fxDot(x+(Math.random()*120-60), y-100+Math.random()*80, c[i14%3], 500,
-                     x+(Math.random()*60-30), y+30, 1.0);
+        this.fxRing(x, y, main, 10, 88, 480, 6);
+        this.fxRing(x, y, top, 20, 58, 400, 3);
+        for (i=0;i<5;i++) this.fxShard(x, y-22, top, 72, 440);
+        this.cameras.main.shake(180, 0.008);
+        break;
+
+      default:   // 普通系：白色冲击波，不带上色，读作「纯物理」
+        for (i=0;i<n;i++){
+          this.fxSpark(x + (Math.random()*28-14), y + (Math.random()*18-6), 0xffffff, 280,
+                       x + (Math.random()*86-43), y + (Math.random()*38-19), 0.7);
         }
         break;
-      default: // 普通：白色冲击波
-        this.fxRing(x,y,c[0],8,86,340,6);
-        for (var i15=0;i15<n;i15++){
-          this.fxDot(x+(Math.random()*40-20), y+(Math.random()*30-10), 0xffffff, 300,
-                     x+(Math.random()*140-70), y+(Math.random()*60-30), 0.8);
-        }
     }
+  };
+
+  // 落地光圈：压扁的地面椭圆（正圆会被读成球体，而不是脚印/冲击纹）
+  BattleScene.prototype.fxGround = function(x, y, color){
+    var g = this.add.graphics().setPosition(x, y).setDepth(9);
+    g._p = 0; this.fx.push(g);
+    var self = this;
+    this.tweens.add({ targets:g, _p:1, duration:430, ease:'Cubic.easeOut',
+      onUpdate:function(){
+        var p = clamp(g._p, 0, 1);
+        g.clear();
+        g.lineStyle(Math.max(1, 3 * (1 - p*0.5)), color, 0.9 * (1 - p));
+        var rx = 31 + 31*p;
+        if (g.strokeEllipse) g.strokeEllipse(0, 0, rx*2, rx*2*0.32);
+        else g.strokeCircle(0, 0, rx*0.8);
+      },
+      onComplete:function(){ self.fxRelease(g); } });
+    return g;
   };
 
   BattleScene.prototype.popNumber = function(x,y,text,color,big){
@@ -4011,8 +4249,12 @@
     var srcSpr = isPlayer ? this.playerSpr : this.enemySpr;
     var dstSpr = isPlayer ? this.enemySpr : this.playerSpr;
 
+    // 施法前摇：先在施法者身上聚一层属性色光、头顶飘出招式名，再冲出去。
+    // 没有这两下，命中特效会被读成「画面闪了一下」，看不出是哪个招式。
+    this.fxAura(srcSpr, mv.type);
+    this.fxMoveName(srcSpr, mv.name, mv.type);
     this.lunge(srcSpr, isPlayer ? 1 : -1);
-    await sleep(120);
+    await sleep(130);
 
     if (Math.random()*100 > mv.acc){
       this.say(atk.name+' 的「'+mv.name+'」没有命中！');
@@ -4027,7 +4269,7 @@
 
     if (!immune){
       AUDIO.typeHit(mv.type);
-      this.playFx(mv.type, dstSpr.x, dstSpr.y - dstSpr.displayHeight*0.5, power);
+      this.playFx(mv.type, dstSpr.x, dstSpr.y - dstSpr.displayHeight*0.32, power);
       await sleep(140);
       this.hitStop(strong || r.crit ? 95 : 70, strong || r.crit ? 0.06 : 0.14);  // 克制/暴击顿得更重
       this.hurt(dstSpr);
@@ -4123,7 +4365,11 @@
       var c = G.party[i];
       if (hpOf(c) <= 0) continue;
       var rr = gainExp(c, Math.max(1, Math.round(gain*0.5)));
-      if (rr.ups){ var s2 = spOf(c.id); side.push(s2.stages[c.stage]+' Lv.'+c.lv); }
+      if (rr.ups){
+        var s2 = spOf(c.id);
+        side.push(s2.stages[c.stage]+' Lv.'+c.lv +
+          (rr.extra && rr.extra.length ? '（习得「'+rr.extra[0].got+'」）' : ''));
+      }
     }
     saveG();
     if (inst && this.B){ this.B.player = fighterFromInstance(inst); this.B.player.hp = inst.hp; }
@@ -4143,8 +4389,27 @@
       this.refreshBars();
       this.say(spName+' 升级！Lv.'+inst.lv);
       await sleep(900);
-      if (r.learned.length && this.B) this.say('Lv.'+inst.lv+'！学会了新招式：'+r.learned.join('、'));
-      await sleep(r.learned.length?760:0);
+      if (r.learned && r.learned.length && this.B) this.say('Lv.'+inst.lv+'！学会了新招式：'+r.learned.join('、'));
+      await sleep(r.learned && r.learned.length ? 760 : 0);
+      // 灵光判定学到的招：一圈属性色光环 + 单独一行提示，否则玩家根本不知道刚才发生了什么
+      if (r.extra && r.extra.length){
+        for (var li=0; li<r.extra.length; li++){
+          if (!this.B) break;
+          var lx = r.extra[li];
+          var mvo = moveByName(lx.got);
+          var ltp = mvo ? mvo.type : 'none';
+          var lc = typeC(ltp), lcol = Array.isArray(lc) ? lc[0] : lc;
+          this.fxRing(this.playerSpr.x, this.playerSpr.y - this.playerSpr.displayHeight*0.32, lcol, 10, 92, 520, 6);
+          this.fxMoveName(this.playerSpr, lx.got, ltp);
+          AUDIO.sfx('levelup');
+          // 战斗消息框只有两行高度，文案必须短，长句会溢出面板压住菜单
+          this.say(lx.lost.length
+            ? '习得「'+lx.got+'」（换下「'+lx.lost.join('、')+'」）'
+            : '灵光一闪！习得「'+lx.got+'」');
+          await sleep(1050);
+        }
+        this.refreshBars();
+      }
     }
     if (side.length) this.showToast('经验共享 → '+side.join('、'));
   };
@@ -4841,8 +5106,8 @@
     this.track(eg);
     y += ebH + this.gap*1.6;
 
-    // 招式（与原版 movesFor 一致：按等级解锁 1/8/16）
-    var mv = movesFor(sp, c.lv);
+    // 招式：等级解锁的基础招 + 灵光学到的招，最多 4 个
+    var mv = movesOf(c);
     this.utext(info.x, y+lh*0.35, '招式', fz(12), '#8fa0cc', 0, 7);
     y += lh*0.8;
     var mCols = info.w > 400 ? 2 : 1;
@@ -5082,11 +5347,16 @@
 
   // ===== 启动 =====
   bindTalkInput();
-  new Phaser.Game({
+  var GAME = new Phaser.Game({
     type: Phaser.AUTO, parent: 'game', backgroundColor: '#101018', pixelArt: true,
     scale: { mode: Phaser.Scale.RESIZE, width: '100%', height: '100%' },
     scene: [WorldScene, BattleScene, UIScene]
   });
+  // 自动测试钩子：只暴露只读引用，不参与任何游戏逻辑（无头浏览器回归用）
+  try {
+    window.__SRDBG = { game:GAME, G:G, spOf:spOf, buildFighter:buildFighter,
+      movesFor:movesFor, gainExp:gainExp, expNeed:expNeed, saveG:saveG };
+  } catch(e){}
 })();
 </script>
 </body>
