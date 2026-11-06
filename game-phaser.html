@@ -3,64 +3,234 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>灵契大陆 · Phaser 4 真实地图原型 (batch 1)</title>
+<title>灵契大陆 · Phaser 4 原型 (batch 3 战斗)</title>
 <style>
-  html,body{margin:0;height:100%;background:#101018;overflow:hidden;font-family:system-ui,"PingFang SC",sans-serif}
+  html,body{margin:0;height:100%;background:#101018;overflow:hidden;font-family:system-ui,"PingFang SC",sans-serif;
+            -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
   #game{width:100vw;height:100vh}
   #hud{position:fixed;left:8px;top:8px;color:#fff;font-size:13px;line-height:1.55;
        background:rgba(0,0,0,.5);padding:8px 12px;border-radius:9px;pointer-events:none;
        text-shadow:0 1px 2px rgba(0,0,0,.6)}
   #hint{position:fixed;left:8px;bottom:8px;color:#fff;opacity:.72;font-size:12px;pointer-events:none}
+  #toast{position:fixed;left:50%;bottom:64px;transform:translateX(-50%);background:rgba(0,0,0,.72);
+         color:#fff;padding:8px 18px;border-radius:20px;font-size:14px;opacity:0;transition:opacity .2s;
+         pointer-events:none;white-space:nowrap}
+  #toast.show{opacity:1}
   #err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;color:#ff6b6b;
-       font-size:16px;text-align:center;padding:24px}
+       font-size:16px;text-align:center;padding:24px;white-space:pre-line;line-height:1.7}
+  /* 触屏方向键：仅触摸设备显示 */
+  #pad{position:fixed;left:14px;bottom:14px;width:150px;height:150px;display:none;z-index:20}
+  #pad.on{display:block}
+  #pad b{position:absolute;width:48px;height:48px;background:rgba(255,255,255,.16);
+         border:2px solid rgba(255,255,255,.42);border-radius:12px;color:#fff;font-size:18px;
+         display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+  #pad b:active{background:rgba(255,255,255,.4)}
+  #pad b[data-d="up"]{left:51px;top:0}
+  #pad b[data-d="down"]{left:51px;bottom:0}
+  #pad b[data-d="left"]{left:0;top:51px}
+  #pad b[data-d="right"]{right:0;top:51px}
 </style>
 </head>
 <body>
 <div id="game"></div>
 <div id="hud">加载中…</div>
-<div id="hint">方向键 / WASD 移动 · 位置自动存档(测试键) · 刷新后恢复</div>
+<div id="hint">方向键 / WASD 移动 · 走进高草/雪地/沙地/遗迹遇敌 · 撞上训练家开战 · 战斗中点击按钮操作</div>
+<div id="toast"></div>
 <div id="err"></div>
+<div id="pad"><b data-d="up">▲</b><b data-d="down">▼</b><b data-d="left">◀</b><b data-d="right">▶</b></div>
 
 <script src="phaser.min.js"></script>
+<script src="phaser-assets.js"></script>
 <script>
 (function () {
-  if (typeof Phaser === 'undefined') {
-    var e = document.getElementById('err');
-    e.style.display = 'flex';
-    e.textContent = 'Phaser 4 未能加载：请确认 phaser.min.js 与本 HTML 在同一文件夹。';
-    return;
-  }
+  var errEl = document.getElementById('err');
+  function fatal(msg){ errEl.style.display='flex'; errEl.textContent=msg; }
+  if (typeof Phaser === 'undefined'){ fatal('Phaser 4 未能加载：请确认 phaser.min.js 与本 HTML 在同一文件夹。'); return; }
+  if (!window.SR){ fatal('资源数据包未能加载：请确认 phaser-assets.js 与本 HTML 在同一文件夹。'); return; }
 
-  // ===== 数据（来自 src/data/tiles.js，真实地图配置）=====
+  var SR = window.SR;
+  var FONT = '"PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,sans-serif';
+
+  // ===== 基础常量（与 src/data/tiles.js 一致）=====
   var TILE = 32, MAP_W = 48, MAP_H = 34;
-  var T = { GRASS:0, TALL:1, PATH:2, TREE:3, WATER:4, ROCK:5, SNOW:6, SAND:7, LAVA:8, RUIN:9 };
+  var T = SR.T;
   var TNAME = ['草地','高草','道路','树木','水面','岩石','雪地','沙地','熔岩','遗迹'];
-  var WALK = [true,true,true,false,false,false,true,true,false,true]; // 按瓦片索引；false=阻挡
+  var WALK = [true,true,true,false,false,false,true,true,false,true];
+  var ENC = SR.ENC_CHANCE;
   var HUB = { x:25, y:17 };
+
   var BIOMES = [
-    { key:'plains',  name:'微风草原', cx:8,  cy:8,  r:7 },
-    { key:'forest',  name:'低语森林', cx:8,  cy:26, r:7 },
-    { key:'lake',    name:'碧波湖',   cx:22, cy:7,  r:7 },
-    { key:'volcano', name:'灰烬火山', cx:41, cy:8,  r:7 },
-    { key:'snow',    name:'霜白雪原', cx:41, cy:26, r:7 },
-    { key:'desert',  name:'流沙荒漠', cx:22, cy:27, r:6 },
-    { key:'ruins',   name:'遗忘遗迹', cx:13, cy:17, r:4 },
-    { key:'ridge',   name:'龙脊山道', cx:35, cy:17, r:4 }
+    { key:'plains',  name:'微风草原', cx:8,  cy:8,  r:7, pools:['s1','s3','s11','s9','s18','s23','s35'],  rare:'s18',
+      sky:[0.62,0.80,0.96], ground:[0.48,0.74,0.44], hill:[0.36,0.58,0.36] },
+    { key:'forest',  name:'低语森林', cx:8,  cy:26, r:7, pools:['s3','s12','s1','s10','s22','s24','s39'], rare:'s39',
+      sky:[0.34,0.52,0.44], ground:[0.26,0.44,0.32], hill:[0.16,0.30,0.22] },
+    { key:'lake',    name:'碧波湖',   cx:22, cy:7,  r:7, pools:['s2','s9','s4','s19','s20','s21'],       rare:'s20',
+      sky:[0.53,0.76,0.94], ground:[0.36,0.66,0.72], hill:[0.30,0.52,0.62] },
+    { key:'volcano', name:'灰烬火山', cx:41, cy:8,  r:7, pools:['s1','s11','s13','s7','s16','s17','s33'], rare:'s17',
+      sky:[0.42,0.26,0.22], ground:[0.30,0.20,0.18], hill:[0.22,0.14,0.14] },
+    { key:'snow',    name:'霜白雪原', cx:41, cy:26, r:7, pools:['s8','s13','s7','s33','s34'],            rare:'s33',
+      sky:[0.72,0.84,0.94], ground:[0.84,0.90,0.95], hill:[0.64,0.75,0.85] },
+    { key:'desert',  name:'流沙荒漠', cx:22, cy:27, r:6, pools:['s7','s13','s4','s32','s25'],            rare:'s25',
+      sky:[0.90,0.76,0.50], ground:[0.86,0.72,0.46], hill:[0.74,0.58,0.34] },
+    { key:'ruins',   name:'遗忘遗迹', cx:13, cy:17, r:4, pools:['s10','s6','s14','s29','s30','s38'],     rare:'s38',
+      sky:[0.36,0.34,0.46], ground:[0.40,0.39,0.46], hill:[0.26,0.25,0.34] },
+    { key:'ridge',   name:'龙脊山道', cx:35, cy:17, r:4, pools:['s14','s15','s7','s40','s36'],           rare:'s40',
+      sky:[0.56,0.60,0.68], ground:[0.48,0.48,0.52], hill:[0.32,0.33,0.40] }
+  ];
+  var BIOME_BY_KEY = {}; BIOMES.forEach(function(b){ BIOME_BY_KEY[b.key]=b; });
+
+  var TRAINER_DEFS = [
+    { key:'plains',  name:'草原少年 阿澈', cloth:'#6BBF59', cloth2:'#3E8E41', hair:'#6B4A2B', pool:['s1','s18'],   stage:1 },
+    { key:'forest',  name:'巡林人 苔',     cloth:'#2E8B6B', cloth2:'#1C5E47', hair:'#3A2A1A', pool:['s12','s24'],  stage:1 },
+    { key:'lake',    name:'湖畔钓手 澜',   cloth:'#3E9BD6', cloth2:'#2A6DA0', hair:'#2A2A3A', pool:['s2','s19'],   stage:1 },
+    { key:'volcano', name:'熔岩使 炎',     cloth:'#E2603A', cloth2:'#A8351C', hair:'#2A1A14', pool:['s11','s17'],  stage:2 },
+    { key:'snow',    name:'冰晶使 霜',     cloth:'#7FD3E8', cloth2:'#4FA8C4', hair:'#D9E8F0', pool:['s8','s33'],   stage:2 },
+    { key:'desert',  name:'沙盗 漠',       cloth:'#D9A441', cloth2:'#A8762A', hair:'#3A2A1A', pool:['s4','s25'],   stage:1 },
+    { key:'ruins',   name:'守夜人 冥',     cloth:'#46506B', cloth2:'#2E3550', hair:'#15131F', pool:['s6','s30'],   stage:2 },
+    { key:'ridge',   name:'龙骑士 玦',     cloth:'#8A5CD6', cloth2:'#5A2FA0', hair:'#2A2A3A', pool:['s15','s40'],  stage:2, boss:true }
   ];
 
-  function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+  function hex(n){ return parseInt(String(n).replace('#',''),16); }
+  function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
+  function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function rgb(c){ return 'rgb('+Math.round(c[0]*255)+','+Math.round(c[1]*255)+','+Math.round(c[2]*255)+')'; }
 
-  // 与 index.html buildWorld() 完全一致（同种子 20261104，同规则）
-  function buildWorld(){
-    var rng = mulberry32(20261104);
-    var grid = [], biomeMap = [];
-    for (var y=0;y<MAP_H;y++){ grid.push(new Array(MAP_W).fill(T.GRASS)); biomeMap.push(new Array(MAP_W).fill(null)); }
-    for (var y=0;y<MAP_H;y++) for (var x=0;x<MAP_W;x++){
-      if (x<2||y<2||x>=MAP_W-2||y>=MAP_H-2) grid[y][x]=T.TREE;
+  // ===== 数值系统（逐行照搬 index.html，不改规则）=====
+  var SP_BY_ID = {}; SR.SPIRITS.forEach(function(s){ SP_BY_ID[s.id]=s; });
+  function spOf(id){ return SP_BY_ID[id]; }
+  function mult(a,d){ var row=SR.TYPE_CHART[a]; return (row && row[d]!==undefined) ? row[d] : 1; }
+  function findNature(n){ for (var i=0;i<SR.NATURES.length;i++) if (SR.NATURES[i].name===n) return SR.NATURES[i]; return SR.NATURES[0]; }
+  function randNature(){ return pick(SR.NATURES); }
+  function stageScale(st){ return 1+st*0.18; }
+  function lvScale(lv){ return clamp(1+((lv||20)-20)*0.012, .7, 1.55); }
+  function lvHpScale(lv){ return clamp(1+((lv||20)-20)*0.022, .78, 1.85); }
+  var MOVE_LV = [1,8,16];
+  function movesFor(sp, lv){
+    var L = lv||20, pool = SR.TYPE_MOVES[sp.type]||[];
+    var list = [{ name:'撞击', power:40, acc:100, type:'none', lv:1 }];
+    for (var i=0;i<pool.length;i++){
+      var need = MOVE_LV[i]||1;
+      if (L>=need) list.push({ name:pool[i].name, power:pool[i].power, acc:pool[i].acc, type:sp.type, lv:need });
     }
+    return list;
+  }
+  function buildStats(sp, nature, stage, lv){
+    var sc = stageScale(stage)*lvScale(lv), hpSc = stageScale(stage)*lvHpScale(lv);
+    var hp = (sp.base.hp*2+60)*hpSc, atk = sp.base.atk*sc, def = sp.base.def*sc, spd = sp.base.spd*sc;
+    function apply(s,m){ if(s==='atk')atk*=m; else if(s==='def')def*=m; else if(s==='spd')spd*=m; else if(s==='hp')hp*=m; }
+    if (nature.up) apply(nature.up,1.1);
+    if (nature.down) apply(nature.down,0.9);
+    var t = sp.talentObj;
+    if (t && t.kind==='stat') apply(t.stat, t.mult);
+    if (sp.ability.kind==='bulk') def*=1.1;
+    if (sp.ability.kind==='swift') spd*=1.1;
+    return { hp:Math.floor(hp), atk:Math.floor(atk), def:Math.floor(def), spd:Math.floor(spd) };
+  }
+  function buildFighter(sp, stage, nature, lv){
+    var L = lv||20, stats = buildStats(sp,nature,stage,L);
+    return { species:sp, stage:stage, nature:nature, lv:L, name:sp.stages[stage],
+             stats:stats, hp:stats.hp, maxHp:stats.hp, moves:movesFor(sp,L) };
+  }
+  function maxHpOf(inst){
+    var s = spOf(inst.id); if(!s) return 1;
+    return buildStats(s, findNature(inst.nature), inst.stage, inst.lv||20).hp;
+  }
+  function hpOf(inst){ return (inst.hp==null) ? maxHpOf(inst) : clamp(inst.hp, 0, maxHpOf(inst)); }
+  function fighterFromInstance(inst){
+    var s = spOf(inst.id);
+    var f = buildFighter(s, inst.stage, findNature(inst.nature), inst.lv||20);
+    if (inst.hp==null || inst.hp>f.maxHp) inst.hp = f.maxHp;
+    f.hp = inst.hp;
+    return f;
+  }
+  function baseExp(sp){ var b=sp.base; return Math.round((b.hp*0.5+b.atk+b.def+b.spd)/4); }
+  function expNeed(lv){ lv = clamp(lv||1, 1, SR.CFG.MAX_LV-1); return 3*lv*lv+3*lv+1; }
+  function gainExp(inst, amount){
+    var empty = { ups:0, learned:[], gain:amount||0, from:0, to:0 };
+    if (!inst || !amount) return empty;
+    var s = spOf(inst.id); if(!s) return empty;
+    if (typeof inst.lv!=='number') inst.lv=20;
+    if (typeof inst.exp!=='number') inst.exp=0;
+    var from = inst.lv, beforeMoves = movesFor(s, inst.lv).length;
+    inst.exp += amount;
+    var ups = 0;
+    while (inst.lv < SR.CFG.MAX_LV && inst.exp >= expNeed(inst.lv)){
+      inst.exp -= expNeed(inst.lv);
+      var oldMax = maxHpOf(inst);
+      inst.lv++; ups++;
+      var newMax = maxHpOf(inst);
+      if (inst.hp!=null) inst.hp = Math.min(newMax, inst.hp + Math.max(0, newMax-oldMax));
+    }
+    if (inst.lv >= SR.CFG.MAX_LV) inst.exp = 0;
+    var learned = movesFor(s, inst.lv).slice(beforeMoves).map(function(m){ return m.name; });
+    return { ups:ups, learned:learned, gain:amount, from:from, to:inst.lv };
+  }
+  function expGain(enemy, inst, tierKey){
+    var t = SR.TIERS[tierKey]||SR.TIERS.wild;
+    var base = baseExp(enemy.species);
+    var diff = ((inst&&inst.lv)||20) - (enemy.lv||20);
+    var k = clamp(1-diff*.03, .35, 1.3);
+    return Math.max(1, Math.round(base*enemy.lv*0.45*t.mult*k));
+  }
+  function calcDamage(atk, def, move){
+    var lvl = 50;
+    var base = Math.floor(((2*lvl/5+2)*move.power*(atk.stats.atk/def.stats.def))/50)+2;
+    var stab = (move.type===atk.species.type) ? 1.5 : 1;
+    var tm = mult(move.type, def.species.type);
+    var boost = 1;
+    if (atk.species.ability.kind==='boost' && move.type===atk.species.type) boost*=1.1;
+    if (atk.species.talentObj.kind==='elem' && tm===2) boost*=1.1;
+    var crit = 1;
+    if (atk.species.talentObj.kind==='crit' && Math.random()<.15) crit=1.5;
+    var rnd = .85 + Math.random()*.15;
+    var dmg = Math.floor(base*stab*tm*boost*crit*rnd*0.62);
+    if (tm===0) dmg=0;
+    var cap = Math.max(6, Math.ceil((def.maxHp||120)*0.52));
+    dmg = Math.min(dmg, cap);
+    if (tm>0) dmg = Math.max(Math.round(move.power*0.1), dmg);
+    return { dmg:Math.max(0,dmg), tm:tm, crit:crit>1 };
+  }
+
+  // ===== 全局进度（独立测试键，不碰真实存档 sr_game_v2）=====
+  var SAVE_KEY = 'sr_phaser_test_v2';
+  var G = {
+    party: [ { id:'s1', stage:0, lv:12, exp:0, hp:null, nature:'固执', bond:2, count:1 },
+             { id:'s2', stage:0, lv:11, exp:0, hp:null, nature:'坦率', bond:1, count:1 } ],
+    balls: 5,
+    activeIdx: 0,
+    defeated: [],
+    pos: { x:HUB.x, y:HUB.y+2 }
+  };
+  function loadG(){
+    try{
+      var s = JSON.parse(localStorage.getItem(SAVE_KEY));
+      if (s && Array.isArray(s.party) && s.party.length){
+        G.party = s.party.filter(function(p){ return p && spOf(p.id); });
+        if (!G.party.length) throw 0;
+        G.balls = (typeof s.balls==='number') ? s.balls : 5;
+        G.activeIdx = clamp(s.activeIdx||0, 0, G.party.length-1);
+        G.defeated = Array.isArray(s.defeated) ? s.defeated : [];
+        if (s.pos && Number.isInteger(s.pos.x) && Number.isInteger(s.pos.y)) G.pos = s.pos;
+      }
+    }catch(e){}
+  }
+  function saveG(){
+    try{
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ party:G.party, balls:G.balls, activeIdx:G.activeIdx, defeated:G.defeated, pos:G.pos }));
+    }catch(e){}
+  }
+  loadG();
+
+  // ===== 地图生成（与 index.html 同种子，逐格一致）=====
+  function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+  function buildWorld(){
+    var rng = mulberry32(20261104), grid = [], biomeMap = [];
+    for (var y=0;y<MAP_H;y++){ grid.push(new Array(MAP_W).fill(T.GRASS)); biomeMap.push(new Array(MAP_W).fill(null)); }
+    for (var y=0;y<MAP_H;y++) for (var x=0;x<MAP_W;x++){ if (x<2||y<2||x>=MAP_W-2||y>=MAP_H-2) grid[y][x]=T.TREE; }
     for (var y=2;y<MAP_H-2;y++) for (var x=2;x<MAP_W-2;x++){
       var best=null, bd=1e9;
-      for (var i=0;i<BIOMES.length;i++){ var b=BIOMES[i]; var d=Math.hypot(x-b.cx,y-b.cy); if(d<bd){bd=d;best=b;} }
+      for (var i=0;i<BIOMES.length;i++){ var b=BIOMES[i], d=Math.hypot(x-b.cx,y-b.cy); if(d<bd){bd=d;best=b;} }
       if(!best) continue;
       if(bd>best.r){ biomeMap[y][x]=null; continue; }
       biomeMap[y][x]=best;
@@ -77,7 +247,6 @@
       }
     }
     for (var y=HUB.y-4;y<=HUB.y+4;y++) for (var x=HUB.x-4;x<=HUB.x+4;x++){
-      if (x<0||y<0||x>=MAP_W||y>=MAP_H) continue;
       if (x<2||y<2||x>=MAP_W-2||y>=MAP_H-2) continue;
       grid[y][x]=T.PATH; biomeMap[y][x]=null;
     }
@@ -89,74 +258,237 @@
     for (var j=0;j<BIOMES.length;j++) carveTo(BIOMES[j].cx, BIOMES[j].cy);
     return { grid:grid, biomeMap:biomeMap };
   }
-
   function biomeAt(x,y,biomeMap){
     if (x>=0&&y>=0&&x<MAP_W&&y<MAP_H && biomeMap[y][x]) return biomeMap[y][x];
     var best=null, bd=1e9;
-    for (var i=0;i<BIOMES.length;i++){ var b=BIOMES[i]; var d=Math.hypot(x-b.cx,y-b.cy); if(d<bd){bd=d;best=b;} }
+    for (var i=0;i<BIOMES.length;i++){ var b=BIOMES[i], d=Math.hypot(x-b.cx,y-b.cy); if(d<bd){bd=d;best=b;} }
     return best;
   }
 
-  var SAVE_KEY = 'sr_phaser_test_v1'; // 独立测试键，绝不碰真实存档 sr_game_v2
+  // ===== 可达性 + 实体放置 =====
+  var kOf = function(x,y){ return x+','+y; };
+  function computeReachable(grid){
+    var reachable = new Set(), sx=HUB.x, sy=HUB.y+2;
+    if(!WALK[grid[sy][sx]]) return reachable;
+    var q=[{x:sx,y:sy}]; reachable.add(kOf(sx,sy));
+    var dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+    while(q.length){
+      var cur=q.shift();
+      for(var i=0;i<4;i++){
+        var nx=cur.x+dirs[i][0], ny=cur.y+dirs[i][1], k=kOf(nx,ny);
+        if(reachable.has(k)) continue;
+        if(nx<0||ny<0||nx>=MAP_W||ny>=MAP_H) continue;
+        if(!WALK[grid[ny][nx]]) continue;
+        reachable.add(k); q.push({x:nx,y:ny});
+      }
+    }
+    return reachable;
+  }
+  function snapWalkable(grid, reachable, occupied, x, y){
+    if(x<0||y<0||x>=MAP_W||y>=MAP_H) return {x:HUB.x,y:HUB.y};
+    for(var r=0;r<16;r++){
+      for(var dy=-r;dy<=r;dy++) for(var dx=-r;dx<=r;dx++){
+        var nx=x+dx, ny=y+dy;
+        if(nx<2||ny<2||nx>=MAP_W-2||ny>=MAP_H-2) continue;
+        if(!WALK[grid[ny][nx]]) continue;
+        if(occupied.has(kOf(nx,ny))) continue;
+        if(reachable.size && !reachable.has(kOf(nx,ny))) continue;
+        return {x:nx,y:ny};
+      }
+    }
+    return {x:HUB.x,y:HUB.y};
+  }
+  function buildEntities(grid, reachable){
+    var occupied = new Set(), ent = { trainers:[], items:[], heal:null };
+    var hp = snapWalkable(grid, reachable, occupied, HUB.x-1, HUB.y-1);
+    occupied.add(kOf(hp.x,hp.y)); ent.heal = {x:hp.x,y:hp.y};
+    TRAINER_DEFS.forEach(function(def){
+      var b = BIOME_BY_KEY[def.key];
+      var p = snapWalkable(grid, reachable, occupied, b.cx+2, b.cy+2);
+      occupied.add(kOf(p.x,p.y));
+      ent.trainers.push({ key:def.key, name:def.name, cloth:def.cloth, cloth2:def.cloth2, hair:def.hair, x:p.x, y:p.y });
+    });
+    var spots=[];
+    BIOMES.forEach(function(b){ spots.push([b.cx-2,b.cy-2]); spots.push([b.cx+2,b.cy-3]); });
+    spots.push([HUB.x+3,HUB.y+2]); spots.push([HUB.x-3,HUB.y+3]);
+    var kinds=['balls','candy','stone'];
+    ent.items=[];
+    spots.forEach(function(sp,i){
+      var p = snapWalkable(grid, reachable, occupied, sp[0], sp[1]);
+      occupied.add(kOf(p.x,p.y));
+      ent.items.push({ x:p.x, y:p.y, kind:kinds[i%kinds.length], taken:false, spr:null });
+    });
+    return ent;
+  }
 
-  // ===== Phaser 场景 =====
+  // ===== 立绘纹理（data URI -> 纹理，完全离线）=====
+  function loadTex(scene, key){
+    return new Promise(function(resolve){
+      if (scene.textures.exists(key)) return resolve(true);
+      var data = SR.ART[key];
+      if (!data) return resolve(false);
+      var img = new Image();
+      img.onload = function(){
+        try { scene.textures.addImage(key, img); resolve(true); }
+        catch(e){ resolve(false); }
+      };
+      img.onerror = function(){ resolve(false); };
+      img.src = data;
+    });
+  }
+  function artKey(sp, stage){ return sp.id+'_'+stage; }
+
+  // ===== 属性配色 =====
+  var TYPEC = {
+    none:[0xdfe6f2], fire:[0xff6b35,0xffb347,0xffe066], water:[0x4d96ff,0x7fc4ff,0xd6ecff],
+    grass:[0x5fd068,0x9ae86f,0xd9f7a8], electric:[0xffd93d,0xfff3a0,0xfffbe0],
+    light:[0xffe27a,0xfff6c8,0xffffff], dark:[0x9b6dff,0x6b45c9,0x2a1a4a],
+    rock:[0xc08552,0xe0b080,0x8a5a2e], ice:[0x7fd8e8,0xd6f4fb,0xffffff],
+    wind:[0x76e0a8,0xc6f7e0,0xffffff], psychic:[0xff8fd0,0xffc8e8,0xffffff],
+    dragon:[0x6b5cff,0xa99bff,0xffd93d]
+  };
+  function typeC(t){ return TYPEC[t]||TYPEC.none; }
+
+  /* =====================================================================
+     世界场景（地图 / 移动 / NPC / 道具 / 遇敌）
+     ===================================================================== */
   function WorldScene(){ Phaser.Scene.call(this, { key:'world' }); }
   WorldScene.prototype = Object.create(Phaser.Scene.prototype);
   WorldScene.prototype.constructor = WorldScene;
 
   var TILE_COLORS = [
-    [0x6abe5a,0x4f9e44], // GRASS
-    [0x4a9a3f,0x357a2f], // TALL
-    [0xd9c08a,0xc2a86e], // PATH
-    [0x2f6b2e,0x1f4d20], // TREE
-    [0x4aa3df,0x3a86c0], // WATER
-    [0x9a8f80,0x7d7263], // ROCK
-    [0xeef4f8,0xd2deea], // SNOW
-    [0xe8d8a0,0xd8c888], // SAND
-    [0xd4482a,0xa83218], // LAVA
-    [0x8a8a9a,0x6a6a78]  // RUIN
+    [0x6abe5a,0x4f9e44],[0x4a9a3f,0x357a2f],[0xd9c08a,0xc2a86e],[0x2f6b2e,0x1f4d20],[0x4aa3df,0x3a86c0],
+    [0x9a8f80,0x7d7263],[0xeef4f8,0xd2deea],[0xe8d8a0,0xd8c888],[0xd4482a,0xa83218],[0x8a8a9a,0x6a6a78]
   ];
   var TKEYS = ['t0','t1','t2','t3','t4','t5','t6','t7','t8','t9'];
 
+  function drawHero(scene, dir, frame){
+    var g = scene.add.graphics(), bob = (frame===1)? -1:0;
+    g.fillStyle(0x000000,0.15); g.fillEllipse(16,30,14,5);
+    g.fillStyle(0x2a2a3a,1);
+    if(frame===1){ g.fillRect(9,24,5,7); g.fillRect(18,25,5,6); }
+    else { g.fillRect(10,25,5,6); g.fillRect(17,25,5,6); }
+    g.fillStyle(0x3a6ea5,1); g.fillRoundedRect(8,14+bob,16,12,4);
+    g.fillStyle(0x2c527d,1); g.fillRect(8,22+bob,16,2);
+    g.fillStyle(0xffd9b0,1); g.fillCircle(16,9+bob,7.5);
+    g.fillStyle(0x5a3a22,1); g.fillCircle(16,6+bob,6.5);
+    if(dir==='up'){ g.fillCircle(16,9+bob,7.2); }
+    else if(dir==='down'){ g.fillStyle(0x222,1); g.fillCircle(13,10+bob,1.4); g.fillCircle(19,10+bob,1.4); }
+    else if(dir==='left'){ g.fillStyle(0x222,1); g.fillCircle(11,10+bob,1.4); }
+    else if(dir==='right'){ g.fillStyle(0x222,1); g.fillCircle(21,10+bob,1.4); }
+    g.generateTexture('hero_'+dir+'_'+frame,32,32); g.destroy();
+  }
+  function drawNPC(scene, def){
+    var g = scene.add.graphics();
+    g.fillStyle(0x000000,0.15); g.fillEllipse(16,30,14,5);
+    g.fillStyle(0x2a2a3a,1); g.fillRect(10,25,5,6); g.fillRect(17,25,5,6);
+    g.fillStyle(hex(def.cloth),1); g.fillRoundedRect(8,14,16,12,4);
+    g.fillStyle(hex(def.cloth2),1); g.fillRect(8,20,16,3);
+    g.fillStyle(0xffd9b0,1); g.fillCircle(16,9,7.5);
+    g.fillStyle(hex(def.hair),1); g.fillCircle(16,6,6.5);
+    g.fillStyle(0x222,1); g.fillCircle(13,10,1.3); g.fillCircle(19,10,1.3);
+    g.generateTexture('npc_'+def.key,32,32); g.destroy();
+  }
+  function drawItems(scene){
+    var b=scene.add.graphics();
+    b.fillStyle(0xe23b3b,1); b.fillCircle(10,10,7);
+    b.fillStyle(0xffffff,1); b.fillRect(3,9,14,2);
+    b.lineStyle(1.5,0x2a2a2a,1); b.strokeCircle(10,10,7);
+    b.generateTexture('it_balls',20,20); b.destroy();
+    ['it_candy','it_stone'].forEach(function(k,i){
+      var c=scene.add.graphics();
+      c.fillStyle(i?0x9aa4b2:0xf59a3c,1);
+      c.fillPoints([{x:10,y:2},{x:18,y:10},{x:10,y:18},{x:2,y:10}], true);
+      c.lineStyle(1.5, i?0x5a6472:0x9a5a12,1);
+      c.strokePoints([{x:10,y:2},{x:18,y:10},{x:10,y:18},{x:2,y:10}], true);
+      c.generateTexture(k,20,20); c.destroy();
+    });
+  }
+  function drawHeal(scene){
+    var g=scene.add.graphics();
+    g.fillStyle(0x000000,0.15); g.fillEllipse(16,30,26,6);
+    g.fillStyle(0xffffff,1); g.fillRoundedRect(3,6,26,22,4);
+    g.fillStyle(0xd94b4b,1); g.fillRect(14,10,4,14); g.fillRect(9,15,14,4);
+    g.fillStyle(0x9aa0a6,1); g.fillRect(3,26,26,3);
+    g.lineStyle(1.5,0x556,1); g.strokeRoundedRect(3,6,26,22,4);
+    g.generateTexture('heal',32,32); g.destroy();
+  }
+
   WorldScene.prototype.preload = function(){
     for (var i=0;i<TILE_COLORS.length;i++){
-      var base=TILE_COLORS[i][0], edge=TILE_COLORS[i][1];
       var g=this.add.graphics();
-      g.fillStyle(base,1); g.fillRect(0,0,TILE,TILE);
-      g.fillStyle(edge,1); g.fillRect(0,TILE-4,TILE,4);
+      g.fillStyle(TILE_COLORS[i][0],1); g.fillRect(0,0,TILE,TILE);
+      g.fillStyle(TILE_COLORS[i][1],1); g.fillRect(0,TILE-4,TILE,4);
       g.generateTexture(TKEYS[i],TILE,TILE); g.destroy();
     }
-    // 玩家：圆头小角色（batch1 占位，batch2 换四向行走动画）
-    var p=this.add.graphics();
-    p.fillStyle(0x2b2b3a,1); p.fillRoundedRect(6,10,20,18,5);
-    p.fillStyle(0xffd9b0,1); p.fillCircle(16,9,8);
-    p.fillStyle(0x222222,1); p.fillCircle(13,9,1.6); p.fillCircle(19,9,1.6);
-    p.generateTexture('hero',32,32); p.destroy();
+    var dirs=['down','up','left','right'];
+    for (var d=0; d<4; d++){ drawHero(this,dirs[d],0); drawHero(this,dirs[d],1); }
+    TRAINER_DEFS.forEach(function(def){ drawNPC(this, def); }, this);
+    drawItems(this); drawHeal(this);
   };
 
   WorldScene.prototype.create = function(){
     var world = buildWorld();
-    this.grid = world.grid;
-    this.biomeMap = world.biomeMap;
+    this.grid = world.grid; this.biomeMap = world.biomeMap;
 
-    // 渲染真实地形（1632 格）
     for (var y=0;y<MAP_H;y++) for (var x=0;x<MAP_W;x++){
       this.add.image(x*TILE+TILE/2, y*TILE+TILE/2, TKEYS[this.grid[y][x]]);
     }
 
-    // 出生点 HUB.x, HUB.y+2（与原版一致）
-    var sx=HUB.x, sy=HUB.y+2;
-    try { var s=JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && Number.isInteger(s.x) && Number.isInteger(s.y)) { sx=s.x; sy=s.y; } } catch(e){}
+    var reachable = computeReachable(this.grid);
+    this.ent = buildEntities(this.grid, reachable);
 
-    this.player = this.add.image(sx*TILE+TILE/2, sy*TILE+TILE/2, 'hero').setDepth(10);
+    if (this.ent.heal){
+      this.add.image(this.ent.heal.x*TILE+TILE/2, this.ent.heal.y*TILE+TILE/2, 'heal').setDepth(6);
+    }
+    this.trainerMap = {};
+    var self = this;
+    this.ent.trainers.forEach(function(t){
+      self.add.image(t.x*TILE+TILE/2, t.y*TILE+TILE/2, 'npc_'+t.key).setDepth(8);
+      self.trainerMap[kOf(t.x,t.y)] = t;
+    });
+    this.itemMap = {};
+    this.ent.items.forEach(function(it){
+      it.spr = self.add.image(it.x*TILE+TILE/2, it.y*TILE+TILE/2, 'it_'+it.kind).setDepth(5);
+      self.itemMap[kOf(it.x,it.y)] = it;
+    });
+
+    this.player = this.add.sprite(G.pos.x*TILE+TILE/2, G.pos.y*TILE+TILE/2, 'hero_down_0').setDepth(10);
+    this.face = 'down';
+
     this.cameras.main.setBounds(0,0,MAP_W*TILE,MAP_H*TILE);
     this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.keys = this.input.keyboard.addKeys('W,A,S,D');
     this.moving = false;
+    this.inBattle = false;
     this.hud = document.getElementById('hud');
-    this.refreshHud(sx, sy, false);
+    this.toastEl = document.getElementById('toast');
+    this.refreshHud(G.pos.x, G.pos.y);
+
+    // 触屏方向键
+    var pad = document.getElementById('pad');
+    var isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    if (isTouch){
+      pad.classList.add('on');
+      pad.addEventListener('touchstart', function(ev){
+        var d = ev.target && ev.target.getAttribute && ev.target.getAttribute('data-d');
+        if (!d) return;
+        ev.preventDefault();
+        if (self.inBattle) return;
+        if (d==='up') self.step(0,-1); else if (d==='down') self.step(0,1);
+        else if (d==='left') self.step(-1,0); else self.step(1,0);
+      }, {passive:false});
+    }
+
+    // 从战斗返回
+    this.events.on('resume', function(){
+      self.inBattle = false;
+      self.moving = false;
+      self.refreshHud(self.gx(), self.gy());
+      if (self._battleToast) { self.showToast(self._battleToast); self._battleToast=null; }
+    });
   };
 
   WorldScene.prototype.blocked = function(x,y){
@@ -167,35 +499,127 @@
   WorldScene.prototype.gy = function(){ return Math.round(this.player.y/TILE - 0.5); };
 
   WorldScene.prototype.step = function(dx,dy){
-    if (this.moving) return;
+    if (this.moving || this.inBattle) return;
     var nx=this.gx()+dx, ny=this.gy()+dy, self=this;
-    if (this.blocked(nx,ny)){
-      this.tweens.add({ targets:this.player, x:this.player.x+dx*3, y:this.player.y+dy*3, duration:55, yoyo:true });
+    var dir = dx<0?'left':dx>0?'right':dy<0?'up':'down';
+    this.face = dir;
+
+    if (this.blocked(nx,ny)){ this.nudge(dx,dy); return; }
+    var tr = this.trainerMap[kOf(nx,ny)];
+    if (tr){
+      this.nudge(dx,dy);
+      if (G.defeated.indexOf(tr.key) >= 0){ this.showToast(tr.name+' · 已战胜'); return; }
+      this.startTrainerBattle(tr);
       return;
     }
+
     this.moving = true;
+    this.player.setTexture('hero_'+dir+'_1');
     this.tweens.add({
       targets:this.player, x:nx*TILE+TILE/2, y:ny*TILE+TILE/2, duration:120,
-      onComplete:function(){ self.moving=false; self.save(nx,ny); }
+      onComplete:function(){
+        self.moving=false;
+        self.player.setTexture('hero_'+self.face+'_0');
+        self.onArrive(nx,ny);
+      }
+    });
+  };
+  WorldScene.prototype.nudge = function(dx,dy){
+    this.tweens.add({ targets:this.player, x:this.player.x+dx*3, y:this.player.y+dy*3, duration:55, yoyo:true });
+  };
+  WorldScene.prototype.onArrive = function(nx,ny){
+    var it = this.itemMap[kOf(nx,ny)];
+    if (it && !it.taken){
+      it.taken = true;
+      if (it.spr){ it.spr.destroy(); it.spr=null; }
+      var label = it.kind==='balls'?'精灵球 ×3':it.kind==='candy'?'亲密度糖果 ×1':'进化石 ×1';
+      if (it.kind==='balls') G.balls += 3;
+      this.showToast('拾取 '+label);
+      this.savePos(nx,ny); this.refreshHud(nx,ny); saveG();
+      return;
+    }
+    if (this.ent.heal && this.ent.heal.x===nx && this.ent.heal.y===ny){
+      G.party.forEach(function(c){ c.hp = maxHpOf(c); });
+      saveG();
+      this.showToast('精灵中心 · 队伍已完全恢复');
+      this.savePos(nx,ny); this.refreshHud(nx,ny);
+      return;
+    }
+    this.savePos(nx,ny); this.refreshHud(nx,ny);
+
+    // 草丛遇敌（概率表与主游戏一致）
+    var code = this.grid[ny][nx];
+    var chance = ENC[String(code)] || 0;
+    if (chance > 0 && Math.random() < chance){ this.startEncounter(nx,ny); }
+  };
+  WorldScene.prototype.savePos = function(gx,gy){
+    G.pos = {x:gx, y:gy}; saveG();
+  };
+  WorldScene.prototype.refreshHud = function(gx,gy){
+    var tile = this.grid[gy] ? this.grid[gy][gx] : 0;
+    var bio = biomeAt(gx,gy,this.biomeMap);
+    var lead = G.party[G.activeIdx] ? spOf(G.party[G.activeIdx].id).stages[G.party[G.activeIdx].stage] : '—';
+    this.hud.innerHTML =
+      '灵契大陆 · Phaser 4 原型 (batch 3)<br>' +
+      '坐标 ('+gx+', '+gy+') · '+TNAME[tile]+' · '+(bio?bio.name:'—')+'<br>' +
+      '队伍 '+G.party.length+' 只 · 出战 '+lead+' · 精灵球 ×'+G.balls;
+  };
+  WorldScene.prototype.showToast = function(msg){
+    var el=this.toastEl; el.textContent=msg; el.classList.add('show');
+    clearTimeout(el._t); el._t=setTimeout(function(){ el.classList.remove('show'); }, 1700);
+  };
+
+  // 遇敌：完全照搬 startWildBattle 的抽取规则
+  WorldScene.prototype.startEncounter = function(gx,gy){
+    var bio = biomeAt(gx,gy,this.biomeMap) || BIOME_BY_KEY.plains;
+    var idx = Math.max(0, BIOMES.indexOf(bio));
+    var roll = Math.random(), tier='wild', sid, stage;
+    if (roll < 0.05){ tier='boss'; sid=bio.rare; stage=2; }
+    else if (roll < 0.14){ tier='rare'; sid=bio.rare; stage=1; }
+    else { sid = pick(bio.pools); stage = Math.random()<.6 ? 0 : 1; }
+    var sp = spOf(sid);
+    var lv = 4 + stage*7 + Math.floor(Math.random()*4) + Math.floor(idx*0.45);
+    if (tier==='rare') lv += 5;
+    if (tier==='boss') lv += 10;
+    lv = clamp(lv, 2, SR.CFG.MAX_LV);
+    var f = buildFighter(sp, stage, randNature(), lv);
+    if (tier==='boss'){
+      ['atk','def','spd'].forEach(function(k){ f.stats[k]=Math.round(f.stats[k]*1.2); });
+      f.maxHp = Math.round(f.maxHp*1.25); f.hp = f.maxHp;
+      f.name = '霸主·'+f.name;
+    }
+    this.inBattle = true;
+    this.scene.pause();
+    this.scene.launch('battle', { enemy:f, tier:tier, isTrainer:false, biomeKey:bio.key, world:this });
+  };
+
+  // 训练家对战：等级 = 8 + 索引×2（山道 boss +8），与主游戏 startTrainerBattle 一致
+  WorldScene.prototype.startTrainerBattle = function(t){
+    if (!G.party.length){ this.showToast('先获得精灵再挑战训练家'); return; }
+    var anyAlive = false;
+    for (var i=0;i<G.party.length;i++) if (hpOf(G.party[i])>0) anyAlive = true;
+    if (!anyAlive){ this.showToast('队伍全部失去战斗力，先去精灵中心恢复'); return; }
+
+    var idx = 0;
+    for (var m=0;m<TRAINER_DEFS.length;m++) if (TRAINER_DEFS[m].key === t.key) idx = m;
+    var lv = clamp(8 + idx*2 + (t.boss?8:0), 2, SR.CFG.MAX_LV);
+    var team = [];
+    for (var j=0;j<t.pool.length;j++){
+      var sp = spOf(t.pool[j]);
+      if (sp) team.push(buildFighter(sp, t.stage, findNature('固执'), lv));
+    }
+    if (!team.length) return;
+
+    this.inBattle = true;
+    this.scene.pause();
+    this.scene.launch('battle', {
+      enemy:team[0], enemyTeam:team, enemyIdx:0, tier: t.boss?'boss':'trainer',
+      isTrainer:true, trainerName:t.name, trainerRef:t, biomeKey:t.key, world:this
     });
   };
 
-  WorldScene.prototype.save = function(gx,gy){
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ x:gx, y:gy })); } catch(e){}
-    this.refreshHud(gx, gy, true);
-  };
-
-  WorldScene.prototype.refreshHud = function(gx,gy,saved){
-    var tile=this.grid[gy] ? this.grid[gy][gx] : 0;
-    var bio=biomeAt(gx,gy,this.biomeMap);
-    this.hud.innerHTML =
-      '灵契大陆 · Phaser 4 原型 (batch 1)<br>' +
-      '坐标 ('+gx+', '+gy+') · 地形 '+TNAME[tile]+'<br>' +
-      '区域 '+(bio?bio.name:'—') + (saved?' · 已存档 ✓':'');
-  };
-
   WorldScene.prototype.update = function(){
-    if (this.moving) return;
+    if (this.moving || this.inBattle) return;
     var c=this.cursors, k=this.keys;
     if (c.left.isDown  || k.A.isDown)  this.step(-1,0);
     else if (c.right.isDown || k.D.isDown) this.step(1,0);
@@ -203,13 +627,887 @@
     else if (c.down.isDown  || k.S.isDown) this.step(0,1);
   };
 
+  /* =====================================================================
+     战斗场景（Phaser 4 渲染：立绘 / HP 条 / 菜单 / 属性特效 / 伤害数字）
+     战斗数值与流程完全照搬主游戏：速度定先手、命中率、暴击 15%、
+     52% 单次上限、保底伤害、经验公式、捕捉公式、逃跑公式。
+     ===================================================================== */
+  function BattleScene(){ Phaser.Scene.call(this, { key:'battle' }); }
+  BattleScene.prototype = Object.create(Phaser.Scene.prototype);
+  BattleScene.prototype.constructor = BattleScene;
+
+  BattleScene.prototype.init = function(data){
+    this.inData = data;
+    this.B = null;
+    this.ui = [];
+    this.fx = [];
+    this.msgQueue = [];
+    this.msgBusy = false;
+  };
+
+  BattleScene.prototype.create = function(){
+    var self = this;
+    this.bgG = this.add.graphics().setDepth(0);
+    this.decoG = this.add.graphics().setDepth(1);
+    this.paintBg();
+    this.loadAssets().then(function(ok){
+      if (!ok){ self.toastText('立绘加载失败'); }
+      self.setupBattle();
+    });
+    this.scale.on('resize', this.onResize, this);
+    this.events.once('shutdown', function(){
+      self.scale.off('resize', self.onResize, self);
+    });
+  };
+
+  BattleScene.prototype.loadAssets = async function(){
+    var e = this.inData.enemy;
+    var p = G.party[G.activeIdx];
+    var ok1 = await loadTex(this, artKey(e.species, e.stage));
+    // 预载队伍全员立绘（换人/后续战斗都直接可用）
+    for (var i=0;i<G.party.length;i++){
+      var c = G.party[i], s = spOf(c.id);
+      if (s) await loadTex(this, artKey(s, c.stage));
+    }
+    return ok1 || this.textures.exists(artKey(e.species, e.stage));
+  };
+
+  BattleScene.prototype.setupBattle = function(){
+    var self = this;
+    var d = this.inData, e = d.enemy, bio = BIOME_BY_KEY[d.biomeKey] || BIOME_BY_KEY.plains;
+
+    // 确保出战精灵有 HP
+    var inst = G.party[G.activeIdx];
+    if (!inst) { this.finish('队伍为空'); return; }
+    if (hpOf(inst) <= 0){
+      var alt = -1;
+      for (var i=0;i<G.party.length;i++) if (hpOf(G.party[i])>0){ alt=i; break; }
+      if (alt<0){ this.finish('队伍全部失去战斗力'); return; }
+      G.activeIdx = alt; inst = G.party[alt];
+    }
+    var pf = fighterFromInstance(inst);
+
+    this.B = {
+      player: pf, enemy: e, isTrainer: !!d.isTrainer, trainerName: d.trainerName||null,
+      trainerRef: d.trainerRef||null,
+      tier: d.tier||'wild', over:false, busy:true, menuState:'root', activeIdx:G.activeIdx,
+      enemyTeam: d.enemyTeam||null, enemyIdx: d.enemyIdx||0, bio:bio
+    };
+    // 威吓特性：登场降攻
+    if (e.species.ability.kind==='intimidate') this.B.player.stats.atk = Math.floor(this.B.player.stats.atk*0.9);
+    if (pf.species.ability.kind==='intimidate') this.B.enemy.stats.atk = Math.floor(this.B.enemy.stats.atk*0.9);
+
+    // 双方立绘
+    this.enemySpr = this.add.image(0,0, artKey(e.species, e.stage)).setOrigin(0.5,1).setDepth(10);
+    this.playerSpr = this.add.image(0,0, artKey(pf.species, pf.stage)).setOrigin(0.5,1).setDepth(10);
+    this.enemySpr.setFlipX(true);   // 敌方朝左，面向我方
+    this.layoutSprites();
+
+    // 入场动画
+    var ew = this.enemySpr.x, pw = this.playerSpr.x;
+    this.enemySpr.x = ew + 260; this.enemySpr.alpha = 0;
+    this.playerSpr.x = pw - 200; this.playerSpr.alpha = 0;
+    this.tweens.add({ targets:this.enemySpr, x:ew, alpha:1, duration:420, ease:'Cubic.easeOut',
+      onComplete:function(){ self.enemySpr.setScale(self.enemySpr.scaleX*1.04); self.tweens.add({targets:self.enemySpr, scaleX:self.enemySpr.scaleX/1.04, scaleY:self.enemySpr.scaleY/1.04, duration:160}); } });
+    this.tweens.add({ targets:this.playerSpr, x:pw, alpha:1, duration:380, delay:120, ease:'Cubic.easeOut' });
+
+    this.buildUI();
+    this.renderMenu();
+    this.refreshBars();
+
+    var tierName = this.B.tier==='boss' ? '👑 霸主' : this.B.tier==='rare' ? '✨ 稀有' : '';
+    var intro = this.B.isTrainer
+      ? this.B.trainerName+' 向你发起了对战！'
+      : (tierName ? tierName+'的 ' : '')+e.name+'（Lv.'+e.lv+'）出现了！';
+    this.say(intro);
+
+    setTimeout(function(){
+      if (!self.B || self.B.over) return;
+      self.say('去吧，'+self.B.player.name+'！');
+      self.B.busy = false;
+      if (self.B.tier==='boss') self.cameras.main.shake(260, 0.008);
+      self.renderMenu();
+    }, 900);
+  };
+
+  // ---------- 背景与布局 ----------
+  BattleScene.prototype.paintBg = function(){
+    var w = this.scale.width, h = this.scale.height;
+    var bio = (this.inData && this.inData.biomeKey) ? (BIOME_BY_KEY[this.inData.biomeKey]||BIOME_BY_KEY.plains) : BIOME_BY_KEY.plains;
+    var sky = bio.sky, gnd = bio.ground, hill = bio.hill;
+
+    var g = this.bgG;
+    g.clear();
+    // 天空渐变（三段模拟）
+    for (var i=0;i<3;i++){
+      var t0 = i/3, t1 = (i+1)/3;
+      var a = [ sky[0]*(1-t0)+0.14*t0, sky[1]*(1-t0)+0.16*t0, sky[2]*(1-t0)+0.20*t0 ];
+      var b = [ sky[0]*(1-t1)+0.14*t1, sky[1]*(1-t1)+0.16*t1, sky[2]*(1-t1)+0.20*t1 ];
+      g.fillGradientStyle(rgb2n(a),rgb2n(a),rgb2n(b),rgb2n(b),1);
+      g.fillRect(0, h*t0, w, h*(t1-t0)+1);
+    }
+    // 远山剪影
+    g.fillStyle(rgb2n([hill[0]*.92,hill[1]*.92,hill[2]*.92]), 1);
+    g.fillTriangle(w*0.06, h*0.60, w*0.24, h*0.36, w*0.42, h*0.60);
+    g.fillTriangle(w*0.32, h*0.60, w*0.52, h*0.40, w*0.72, h*0.60);
+    g.fillTriangle(w*0.62, h*0.60, w*0.80, h*0.34, w*0.99, h*0.60);
+    // 地面
+    g.fillGradientStyle(rgb2n(gnd),rgb2n(gnd),rgb2n([gnd[0]*.82,gnd[1]*.82,gnd[2]*.82]),rgb2n([gnd[0]*.82,gnd[1]*.82,gnd[2]*.82]),1);
+    g.fillRect(0, h*0.60, w, h*0.40);
+    // 精灵台座
+    var d = this.decoG;
+    d.clear();
+    d.fillStyle(0x000000, 0.14);
+    d.fillEllipse(w*0.735, h*0.605, w*0.20, h*0.055);
+    d.fillEllipse(w*0.255, h*0.885, w*0.26, h*0.065);
+    d.fillStyle(0xffffff, 0.10);
+    d.fillEllipse(w*0.735, h*0.598, w*0.18, h*0.042);
+    d.fillEllipse(w*0.255, h*0.878, w*0.24, h*0.05);
+  };
+  function rgb2n(c){ return (Math.round(clamp(c[0],0,1)*255)<<16) | (Math.round(clamp(c[1],0,1)*255)<<8) | Math.round(clamp(c[2],0,1)*255); }
+
+  BattleScene.prototype.isPortrait = function(){ return this.scale.height > this.scale.width*1.15; };
+
+  BattleScene.prototype.layoutSprites = function(){
+    var w = this.scale.width, h = this.scale.height;
+    if (!this.enemySpr || !this.playerSpr) return;
+    var eSize, pSize;
+    if (this.isPortrait()){
+      eSize = Math.min(w*0.42, h*0.24);
+      pSize = Math.min(w*0.52, h*0.30);
+      this.enemySpr.setPosition(w*0.72, h*0.40).setScale(eSize/256);
+      this.playerSpr.setPosition(w*0.26, h*0.74).setScale(pSize/256);
+    } else {
+      eSize = Math.min(w*0.22, h*0.34);
+      pSize = Math.min(w*0.26, h*0.40);
+      this.enemySpr.setPosition(w*0.735, h*0.60).setScale(eSize/256);
+      this.playerSpr.setPosition(w*0.255, h*0.88).setScale(pSize/256);
+    }
+  };
+
+  BattleScene.prototype.onResize = function(){
+    if (!this.B) return;
+    this.paintBg();
+    this.layoutSprites();
+    this.buildUI();
+    this.renderMenu();
+    this.refreshBars();
+  };
+
+  // ---------- UI ----------
+  BattleScene.prototype.clearUI = function(){
+    for (var i=0;i<this.ui.length;i++){ if (this.ui[i] && this.ui[i].destroy) this.ui[i].destroy(); }
+    this.ui = [];
+    this.menuStart = null;
+  };
+  BattleScene.prototype.track = function(o){ this.ui.push(o); return o; };
+  BattleScene.prototype.fz = function(pt){
+    var w=this.scale.width, h=this.scale.height;
+    var base = this.isPortrait() ? {w:430,h:800} : {w:960,h:540};
+    var u = Math.min(w/base.w, h/base.h);
+    return Math.max(9, Math.round(pt*u));
+  };
+  BattleScene.prototype.panel = function(x,y,w,h,depth){
+    var g = this.add.graphics().setDepth(depth||20);
+    g.fillStyle(0x0b1026, 0.80); g.fillRoundedRect(x,y,w,h,10);
+    g.lineStyle(2, 0x586a9e, 0.9); g.strokeRoundedRect(x,y,w,h,10);
+    g.fillStyle(0xffffff, 0.10); g.fillRoundedRect(x+2,y+2,w-4,Math.max(3,h*0.18),8);
+    return this.track(g);
+  };
+  BattleScene.prototype.label = function(x,y,text,size,color,depth,origin){
+    var t = this.add.text(x,y,text,{
+      fontFamily:FONT, fontSize:size+'px', color:color||'#e8eeff',
+      stroke:'#0b1026', strokeThickness:Math.max(2, Math.round(size*0.18))
+    }).setDepth(depth||21);
+    t.setOrigin(origin===undefined?0:origin, origin===undefined?0:0.5);
+    return this.track(t);
+  };
+
+  BattleScene.prototype.buildUI = function(){
+    var w=this.scale.width, h=this.scale.height, P=this.isPortrait();
+    this.clearUI();
+    var fz = this.fz.bind(this);
+
+    // 敌方信息面板
+    var eX = P ? w*0.04 : w*0.045, eY = P ? h*0.05 : h*0.06;
+    var eW = P ? w*0.56 : w*0.35, eH = P ? h*0.085 : h*0.125;
+    this.ePanel = { x:eX, y:eY, w:eW, h:eH };
+    this.panel(eX,eY,eW,eH,20);
+    this.eNameT = this.label(eX+eW*0.05, eY+eH*0.24, '', fz(15), '#ffffff', 22);
+    this.eLvT   = this.label(eX+eW*0.95, eY+eH*0.24, '', fz(13), '#c9d6ff', 22, 1);
+    this.eBarG  = this.track(this.add.graphics().setDepth(22));
+    this.eHpT    = this.label(eX+eW*0.95, eY+eH*0.78, '', fz(11), '#9fb0dd', 22, 1);
+
+    // 我方信息面板
+    var pX = P ? w*0.40 : w*0.60, pY = P ? h*0.78 : h*0.62;
+    var pW = P ? w*0.56 : w*0.36, pH = P ? h*0.09 : h*0.135;
+    this.pPanel = { x:pX, y:pY, w:pW, h:pH };
+    this.panel(pX,pY,pW,pH,20);
+    this.pNameT = this.label(pX+pW*0.05, pY+pH*0.24, '', fz(15), '#ffffff', 22);
+    this.pLvT   = this.label(pX+pW*0.95, pY+pH*0.24, '', fz(13), '#c9d6ff', 22, 1);
+    this.pBarG  = this.track(this.add.graphics().setDepth(22));
+    this.pHpT    = this.label(pX+pW*0.95, pY+pH*0.78, '', fz(11), '#9fb0dd', 22, 1);
+
+    // 消息框
+    var mX = P ? w*0.03 : w*0.025, mY = P ? h*0.62 : h*0.79;
+    var mW = P ? w*0.94 : w*0.60, mH = P ? h*0.11 : h*0.17;
+    this.mPanel = { x:mX, y:mY, w:mW, h:mH };
+    this.panel(mX,mY,mW,mH,20);
+    this.msgT = this.label(mX+mW*0.035, mY+mH*0.5, '', fz(15), '#e8eeff', 22);
+    this.msgT.setWordWrapWidth(mW*0.93, true);
+
+    // 菜单区
+    this.menuX = P ? w*0.03 : w*0.645;
+    this.menuY = P ? h*0.75 : h*0.79;
+    this.menuW = P ? w*0.94 : w*0.33;
+    this.menuH = P ? h*0.22 : h*0.17;
+
+    this.menuStart = this.ui.length;   // 之后的对象属于菜单区，renderMenu 时单独清理
+    this.refreshBars();
+    if (this.lastMsg) this.msgT.setText(this.lastMsg);
+  };
+
+  BattleScene.prototype.refreshBars = function(){
+    if (!this.B) return;
+    var B = this.B;
+    this.eNameT.setText(B.enemy.name);
+    this.eLvT.setText('Lv.'+B.enemy.lv);
+    this.pNameT.setText(B.player.name);
+    this.pLvT.setText('Lv.'+B.player.lv);
+    this.drawBar(this.eBarG, this.ePanel, B.enemy.hp/B.enemy.maxHp, B.enemy.hp, B.enemy.maxHp, this.eHpT);
+    this.drawBar(this.pBarG, this.pPanel, B.player.hp/B.player.maxHp, B.player.hp, B.player.maxHp, this.pHpT);
+  };
+
+  BattleScene.prototype.drawBar = function(g, p, ratio, hp, max, hpText){
+    var bh = Math.max(7, p.h*0.16), bw = p.w*0.90;
+    var x = p.x + p.w*0.05, y = p.y + p.h*0.50;
+    g.clear();
+    g.fillStyle(0x1a2140,1); g.fillRoundedRect(x,y,bw,bh,bh/2);
+    var col = ratio>0.5 ? 0x4ade80 : ratio>0.2 ? 0xfbbf24 : 0xef4444;
+    var fw = Math.max(0, bw*clamp(ratio,0,1));
+    if (fw>0.5){ g.fillStyle(col,1); g.fillRoundedRect(x,y,Math.max(bh,fw),bh,bh/2); }
+    g.lineStyle(1.5,0x0b1026,0.85); g.strokeRoundedRect(x,y,bw,bh,bh/2);
+    if (hpText) hpText.setText(Math.ceil(hp)+' / '+max);
+  };
+
+  BattleScene.prototype.say = function(text){
+    this.lastMsg = text;
+    if (!this.msgT) return;
+    this.msgT.setText(text);
+  };
+
+  /*** 按钮 ***/
+  BattleScene.prototype.makeBtn = function(x,y,w,h,label,onClick,opts){
+    var self = this, o = opts||{};
+    var r = this.track(this.add.rectangle(x+w/2, y+h/2, w, h, o.fill!==undefined?o.fill:0x1c2a4a, 0.95).setDepth(23));
+    r.setStrokeStyle(2, o.stroke!==undefined?o.stroke:0x5a7bd6, 0.95);
+    var t = this.label(x+w/2, y+h/2, label, o.size||this.fz(15), o.color||'#e8eeff', 24, 0.5);
+    t.setOrigin(0.5);
+    if (o.disabled){
+      r.setAlpha(0.42); t.setAlpha(0.5);
+    } else {
+      r.setInteractive({ useHandCursor:true });
+      r.on('pointerover', function(){ r.setFillStyle(o.hover!==undefined?o.hover:0x2a4270, 1); });
+      r.on('pointerout',  function(){ r.setFillStyle(o.fill!==undefined?o.fill:0x1c2a4a, 0.95); });
+      r.on('pointerdown', function(){ r.setFillStyle(0x3a5a9a,1); });
+      r.on('pointerup',   function(){
+        r.setFillStyle(o.hover!==undefined?o.hover:0x2a4270, 1);
+        if (self.B && self.B.busy && !self.B.force) return;
+        onClick();
+      });
+    }
+    return { rect:r, text:t };
+  };
+
+  /*** 菜单渲染 ***/
+  BattleScene.prototype.renderMenu = function(){
+    if (!this.B) return;
+    // 只清理「菜单区」的对象，避免重复销毁与 ui 数组无限增长（内存泄漏）
+    if (this.menuStart != null && this.menuStart >= 0){
+      for (var i=this.menuStart;i<this.ui.length;i++){
+        if (this.ui[i] && this.ui[i].destroy) this.ui[i].destroy();
+      }
+      this.ui.length = this.menuStart;
+    } else {
+      this.menuStart = this.ui.length;
+    }
+    var self = this, B = this.B, st = B.menuState;
+
+    if (st === 'root'){
+      this.gridButtons([
+        ['⚔ 战斗', function(){ B.menuState='moves'; self.renderMenu(); }],
+        ['🎯 捕捉', function(){ self.bCatch(); }],
+        ['🔄 队伍', function(){ B.menuState='party'; self.renderMenu(); }],
+        ['🏃 逃跑', function(){ self.bFlee(); }]
+      ]);
+    } else if (st === 'moves'){
+      var mv = B.player.moves, list = [];
+      for (var k=0;k<mv.length;k++){
+        (function(idx){
+          var m = mv[idx];
+          var tn = (m.type==='none') ? '普' : (SR.TYPES[m.type] ? SR.TYPES[m.type].name : '');
+          list.push([ m.name+' · '+tn+' '+m.power, function(){ self.bMove(idx); } ]);
+        })(k);
+      }
+      list.push(['← 返回', function(){ B.menuState='root'; self.renderMenu(); }]);
+      this.gridButtons(list);
+    } else if (st === 'party'){
+      var list2 = [];
+      for (var j=0;j<G.party.length;j++){
+        (function(idx){
+          var c = G.party[idx], s = spOf(c.id);
+          var nm = s.stages[c.stage]+' Lv.'+c.lv+'  '+Math.ceil(hpOf(c))+'/'+maxHpOf(c);
+          list2.push([ (idx===B.activeIdx?'▶ ':'')+nm, function(){ self.bSwitch(idx); },
+                       { disabled: idx===B.activeIdx || hpOf(c)<=0 } ]);
+        })(j);
+      }
+      list2.push(['← 返回', function(){ B.menuState='root'; self.renderMenu(); }]);
+      this.gridButtons(list2, true);
+    }
+  };
+
+  BattleScene.prototype.gridButtons = function(items, dense){
+    var x=this.menuX, y=this.menuY, w=this.menuW, h=this.menuH;
+    var cols = 2;
+    var rows = Math.ceil(items.length/cols);
+    var gap = Math.max(3, Math.round(this.fz(5)));
+    var bw = (w - gap*(cols-1))/cols, bh = (h - gap*(rows-1))/rows;
+    var size = dense ? this.fz(11) : this.fz(15);
+    if (rows > 3) size = Math.min(size, this.fz(10));
+    for (var i=0;i<items.length;i++){
+      var c = i%cols, r = Math.floor(i/cols);
+      var o = items[i][2] || {};
+      o.size = o.size || size;
+      this.makeBtn(x+c*(bw+gap), y+r*(bh+gap), bw, bh, items[i][0], items[i][1], o);
+    }
+  };
+
+  // ---------- 特效 ----------
+  BattleScene.prototype.dotTex = function(){
+    if (this.textures.exists('fxdot')) return 'fxdot';
+    var g = this.add.graphics();
+    g.fillStyle(0xffffff,1); g.fillCircle(8,8,7);
+    g.generateTexture('fxdot',16,16); g.destroy();
+    return 'fxdot';
+  };
+  BattleScene.prototype.fxDot = function(x,y,color,life,toX,toY,size){
+    var d = this.add.image(x,y,this.dotTex()).setTint(color).setDepth(30);
+    d.setScale((size||1)*0.9);
+    this.fx.push(d);
+    var self=this;
+    this.tweens.add({
+      targets:d, x:toX===undefined?x:toX, y:toY===undefined?y:toY,
+      alpha:0, scale:(size||1)*0.2, duration:life||420, ease:'Cubic.easeOut',
+      onComplete:function(){
+        var i=self.fx.indexOf(d); if(i>=0) self.fx.splice(i,1);
+        d.destroy();
+      }
+    });
+    return d;
+  };
+  BattleScene.prototype.fxRing = function(x,y,color,r0,r1,life,thick){
+    var g = this.add.graphics().setDepth(29); this.fx.push(g);
+    g.lineStyle(thick||5, color, 0.95); g.strokeCircle(0,0,r0);
+    g.setPosition(x,y);
+    var self=this;
+    this.tweens.add({ targets:g, scaleX:r1/r0, scaleY:r1/r0, alpha:0, duration:life||420, ease:'Cubic.easeOut',
+      onComplete:function(){ var i=self.fx.indexOf(g); if(i>=0) self.fx.splice(i,1); g.destroy(); } });
+    return g;
+  };
+  BattleScene.prototype.fxBolt = function(x,y,color){
+    var self = this;
+    for (var k=0;k<3;k++){
+      (function(kk){
+        var g = self.add.graphics().setDepth(31); self.fx.push(g);
+        var pts=[{x:x+(Math.random()*60-30),y:y-130}];
+        for (var s=1;s<=5;s++) pts.push({ x:x+(Math.random()*70-35), y:y-130+s*26 });
+        g.lineStyle(kk===0?6:3, color, 0.95);
+        g.strokePoints(pts, false);
+        g.lineStyle(2, 0xffffff, 0.9); g.strokePoints(pts, false);
+        self.tweens.add({ targets:g, alpha:0, duration:180, delay:kk*70,
+          onComplete:function(){ var i=self.fx.indexOf(g); if(i>=0) self.fx.splice(i,1); g.destroy(); } });
+      })(k);
+    }
+  };
+  BattleScene.prototype.fxShards = function(x,y,color,n,spread){
+    for (var i=0;i<n;i++){
+      var g = this.add.graphics().setDepth(31); this.fx.push(g);
+      var a = Math.random()*Math.PI*2, r = 16+Math.random()*10;
+      g.fillStyle(color,1);
+      g.fillPoints([{x:0,y:-r},{x:r*0.5,y:0},{x:0,y:r},{x:-r*0.5,y:0}], true);
+      g.setPosition(x,y);
+      g.setRotation(Math.random()*3);
+      var self=this, tx=x+Math.cos(a)*(spread||90), ty=y+Math.sin(a)*(spread||90);
+      this.tweens.add({ targets:g, x:tx, y:ty, alpha:0, scale:0.3, rotation:g.rotation+2, duration:400+Math.random()*180,
+        onComplete:function(){ var i2=self.fx.indexOf(g); if(i2>=0) self.fx.splice(i2,1); g.destroy(); } });
+    }
+  };
+
+  // 按属性播放不同特效（火/水/雷/草/冰/岩/暗/光/风/超/龙/普通）
+  BattleScene.prototype.playFx = function(type, x, y, power){
+    var c = typeC(type), self=this;
+    var n = Math.round(10 + 8*(power||1));
+    switch(type){
+      case 'fire':
+        for (var i=0;i<n;i++){
+          this.fxDot(x+(Math.random()*90-45), y+20+Math.random()*20, c[i%3], 380+Math.random()*220,
+                     x+(Math.random()*70-35), y-60-Math.random()*70, 0.9+Math.random());
+        }
+        this.fxRing(x,y,c[0],10,80,420,6);
+        break;
+      case 'water':
+        this.fxRing(x,y+10,c[0],8,90,460,5);
+        this.fxRing(x,y+10,c[1],14,60,380,3);
+        for (var i2=0;i2<n;i2++){
+          this.fxDot(x+(Math.random()*80-40), y-90+Math.random()*40, c[i2%3], 420,
+                     x+(Math.random()*110-55), y+40, 0.8+Math.random()*0.8);
+        }
+        break;
+      case 'electric':
+        this.fxBolt(x,y,c[0]); this.fxBolt(x,y,c[2]);
+        this.cameras.main.flash(90, 255, 250, 160);
+        for (var i3=0;i3<n;i3++){
+          this.fxDot(x+(Math.random()*100-50), y-100+Math.random()*130, c[i3%3], 260, undefined, undefined, 0.6);
+        }
+        break;
+      case 'grass':
+        for (var i4=0;i4<n;i4++){
+          this.fxDot(x+(Math.random()*70-35), y, c[i4%3], 460+Math.random()*200,
+                     x+(Math.random()*130-65), y-70-Math.random()*70, 0.9);
+        }
+        this.fxShards(x,y,c[1],5,70);
+        break;
+      case 'ice':
+        this.fxShards(x,y-20,c[1],8,96);
+        this.fxRing(x,y-10,c[0],8,76,420,4);
+        this.cameras.main.flash(70, 200, 240, 255);
+        for (var i5=0;i5<6;i5++){
+          this.fxDot(x+(Math.random()*80-40), y-60+Math.random()*50, c[2], 400, undefined, undefined, 0.7);
+        }
+        break;
+      case 'rock':
+        this.fxShards(x,y-30,c[0],7,110);
+        this.cameras.main.shake(200, 0.01);
+        for (var i6=0;i6<6;i6++){ this.fxDot(x+(Math.random()*60-30), y+10, c[2], 340, undefined, y+50, 1.1); }
+        break;
+      case 'dark':
+        this.fxRing(x,y,c[1],14,104,520,7);
+        this.fxRing(x,y,c[2],26,70,440,4);
+        for (var i7=0;i7<n;i7++){
+          var ang = Math.random()*Math.PI*2, r = 60;
+          this.fxDot(x+Math.cos(ang)*r, y+Math.sin(ang)*r, c[0], 460, x, y, 0.9);
+        }
+        break;
+      case 'light':
+        this.fxRing(x,y,c[2],6,120,480,6);
+        this.fxRing(x,y,c[0],16,80,400,3);
+        for (var i8=0;i8<n;i8++){
+          var a2 = (Math.PI*2/n)*i8;
+          this.fxDot(x,y,c[1],460,x+Math.cos(a2)*130, y+Math.sin(a2)*130, 1.0);
+        }
+        break;
+      case 'wind':
+        for (var i9=0;i9<4;i9++){
+          var g = this.add.graphics().setDepth(29); this.fx.push(g);
+          var oy = -70 + i9*34;
+          g.lineStyle(4, c[i9%3], 0.9);
+          g.beginPath(); g.arc(-70, oy, 70, -0.9, 0.9, false); g.strokePath();
+          g.setPosition(x+60, y);
+          this.tweens.add({ targets:g, x:x-90, alpha:0, duration:420+i9*60, delay:i9*50,
+            onComplete:function(){ var i10=self.fx.indexOf(g); if(i10>=0) self.fx.splice(i10,1); g.destroy(); } });
+        }
+        for (var i11=0;i11<6;i11++) this.fxDot(x+40,y-30+Math.random()*60,c[1],300,x-90,y-20+Math.random()*50,0.7);
+        break;
+      case 'psychic':
+        for (var i12=0;i12<3;i12++) this.fxRing(x,y,c[i12%3],18+i12*14,110+i12*20,520+i12*90,4);
+        for (var i13=0;i13<n;i13++){
+          var a3 = Math.random()*Math.PI*2, r2=20+Math.random()*70;
+          this.fxDot(x+Math.cos(a3)*r2, y+Math.sin(a3)*r2, c[i13%3], 420, x+Math.cos(a3+1.2)*r2*1.4, y+Math.sin(a3+1.2)*r2*1.4, 0.7);
+        }
+        break;
+      case 'dragon':
+        this.fxRing(x,y,c[0],10,130,520,8);
+        this.fxRing(x,y,c[2],24,90,440,4);
+        this.fxShards(x,y-30,c[2],6,120);
+        this.cameras.main.shake(240, 0.012);
+        for (var i14=0;i14<n;i14++){
+          this.fxDot(x+(Math.random()*120-60), y-100+Math.random()*80, c[i14%3], 500,
+                     x+(Math.random()*60-30), y+30, 1.0);
+        }
+        break;
+      default: // 普通：白色冲击波
+        this.fxRing(x,y,c[0],8,86,340,6);
+        for (var i15=0;i15<n;i15++){
+          this.fxDot(x+(Math.random()*40-20), y+(Math.random()*30-10), 0xffffff, 300,
+                     x+(Math.random()*140-70), y+(Math.random()*60-30), 0.8);
+        }
+    }
+  };
+
+  BattleScene.prototype.popNumber = function(x,y,text,color,big){
+    var t = this.add.text(x,y,text,{
+      fontFamily:FONT, fontSize:this.fz(big?38:26)+'px', color:color,
+      stroke:'#0b1026', strokeThickness:this.fz(5)
+    }).setOrigin(0.5).setDepth(40);
+    this.tweens.add({ targets:t, y:y-this.fz(48), alpha:0, duration:820, ease:'Cubic.easeOut',
+      onComplete:function(){ t.destroy(); } });
+    if (big){
+      t.setScale(1.5);
+      this.tweens.add({ targets:t, scale:1, duration:200, ease:'Back.easeOut' });
+    }
+  };
+
+  BattleScene.prototype.hurt = function(spr){
+    if (!spr) return;
+    var self=this;
+    spr.setTint(0xff8a8a);
+    this.tweens.add({ targets:spr, alpha:0.35, duration:70, yoyo:true, repeat:2,
+      onComplete:function(){ spr.clearTint(); spr.alpha=1; } });
+    var ox = spr.x;
+    this.tweens.add({ targets:spr, x:ox+8, duration:45, yoyo:true, repeat:2,
+      onComplete:function(){ spr.x=ox; } });
+  };
+
+  BattleScene.prototype.lunge = function(spr, dir){
+    if (!spr) return;
+    var ox = spr.x;
+    this.tweens.add({ targets:spr, x:ox+dir*26, duration:110, yoyo:true, ease:'Quad.easeOut',
+      onComplete:function(){ spr.x=ox; } });
+  };
+
+  // ---------- 战斗流程 ----------
+  BattleScene.prototype.bMove = async function(idx){
+    var B = this.B;
+    if (!B || B.over || B.busy) return;
+    B.busy = true;
+    var pm = B.player.moves[idx];
+    var em = pick(B.enemy.moves);
+    var first = B.player.stats.spd >= B.enemy.stats.spd;
+    var seq = first ? [['p',pm],['e',em]] : [['e',em],['p',pm]];
+    for (var i=0;i<seq.length;i++){
+      if (!this.B || this.B.over || this.B.force) break;
+      if (seq[i][0]==='p') await this.execMove(this.B.player, this.B.enemy, seq[i][1], true);
+      else await this.execMove(this.B.enemy, this.B.player, seq[i][1], false);
+    }
+    if (this.B && !this.B.over && !this.B.force){
+      this.B.busy = false; this.B.menuState='root'; this.renderMenu();
+    }
+  };
+
+  BattleScene.prototype.execMove = async function(atk, def, mv, isPlayer){
+    var B = this.B; if (!B || B.over) return;
+    var srcSpr = isPlayer ? this.playerSpr : this.enemySpr;
+    var dstSpr = isPlayer ? this.enemySpr : this.playerSpr;
+
+    this.lunge(srcSpr, isPlayer ? 1 : -1);
+    await sleep(120);
+
+    if (Math.random()*100 > mv.acc){
+      this.say(atk.name+' 的「'+mv.name+'」没有命中！');
+      await sleep(500);
+      return;
+    }
+
+    var r = calcDamage(atk, def, mv);
+    def.hp = Math.max(0, def.hp - r.dmg);
+    var immune = r.tm===0, strong = r.tm>1, weak = r.tm>0 && r.tm<1;
+    var power = immune ? 0 : (strong?1.35:weak?.7:1)*(r.crit?1.45:1);
+
+    if (!immune){
+      this.playFx(mv.type, dstSpr.x, dstSpr.y - dstSpr.displayHeight*0.5, power);
+      await sleep(140);
+      this.hurt(dstSpr);
+      if (strong || r.crit) this.cameras.main.shake(160, 0.006);
+    } else {
+      this.cameras.main.flash(80, 120, 120, 140);
+    }
+
+    var numColor = immune ? '#9fb0dd' : strong ? '#ffd93d' : r.crit ? '#ff9f43' : '#ffffff';
+    this.popNumber(dstSpr.x, dstSpr.y - dstSpr.displayHeight*0.55, immune?'0':('-'+r.dmg), numColor, strong||r.crit);
+    this.tweenBars();
+    this.refreshBars();
+
+    var msg = atk.name+' 使用「'+mv.name+'」，造成 '+r.dmg+' 伤害';
+    if (strong) msg += ' · 效果拔群！';
+    else if (weak) msg += ' · 效果不佳…';
+    else if (immune) msg += ' · 没有效果…';
+    if (r.crit) msg += ' · 暴击！';
+    this.say(msg);
+
+    await sleep(immune?460:520);
+    if (def.hp <= 0) await this.onFaint(isPlayer ? 'enemy' : 'player');
+  };
+
+  BattleScene.prototype.tweenBars = function(){ /* HP 立即重绘，保留位供后续缓动扩展 */ };
+
+  BattleScene.prototype.onFaint = async function(who){
+    var B = this.B; if (!B) return;
+    if (who === 'enemy'){
+      var spr = this.enemySpr;
+      this.tweens.add({ targets:spr, alpha:0, y:spr.y+40, duration:420 });
+      await sleep(520);
+      await this.awardExp(B.enemy, B.tier);
+      if (!this.B) return;
+      if (this.B.isTrainer && this.B.enemyTeam && this.B.enemyIdx < this.B.enemyTeam.length-1){
+        this.B.enemyIdx++;
+        var next = this.B.enemyTeam[this.B.enemyIdx];
+        this.B.enemy = next;
+        this.say(this.B.trainerName+' 派出了 '+next.name+'！');
+        await sleep(600);
+        if (!this.B) return;
+        // 换敌方立绘
+        await loadTex(this, artKey(next.species, next.stage));
+        this.enemySpr.setTexture(artKey(next.species, next.stage));
+        this.enemySpr.setFlipX(true);
+        this.layoutSprites();
+        this.enemySpr.setAlpha(0);
+        this.tweens.add({ targets:this.enemySpr, alpha:1, duration:280 });
+        this.refreshBars();
+        this.B.busy=false; this.B.menuState='root'; this.renderMenu();
+        return;
+      }
+      await this.winBattle();
+    } else {
+      this.tweens.add({ targets:this.playerSpr, alpha:0.15, duration:400 });
+      var inst = G.party[this.B.activeIdx];
+      if (inst) inst.hp = 0;
+      saveG();
+      var alive = [];
+      for (var i=0;i<G.party.length;i++) if (i!==this.B.activeIdx && hpOf(G.party[i])>0) alive.push(i);
+      if (alive.length > 0){
+        this.B.busy = true; this.B.force = true; this.B.menuState='party';
+        this.say(this.B.player.name+' 倒下了！请选择下一只精灵。');
+        this.renderMenu();
+        this.playerSpr.setAlpha(0.15);
+      } else {
+        await this.loseBattle();
+      }
+    }
+  };
+
+  BattleScene.prototype.awardExp = async function(enemy, tierKey){
+    var B = this.B; if (!B || !enemy) return;
+    var inst = G.party[B.activeIdx];
+    var gain = expGain(enemy, inst, tierKey);
+    if (inst) inst.hp = B.player.hp;
+    var r = gainExp(inst, gain);
+
+    var side = [];
+    for (var i=0;i<G.party.length;i++){
+      if (i === B.activeIdx) continue;
+      var c = G.party[i];
+      if (hpOf(c) <= 0) continue;
+      var rr = gainExp(c, Math.max(1, Math.round(gain*0.5)));
+      if (rr.ups){ var s2 = spOf(c.id); side.push(s2.stages[c.stage]+' Lv.'+c.lv); }
+    }
+    saveG();
+    if (inst && this.B){ this.B.player = fighterFromInstance(inst); this.B.player.hp = inst.hp; }
+    this.refreshBars();
+
+    var sp = spOf(inst.id);
+    var spName = sp.stages[inst.stage];
+    var t = SR.TIERS[tierKey]||SR.TIERS.wild;
+    var bonus = tierKey==='boss' ? '（霸主 ×'+t.mult+'）' : tierKey==='rare' ? '（稀有 ×'+t.mult+'）' : tierKey==='trainer' ? '（训练家 ×'+t.mult+'）' : '';
+    this.say(spName+' 获得了 '+gain+' 点经验值！'+bonus);
+    await sleep(r.ups?800:500);
+
+    if (r.ups){
+      this.cameras.main.flash(140, 255, 240, 150);
+      this.popNumber(this.playerSpr.x, this.playerSpr.y - this.playerSpr.displayHeight*0.8, 'LV UP', '#ffd93d', true);
+      this.refreshBars();
+      this.say(spName+' 升级！Lv.'+inst.lv);
+      await sleep(900);
+      if (r.learned.length && this.B) this.say('Lv.'+inst.lv+'！学会了新招式：'+r.learned.join('、'));
+      await sleep(r.learned.length?760:0);
+    }
+    if (side.length) this.showToast('经验共享 → '+side.join('、'));
+  };
+
+  BattleScene.prototype.bSwitch = function(i){
+    var B = this.B;
+    if (!B || B.over) return;
+    if (B.busy && !B.force) return;
+    if (i === B.activeIdx) return;
+    var inst = G.party[i]; if (!inst) return;
+    if (hpOf(inst) <= 0){ this.say('这只精灵已经没有战斗力了！'); return; }
+    var cur = G.party[B.activeIdx]; if (cur) cur.hp = B.player.hp;
+    B.activeIdx = i; G.activeIdx = i;
+    B.player = fighterFromInstance(inst);
+    var self = this;
+    var key = artKey(B.player.species, B.player.stage);
+    loadTex(this, key).then(function(){
+      if (!self.B) return;
+      self.playerSpr.setTexture(key);
+      self.layoutSprites();
+      self.playerSpr.setAlpha(1);
+    });
+    this.refreshBars();
+
+    if (B.force){
+      B.force = false; B.busy = false; B.menuState='root';
+      this.say('上吧，'+B.player.name+'！');
+      this.renderMenu();
+    } else {
+      B.busy = true;
+      this.say('回来吧！上吧，'+B.player.name+'！');
+      setTimeout(async function(){
+        if (!self.B) return;
+        await self.execMove(self.B.enemy, self.B.player, pick(self.B.enemy.moves), false);
+        if (self.B && !self.B.over){ self.B.busy=false; self.B.menuState='root'; self.renderMenu(); }
+      }, 620);
+    }
+  };
+
+  BattleScene.prototype.bCatch = async function(){
+    var B = this.B;
+    if (!B || B.over || B.busy) return;
+    if (B.isTrainer){ this.say('不能捕捉别人的精灵！'); return; }
+    if (G.balls <= 0){ this.say('精灵球用完了！去草丛或道具球找找吧。'); return; }
+    var owned = false;
+    for (var i=0;i<G.party.length;i++) if (G.party[i].id === B.enemy.species.id) owned = true;
+    if (!owned && G.party.length >= SR.CFG.MAX_PARTY){ this.say('队伍已满（6 只），无法再捕捉！'); return; }
+
+    B.busy = true; B.menuState='root';
+    G.balls--; saveG();
+    this.say('你投出了精灵球！');
+    this.renderMenu();
+
+    // 投球动画
+    var ball = this.add.image(this.playerSpr.x, this.playerSpr.y - 60, this.dotTex()).setTint(0xe23b3b).setDepth(35).setScale(1.4);
+    this.tweens.add({
+      targets:ball, x:this.enemySpr.x, y:this.enemySpr.y - this.enemySpr.displayHeight*0.55,
+      duration:520, ease:'Quad.easeOut'
+    });
+    await sleep(700);
+    if (!this.B || this.B.over){ if (ball.active) ball.destroy(); return; }
+
+    var ratio = B.enemy.hp / B.enemy.maxHp;
+    var chance = 0.20 + (1-ratio)*0.62;
+    if (B.enemy.stage >= 2) chance *= 0.85;
+
+    if (Math.random() < chance){
+      B.over = true;
+      var nm = B.enemy.name;
+      if (ball.active) ball.destroy();
+      this.fxRing(this.enemySpr.x, this.enemySpr.y - this.enemySpr.displayHeight*0.5, 0xffe27a, 10, 110, 520, 6);
+      this.popNumber(this.enemySpr.x, this.enemySpr.y - this.enemySpr.displayHeight*0.7, 'GET!', '#ffd93d', true);
+      this.tweens.add({ targets:this.enemySpr, alpha:0, scaleX:this.enemySpr.scaleX*0.6, scaleY:this.enemySpr.scaleY*0.6, duration:380 });
+
+      var exist = null;
+      for (var j=0;j<G.party.length;j++) if (G.party[j].id === B.enemy.species.id) exist = G.party[j];
+      if (exist){ exist.count++; exist.bond = Math.min(SR.CFG.MAX_BOND, exist.bond+1); }
+      else {
+        G.party.push({ id:B.enemy.species.id, stage:B.enemy.stage, bond:1, count:1,
+          nature:B.enemy.nature.name, hp:B.enemy.hp, lv:B.enemy.lv, exp:0 });
+      }
+      saveG();
+      this.say('太好了！'+nm+'（Lv.'+B.enemy.lv+'）被抓住了！');
+      await sleep(1200);
+      this.finish('🎉 收服了 '+nm+' · Lv.'+B.enemy.lv);
+    } else {
+      this.cameras.main.shake(180, 0.008);
+      if (ball.active){
+        this.tweens.add({ targets:ball, x:ball.x+14, duration:50, yoyo:true, repeat:3,
+          onComplete:function(){ if (ball.active) ball.destroy(); } });
+      }
+      this.say('可恶！它从精灵球里挣脱了！');
+      await sleep(820);
+      if (!this.B || this.B.over) return;
+      await this.execMove(this.B.enemy, this.B.player, pick(this.B.enemy.moves), false);
+      if (this.B && !this.B.over){ this.B.busy=false; this.renderMenu(); }
+    }
+  };
+
+  BattleScene.prototype.bFlee = async function(){
+    var B = this.B;
+    if (!B || B.over || B.busy) return;
+    if (B.isTrainer){ this.say('不能从训练家对战中逃走！'); return; }
+    B.busy = true;
+    var chance = Math.min(.95, Math.max(.3, .5 + (B.player.stats.spd - B.enemy.stats.spd)/160));
+    if (Math.random() < chance){
+      this.say('成功逃走了！');
+      await sleep(650);
+      this.finish('成功逃走');
+    } else {
+      this.say('没能逃掉！');
+      await sleep(620);
+      if (!this.B || this.B.over) return;
+      await this.execMove(this.B.enemy, this.B.player, pick(this.B.enemy.moves), false);
+      if (this.B && !this.B.over){ this.B.busy=false; this.renderMenu(); }
+    }
+  };
+
+  BattleScene.prototype.winBattle = async function(){
+    var B = this.B; if (!B) return;
+    B.over = true; B.busy = true;
+    var inst = G.party[B.activeIdx];
+    if (inst){ inst.hp = B.player.hp; inst.bond = Math.min(SR.CFG.MAX_BOND, (inst.bond||0)+2); }
+    saveG();
+    this.say('战斗胜利！羁绊提升了。');
+    this.popNumber(this.playerSpr.x, this.playerSpr.y - this.playerSpr.displayHeight*0.8, 'WIN', '#4ade80', true);
+    await sleep(700);
+    if (B.isTrainer){
+      var t = B.trainerRef, extra;
+      if (t && G.defeated.indexOf(t.key) < 0){
+        G.defeated.push(t.key);
+        G.balls += 2;
+        saveG();
+        extra = '🏆 战胜 '+t.name+'！奖励 精灵球 ×2';
+      } else {
+        extra = '🏆 再次战胜 '+B.trainerName;
+      }
+      this.showToast(extra);
+      await sleep(600);
+    }
+    if (B.tier === 'boss'){
+      this.showToast('👑 击败霸主！羁绊大幅提升');
+      await sleep(500);
+    }
+    await sleep(400);
+    this.finish('战斗胜利');
+  };
+
+  BattleScene.prototype.loseBattle = async function(){
+    var B = this.B; if (!B) return;
+    B.over = true; B.busy = true;
+    this.say('你的精灵全部失去了战斗力…眼前一黑！');
+    this.cameras.main.fade(900, 0, 0, 0);
+    await sleep(1200);
+    G.party.forEach(function(c){ c.hp = maxHpOf(c); });
+    G.pos = { x:HUB.x, y:HUB.y+2 };
+    saveG();
+    this.finish('你被送回了灵契镇，队伍已恢复', true);
+  };
+
+  BattleScene.prototype.finish = function(toastMsg, teleport){
+    var world = this.inData.world;
+    if (world){
+      world._battleToast = toastMsg || null;
+      if (teleport){
+        world.player.setPosition(G.pos.x*TILE+TILE/2, G.pos.y*TILE+TILE/2);
+        world.refreshHud(G.pos.x, G.pos.y);
+      }
+    }
+    // 清理特效
+    for (var i=0;i<this.fx.length;i++){ if (this.fx[i] && this.fx[i].destroy) this.fx[i].destroy(); }
+    this.fx = [];
+    this.B = null;
+    this.scene.resume('world');
+    this.scene.stop();
+  };
+
+  BattleScene.prototype.showToast = function(msg){
+    var el = document.getElementById('toast');
+    el.textContent = msg; el.classList.add('show');
+    clearTimeout(el._t); el._t = setTimeout(function(){ el.classList.remove('show'); }, 1700);
+  };
+  BattleScene.prototype.toastText = function(msg){ this.showToast(msg); };
+
+  // ===== 启动 =====
   new Phaser.Game({
-    type: Phaser.AUTO,
-    parent: 'game',
-    backgroundColor: '#101018',
-    pixelArt: true,
+    type: Phaser.AUTO, parent: 'game', backgroundColor: '#101018', pixelArt: true,
     scale: { mode: Phaser.Scale.RESIZE, width: '100%', height: '100%' },
-    scene: [WorldScene]
+    scene: [WorldScene, BattleScene]
   });
 })();
 </script>
