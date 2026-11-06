@@ -57,22 +57,56 @@
             background:#243358;color:#e8eeff;font-size:14px;cursor:pointer}
   #cfgClose:active{background:#31456f}
 
+  /* 区域地名条：跨越群系边界时滑入滑出 */
+  #zone{position:fixed;left:50%;top:15%;transform:translate(-50%,-14px);z-index:18;
+        padding:11px 30px 10px;border-radius:13px;pointer-events:none;text-align:center;
+        background:linear-gradient(180deg,rgba(11,16,38,.94),rgba(11,16,38,.70));
+        border:2px solid rgba(122,150,220,.85);box-shadow:0 10px 34px rgba(0,0,0,.5);
+        color:#eaf0ff;font-size:21px;letter-spacing:4px;font-weight:600;
+        opacity:0;transition:opacity .34s ease,transform .34s ease;white-space:nowrap}
+  #zone.on{opacity:1;transform:translate(-50%,0)}
+  #zone small{display:block;font-size:11px;letter-spacing:1.5px;color:#9fb0dd;
+              margin-top:4px;font-weight:400}
+
+  /* 右上角菜单入口：图鉴 / 队伍 / 背包 */
+  #menuBar{position:fixed;z-index:19;display:flex;flex-direction:column;gap:7px;
+           right:calc(10px + env(safe-area-inset-right,0px));
+           top:calc(58px + env(safe-area-inset-top,0px))}
+  #menuBar b{width:44px;height:44px;border-radius:12px;cursor:pointer;user-select:none;
+             display:flex;flex-direction:column;align-items:center;justify-content:center;
+             background:rgba(11,16,38,.84);border:2px solid rgba(88,106,158,.92);color:#e8eeff;
+             font-size:17px;line-height:1;box-shadow:0 3px 10px rgba(0,0,0,.34);
+             -webkit-tap-highlight-color:transparent}
+  #menuBar b i{font-size:9px;font-style:normal;color:#9fb0dd;margin-top:2px;letter-spacing:0}
+  #menuBar b:active{background:rgba(58,90,154,.96);transform:scale(.95)}
+  #menuBar b.off{opacity:.42}
+
   /* 竖屏 / 窄屏：收起文字提示，压缩 HUD，避免遮挡画面 */
   @media (max-width:600px),(orientation:portrait){
     #hint{display:none}
     #hud{font-size:11px;padding:6px 9px;line-height:1.5;max-width:52vw}
     #toast{bottom:calc(190px + env(safe-area-inset-bottom,0px));font-size:13px;padding:7px 14px}
     #gear{width:34px;height:34px;font-size:16px;top:calc(6px + env(safe-area-inset-top,0px))}
+    #menuBar{top:calc(46px + env(safe-area-inset-top,0px));gap:6px}
+    #menuBar b{width:38px;height:38px;border-radius:10px;font-size:15px}
+    #menuBar b i{font-size:8px}
+    #zone{font-size:17px;letter-spacing:2px;padding:9px 22px 8px;top:12%}
   }
 </style>
 </head>
 <body>
 <div id="game"></div>
 <div id="hud">加载中…</div>
-<div id="hint">方向键 / WASD 移动 · 走进高草/雪地/沙地/遗迹遇敌 · 撞上训练家开战 · 右上 ⚙ 调音量</div>
+<div id="hint">方向键 / WASD 移动 · 走进高草/雪地/沙地/遗迹遇敌 · 撞上训练家开战 · 右上 ⚙ 调音量 · Q/E/B 开图鉴/队伍/背包</div>
 <div id="toast"></div>
+<div id="zone"></div>
 <div id="err"></div>
 <div id="gear" title="设置">⚙</div>
+<div id="menuBar">
+  <b data-page="dex" title="精灵图鉴 (Q)">📖<i>图鉴</i></b>
+  <b data-page="team" title="我的队伍 (E)">🐾<i>队伍</i></b>
+  <b data-page="bag" title="背包 (B)">🎒<i>背包</i></b>
+</div>
 <div id="cfg">
   <div id="cfgBox">
     <h3>设置</h3>
@@ -106,21 +140,21 @@
   var HUB = { x:25, y:17 };
 
   var BIOMES = [
-    { key:'plains',  name:'微风草原', cx:8,  cy:8,  r:7, pools:['s1','s3','s11','s9','s18','s23','s35'],  rare:'s18',
+    { key:'plains',  name:'微风草原', cx:8,  cy:8,  r:7, pools:['s1','s3','s11','s9','s18','s23','s35'],  rare:'s18', sub:'开阔草场 · 微风掠过芒草',
       sky:[0.62,0.80,0.96], ground:[0.48,0.74,0.44], hill:[0.36,0.58,0.36] },
-    { key:'forest',  name:'低语森林', cx:8,  cy:26, r:7, pools:['s3','s12','s1','s10','s22','s24','s39'], rare:'s39',
+    { key:'forest',  name:'低语森林', cx:8,  cy:26, r:7, pools:['s3','s12','s1','s10','s22','s24','s39'], rare:'s39', sub:'密林深处 · 树影与孢子',
       sky:[0.34,0.52,0.44], ground:[0.26,0.44,0.32], hill:[0.16,0.30,0.22] },
-    { key:'lake',    name:'碧波湖',   cx:22, cy:7,  r:7, pools:['s2','s9','s4','s19','s20','s21'],       rare:'s20',
+    { key:'lake',    name:'碧波湖',   cx:22, cy:7,  r:7, pools:['s2','s9','s4','s19','s20','s21'],       rare:'s20', sub:'碧水岸边 · 潮湿沙洲',
       sky:[0.53,0.76,0.94], ground:[0.36,0.66,0.72], hill:[0.30,0.52,0.62] },
-    { key:'volcano', name:'灰烬火山', cx:41, cy:8,  r:7, pools:['s1','s11','s13','s7','s16','s17','s33'], rare:'s17',
+    { key:'volcano', name:'灰烬火山', cx:41, cy:8,  r:7, pools:['s1','s11','s13','s7','s16','s17','s33'], rare:'s17', sub:'熔岩地貌 · 灼热岩层',
       sky:[0.42,0.26,0.22], ground:[0.30,0.20,0.18], hill:[0.22,0.14,0.14] },
-    { key:'snow',    name:'霜白雪原', cx:41, cy:26, r:7, pools:['s8','s13','s7','s33','s34'],            rare:'s33',
+    { key:'snow',    name:'霜白雪原', cx:41, cy:26, r:7, pools:['s8','s13','s7','s33','s34'],            rare:'s33', sub:'极寒高原 · 霜与冰晶',
       sky:[0.72,0.84,0.94], ground:[0.84,0.90,0.95], hill:[0.64,0.75,0.85] },
-    { key:'desert',  name:'流沙荒漠', cx:22, cy:27, r:6, pools:['s7','s13','s4','s32','s25'],            rare:'s25',
+    { key:'desert',  name:'流沙荒漠', cx:22, cy:27, r:6, pools:['s7','s13','s4','s32','s25'],            rare:'s25', sub:'流沙之地 · 干热风蚀',
       sky:[0.90,0.76,0.50], ground:[0.86,0.72,0.46], hill:[0.74,0.58,0.34] },
-    { key:'ruins',   name:'遗忘遗迹', cx:13, cy:17, r:4, pools:['s10','s6','s14','s29','s30','s38'],     rare:'s38',
+    { key:'ruins',   name:'遗忘遗迹', cx:13, cy:17, r:4, pools:['s10','s6','s14','s29','s30','s38'],     rare:'s38', sub:'上古石阵 · 无人的守夜',
       sky:[0.36,0.34,0.46], ground:[0.40,0.39,0.46], hill:[0.26,0.25,0.34] },
-    { key:'ridge',   name:'龙脊山道', cx:35, cy:17, r:4, pools:['s14','s15','s7','s40','s36'],           rare:'s40',
+    { key:'ridge',   name:'龙脊山道', cx:35, cy:17, r:4, pools:['s14','s15','s7','s40','s36'],           rare:'s40', sub:'龙脊山道 · 高处强风',
       sky:[0.56,0.60,0.68], ground:[0.48,0.48,0.52], hill:[0.32,0.33,0.40] }
   ];
   var BIOME_BY_KEY = {}; BIOMES.forEach(function(b){ BIOME_BY_KEY[b.key]=b; });
@@ -246,8 +280,50 @@
     balls: 5,
     activeIdx: 0,
     defeated: [],
-    pos: { x:HUB.x, y:HUB.y+2 }
+    pos: { x:HUB.x, y:HUB.y+2 },
+    // 图鉴：id -> { see:[0,0,0], got:[0,0,0] }  每个阶独立记录「见过 / 收服」
+    dex: {},
+    // 背包：精灵球单独用 G.balls（战斗内直接消耗），其余道具走 bag
+    bag: { candy:0, stone:0 }
   };
+
+  // ---- 图鉴读写 ----
+  function dexRec(id){
+    if (!G.dex[id]) G.dex[id] = { see:[0,0,0], got:[0,0,0] };
+    var r = G.dex[id];
+    if (!Array.isArray(r.see)) r.see=[0,0,0];
+    if (!Array.isArray(r.got)) r.got=[0,0,0];
+    return r;
+  }
+  function dexSee(id, stage){
+    if (!spOf(id)) return;
+    var r = dexRec(id); stage = clamp(stage|0, 0, 2);
+    if (!r.see[stage]){ r.see[stage]=1; saveG(); }
+  }
+  function dexGot(id, stage){
+    if (!spOf(id)) return;
+    var r = dexRec(id); stage = clamp(stage|0, 0, 2);
+    r.see[stage]=1;
+    if (!r.got[stage]){ r.got[stage]=1; saveG(); }
+  }
+  // 某物种的最高三阶记录：返回 { topGot:-1~2, topSee:-1~2, gotCount, seeCount }
+  function dexSum(id){
+    var r = dexRec(id), topGot=-1, topSee=-1, g=0, s=0;
+    for (var i=0;i<3;i++){
+      if (r.got[i]){ topGot=i; g++; }
+      if (r.see[i]){ topSee=i; s++; }
+    }
+    return { topGot:topGot, topSee:topSee, gotCount:g, seeCount:s };
+  }
+  function dexTotals(){
+    var got=0, seen=0;
+    SR.SPIRITS.forEach(function(sp){
+      var d = dexSum(sp.id);
+      if (d.gotCount) got++;
+      if (d.seeCount) seen++;
+    });
+    return { got:got, seen:seen, total:SR.SPIRITS.length };
+  }
   function loadG(){
     try{
       var s = JSON.parse(localStorage.getItem(SAVE_KEY));
@@ -258,12 +334,22 @@
         G.activeIdx = clamp(s.activeIdx||0, 0, G.party.length-1);
         G.defeated = Array.isArray(s.defeated) ? s.defeated : [];
         if (s.pos && Number.isInteger(s.pos.x) && Number.isInteger(s.pos.y)) G.pos = s.pos;
+        // 向后兼容：batch5 之前没有 dex / bag 字段
+        G.dex = (s.dex && typeof s.dex === 'object' && !Array.isArray(s.dex)) ? s.dex : {};
+        G.bag = (s.bag && typeof s.bag === 'object')
+          ? { candy: Math.max(0, s.bag.candy|0), stone: Math.max(0, s.bag.stone|0) }
+          : { candy:0, stone:0 };
       }
     }catch(e){}
+    // 队伍里的精灵自动补记为「已收服」，老存档也能立刻有图鉴进度
+    G.party.forEach(function(p){ if (p && spOf(p.id)) dexGot(p.id, p.stage||0); });
   }
   function saveG(){
     try{
-      localStorage.setItem(SAVE_KEY, JSON.stringify({ party:G.party, balls:G.balls, activeIdx:G.activeIdx, defeated:G.defeated, pos:G.pos }));
+      localStorage.setItem(SAVE_KEY, JSON.stringify({
+        party:G.party, balls:G.balls, activeIdx:G.activeIdx, defeated:G.defeated,
+        pos:G.pos, dex:G.dex, bag:G.bag
+      }));
     }catch(e){}
   }
   loadG();
@@ -719,9 +805,35 @@
     this.keys = this.input.keyboard.addKeys('W,A,S,D');
     this.moving = false;
     this.inBattle = false;
+    this.uiOpen = false;
+    var startBio = biomeAt(G.pos.x, G.pos.y, this.biomeMap);
+    this.curBiome = startBio ? startBio.key : 'town';
     this.hud = document.getElementById('hud');
     this.toastEl = document.getElementById('toast');
     this.refreshHud(G.pos.x, G.pos.y);
+
+    // 开场地名条
+    var ws = this;
+    this.time.delayedCall(600, function(){
+      ws.showZone(startBio ? startBio.name : '灵契镇', startBio ? startBio.sub : '中央枢纽 · 十字商道');
+    });
+
+    // ---- UI 页面快捷键（Q 图鉴 / E 队伍 / B 背包）----
+    this.input.keyboard.on('keydown-Q', function(){ ws.openUI('dex'); });
+    this.input.keyboard.on('keydown-E', function(){ ws.openUI('team'); });
+    this.input.keyboard.on('keydown-B', function(){ ws.openUI('bag'); });
+    // 右上角菜单按钮（手机主要入口）
+    var bar = document.getElementById('menuBar');
+    if (bar){
+      bar.addEventListener('pointerdown', function(ev){
+        var el = ev.target;
+        while (el && el !== bar && !(el.getAttribute && el.getAttribute('data-page'))) el = el.parentNode;
+        var page = (el && el.getAttribute) ? el.getAttribute('data-page') : null;
+        if (!page) return;
+        ev.preventDefault();
+        ws.openUI(page);
+      });
+    }
 
     // ---- 音频：首次用户手势解锁（手机浏览器自动播放限制）----
     initAudioUI();
@@ -801,6 +913,22 @@
     if (!pad) return;
     pad.classList.toggle('on', !!on && !!this.isTouch);
   };
+
+  // ---- 打开 / 关闭 UI 页面（图鉴 · 队伍 · 背包）----
+  WorldScene.prototype.openUI = function(page){
+    if (this.inBattle || this.uiOpen) return;
+    if (!page) page = 'dex';
+    this.uiOpen = true;
+    this.setPad(false);
+    AUDIO.sfx('click');
+    this.scene.pause();
+    this.scene.launch('ui', { page: page, world: this });
+  };
+  WorldScene.prototype.closeUI = function(){
+    this.uiOpen = false;
+    this.setPad(true);
+    this.refreshHud(this.gx(), this.gy());
+  };
   WorldScene.prototype.gx = function(){ return Math.round(this.player.x/TILE - 0.5); };
   WorldScene.prototype.gy = function(){ return Math.round(this.player.y/TILE - 0.5); };
 
@@ -834,13 +962,23 @@
     this.tweens.add({ targets:this.player, x:this.player.x+dx*3, y:this.player.y+dy*3, duration:55, yoyo:true });
   };
   WorldScene.prototype.onArrive = function(nx,ny){
+    // 跨越群系边界 → 地名条（地图是连续大陆，这里只做区域提示，不做切场景黑屏）
+    var bio = biomeAt(nx,ny,this.biomeMap);
+    var bioKey = bio ? bio.key : 'town';
+    if (this.curBiome !== bioKey){
+      this.curBiome = bioKey;
+      this.showZone(bio ? bio.name : '灵契镇', bio ? bio.sub : '中央枢纽 · 十字商道');
+    }
+
     var it = this.itemMap[kOf(nx,ny)];
     if (it && !it.taken){
       it.taken = true;
       if (it.spr){ it.spr.destroy(); it.spr=null; }
-      var label = it.kind==='balls'?'精灵球 ×3':it.kind==='candy'?'亲密度糖果 ×1':'进化石 ×1';
-      if (it.kind==='balls') G.balls += 3;
-      this.showToast('拾取 '+label);
+      var label;
+      if (it.kind==='balls'){ G.balls += 3; label = '精灵球 ×3'; }
+      else if (it.kind==='candy'){ G.bag.candy += 1; label = '亲密度糖果 ×1'; }
+      else { G.bag.stone += 1; label = '进化石 ×1'; }
+      this.showToast('拾取 '+label+' · 已放入背包');
       AUDIO.sfx('item');
       this.savePos(nx,ny); this.refreshHud(nx,ny); saveG();
       return;
@@ -860,6 +998,16 @@
     var chance = ENC[String(code)] || 0;
     if (chance > 0 && Math.random() < chance){ this.startEncounter(nx,ny); }
   };
+
+  // 区域地名条：滑入 → 停留 1.5s → 滑出
+  WorldScene.prototype.showZone = function(name, sub){
+    var el = document.getElementById('zone');
+    if (!el) return;
+    el.innerHTML = name + (sub ? '<small>'+sub+'</small>' : '');
+    el.classList.add('on');
+    clearTimeout(el._t);
+    el._t = setTimeout(function(){ el.classList.remove('on'); }, 1500);
+  };
   WorldScene.prototype.savePos = function(gx,gy){
     G.pos = {x:gx, y:gy}; saveG();
   };
@@ -867,10 +1015,12 @@
     var tile = this.grid[gy] ? this.grid[gy][gx] : 0;
     var bio = biomeAt(gx,gy,this.biomeMap);
     var lead = G.party[G.activeIdx] ? spOf(G.party[G.activeIdx].id).stages[G.party[G.activeIdx].stage] : '—';
+    var dt = dexTotals();
     this.hud.innerHTML =
-      '灵契大陆 · Phaser 4 (batch 4)<br>' +
+      '灵契大陆 · Phaser 4 (batch 5)<br>' +
       '坐标 ('+gx+', '+gy+') · '+TNAME[tile]+' · '+(bio?bio.name:'灵契镇')+'<br>' +
-      '队伍 '+G.party.length+' 只 · 出战 '+lead+' · 精灵球 ×'+G.balls;
+      '队伍 '+G.party.length+' 只 · 出战 '+lead+' · 精灵球 ×'+G.balls+'<br>' +
+      '图鉴 '+dt.got+'/'+dt.total+' 收服 · '+dt.seen+'/'+dt.total+' 见过';
     // BGM 跟随群系；同曲不重播，切场景不重启
     AUDIO.track(bio ? (BIO_TRACK[bio.key] || 'plains') : 'town');
   };
@@ -898,6 +1048,7 @@
       f.maxHp = Math.round(f.maxHp*1.25); f.hp = f.maxHp;
       f.name = '霸主·'+f.name;
     }
+    dexSee(sid, stage);   // 图鉴：见过这一阶
     this.inBattle = true;
     this.setPad(false);
     this.scene.pause();
@@ -917,7 +1068,7 @@
     var team = [];
     for (var j=0;j<t.pool.length;j++){
       var sp = spOf(t.pool[j]);
-      if (sp) team.push(buildFighter(sp, t.stage, findNature('固执'), lv));
+      if (sp){ team.push(buildFighter(sp, t.stage, findNature('固执'), lv)); dexSee(sp.id, t.stage); }
     }
     if (!team.length) return;
 
@@ -1841,6 +1992,7 @@
         G.party.push({ id:B.enemy.species.id, stage:B.enemy.stage, bond:1, count:1,
           nature:B.enemy.nature.name, hp:B.enemy.hp, lv:B.enemy.lv, exp:0 });
       }
+      dexGot(B.enemy.species.id, B.enemy.stage);   // 图鉴：收服这一阶
       saveG();
       AUDIO.sfx('caught');
       this.say('太好了！'+nm+'（Lv.'+B.enemy.lv+'）被抓住了！');
@@ -1949,11 +2101,682 @@
   };
   BattleScene.prototype.toastText = function(msg){ this.showToast(msg); };
 
+  /* =====================================================================
+     UI 场景：精灵图鉴 / 我的队伍 / 背包
+     - 独立场景叠加在世界之上；打开时世界暂停，不会误走、不会触发遇敌
+     - 复用战斗场景的面板 / 按钮 / 文字工具，两处视觉语言完全一致
+     - 图鉴按「阶」记录见过与收服，支持分页与详情
+     - 背包中的糖果 / 进化石补上原版已有的「羁绊成长」与「羁绊够则进化」机制，
+       不新增任何数值规则（EVO_BOND 与 src/data/config.js 完全一致）
+     ===================================================================== */
+  var EVO_BOND = [0, 4, 9];   // 一→二需羁绊 4，二→三需羁绊 9（同 config.js）
+
+  function UIScene(){ Phaser.Scene.call(this, { key:'ui' }); }
+  UIScene.prototype = Object.create(Phaser.Scene.prototype);
+  UIScene.prototype.constructor = UIScene;
+
+  // 借用战斗场景的 UI 工具，避免第二套视觉语言
+  ['mode','fz','panel','label','badge','makeBtn','track','clearUI'].forEach(function(k){
+    UIScene.prototype[k] = BattleScene.prototype[k];
+  });
+
+  UIScene.prototype.init = function(d){
+    this.page  = (d && d.page) || 'dex';
+    this.world = (d && d.world) || null;
+    this.ui = [];
+    this.dexPage = 0;
+    this.selId = null;    // 图鉴详情：物种 id
+    this.selMon = null;   // 队伍详情：队伍索引
+    this.bagSel = null;   // 背包：正在选使用对象道具类型
+    this._tok = 0;
+  };
+
+  UIScene.prototype.create = function(){
+    var self = this;
+    this.ui = [];
+    this._tok = 0;
+    this.input.keyboard.on('keydown-ESC', function(){ self.close(); });
+    this.input.keyboard.on('keydown-Q', function(){ self.goto('dex'); });
+    this.input.keyboard.on('keydown-E', function(){ self.goto('team'); });
+    this.input.keyboard.on('keydown-B', function(){ self.goto('bag'); });
+    this._onResize = function(){ if (self.scene.isActive()) self.render(); };
+    this.scale.on('resize', this._onResize);
+    this.render();
+  };
+
+  UIScene.prototype.goto = function(page){
+    if (this.page === page && this.selId===null && this.selMon===null && this.bagSel===null){
+      this.close(); return;     // 再次按同一键 = 关闭（快捷键手感）
+    }
+    AUDIO.sfx('click');
+    this.page = page;
+    this.selId = null; this.selMon = null; this.bagSel = null;
+    this.render();
+  };
+
+  UIScene.prototype.close = function(){
+    var w = this.world;
+    if (this._onResize) { this.scale.off('resize', this._onResize); this._onResize = null; }
+    this._tok++;
+    AUDIO.sfx('click');
+    this.ui = [];
+    this.scene.resume('world');
+    this.scene.stop();
+    if (w && w.closeUI) w.closeUI();
+  };
+
+  // 不描边的小字（格子内文字用，描边会糊成一团）
+  UIScene.prototype.utext = function(x,y,text,size,color,origin,depth){
+    var t = this.add.text(x,y,text,{
+      fontFamily:FONT, fontSize:size+'px', color:color||'#c9d6ff'
+    }).setDepth(depth||7);
+    t.setOrigin(origin===undefined?0.5:origin, 0.5);
+    return this.track(t);
+  };
+  // 透明点击区
+  UIScene.prototype.hit = function(x,y,w,h,fn){
+    var r = this.add.rectangle(x+w/2, y+h/2, w, h, 0x000000, 0.001)
+      .setDepth(40).setInteractive({ useHandCursor:true });
+    r.on('pointerup', function(){ AUDIO.sfx('click'); fn(); });
+    return this.track(r);
+  };
+
+  /* ---------------- 主渲染 ---------------- */
+  UIScene.prototype.render = function(){
+    var w = this.scale.width, h = this.scale.height;
+    this.clearUI();
+    var fz = this.fz.bind(this);
+
+    // 遮罩：吃掉点击，避免穿透到下面的世界
+    this.track(this.add.rectangle(w/2, h/2, w, h, 0x04060f, 0.88).setDepth(1).setInteractive());
+
+    var pad = Math.max(10, Math.min(w,h)*0.028);
+    var P = { x:pad, y:pad, w:w-pad*2, h:h-pad*2 };
+    this.panel(P.x, P.y, P.w, P.h, 2);
+
+    var ip    = Math.max(10, Math.min(w,h)*0.026);
+    var headH = Math.max(34, Math.round(fz(36)));
+    var footH = Math.max(36, Math.round(fz(42)));
+    var gap   = Math.max(6, Math.round(Math.min(w,h)*0.015));
+
+    var head = { x:P.x+ip, y:P.y+ip, w:P.w-ip*2, h:headH };
+    var foot = { x:P.x+ip, y:P.y+P.h-ip-footH, w:P.w-ip*2, h:footH };
+    var body = { x:P.x+ip, y:head.y+headH+gap, w:P.w-ip*2,
+                 h:Math.max(60, foot.y-gap-(head.y+headH+gap)) };
+    this.gap = gap;
+
+    if (this.page === 'dex' && this.selId)  return this.renderDexDetail(head, body, foot);
+    if (this.page === 'dex')                return this.renderDex(head, body, foot);
+    if (this.page === 'team' && this.selMon !== null) return this.renderMonDetail(head, body, foot);
+    if (this.page === 'team')               return this.renderTeam(head, body, foot);
+    return this.renderBag(head, body, foot);
+  };
+
+  // 页头：标题 + 副标题 + 关闭（或返回）
+  UIScene.prototype.header = function(head, title, sub, backFn){
+    var fz = this.fz.bind(this);
+    var t = this.label(head.x, head.y+head.h*0.5, title, fz(19), '#eaf0ff', 6);
+    if (sub) this.label(head.x + t.width + fz(13), head.y+head.h*0.5+1, sub, fz(12), '#9fb0dd', 6);
+    var bh = Math.min(head.h, Math.max(30, Math.round(fz(34))));
+    var bw = bh + Math.round(fz(16));
+    var label = backFn ? '← 返回' : '✕';
+    this.makeBtn(head.x+head.w-bw, head.y+(head.h-bh)/2, bw, bh, label,
+      backFn || this.close.bind(this), { size: fz(backFn?13:16) });
+  };
+
+  /* ---------------- 图鉴：列表 ---------------- */
+  UIScene.prototype.renderDex = async function(head, body, foot){
+    var self = this, fz = this.fz.bind(this);
+    var tok = ++this._tok;
+    var dt = dexTotals();
+    this.header(head, '精灵图鉴', '收服 '+dt.got+'/'+dt.total+' · 见过 '+dt.seen+'/'+dt.total);
+
+    var cols = body.w > 720 ? 7 : body.w > 560 ? 6 : body.w > 430 ? 5 : 4;
+    var gap  = Math.max(5, Math.round(Math.min(body.w,body.h)*0.012));
+    var cellW = (body.w - gap*(cols-1)) / cols;
+    var cellH = cellW * 1.16;
+    var rows  = Math.max(2, Math.floor((body.h + gap) / (cellH + gap)));
+    var per   = cols * rows;
+    var pages = Math.max(1, Math.ceil(SR.SPIRITS.length / per));
+    if (this.dexPage >= pages) this.dexPage = pages - 1;
+    if (this.dexPage < 0) this.dexPage = 0;
+
+    var start = this.dexPage * per;
+    var list  = SR.SPIRITS.slice(start, start + per);
+
+    // 先加载本页立绘，避免出现空白格
+    var keys = [];
+    list.forEach(function(sp){
+      var d = dexSum(sp.id);
+      var st = d.topGot >= 0 ? d.topGot : (d.topSee >= 0 ? d.topSee : -1);
+      if (st >= 0) keys.push(sp.id + '_' + st);
+    });
+    await Promise.all(keys.map(function(k){ return loadTex(self, k); }));
+    if (tok !== this._tok) return;
+
+    var cellH2 = Math.min(cellH, (body.h - gap*(rows-1)) / rows);
+    for (var i=0;i<list.length;i++){
+      var sp = list[i], d = dexSum(sp.id);
+      var c = i % cols, r = Math.floor(i / cols);
+      var cx = body.x + c*(cellW+gap);
+      var cy = body.y + r*(cellH2+gap);
+      var known = d.seeCount > 0, got = d.gotCount > 0;
+
+      var g = this.add.graphics().setDepth(5);
+      g.fillStyle(got ? 0x1c2f52 : 0x141a2e, 0.96);
+      g.fillRoundedRect(cx, cy, cellW, cellH2, 7);
+      g.lineStyle(2, got ? 0x5a86d6 : (known ? 0x46557f : 0x2b3352), 0.92);
+      g.strokeRoundedRect(cx, cy, cellW, cellH2, 7);
+      if (got){ g.fillStyle(0xffffff, 0.10); g.fillRoundedRect(cx+2, cy+2, cellW-4, cellH2*0.16, 6); }
+      this.track(g);
+
+      var artSize = cellW * 0.58;
+      var artY = cy + cellH2*0.44;
+      var st = got ? d.topGot : (known ? d.topSee : -1);
+      if (st >= 0 && this.textures.exists(sp.id+'_'+st)){
+        var im = this.add.image(cx+cellW/2, artY, sp.id+'_'+st).setDepth(6);
+        im.setScale(artSize/256);
+        if (!got){   // 见过但未收服：暗色剪影
+          if (im.setTintFill) im.setTintFill(0x101a30); else im.setTint(0x18203a);
+        }
+        this.track(im);
+      } else {
+        this.utext(cx+cellW/2, artY, '?', Math.round(artSize*0.5), '#37436b');
+      }
+
+      var no = String(start+i+1);
+      while (no.length < 2) no = '0'+no;
+      this.utext(cx+cellW*0.12, cy+cellH2*0.085, 'No.'+no, Math.max(8, Math.round(fz(9))),
+                 got ? '#8fb0e8' : '#5a6690', 0);
+      this.utext(cx+cellW/2, cy+cellH2*0.845, got ? sp.stages[d.topGot] : '？？？',
+                 Math.max(9, Math.round(fz(11))), got ? '#dfe8ff' : '#6b78a0');
+      // 三阶进度小点
+      for (var q=0;q<3;q++){
+        var dotC = d.got[q] ? 0x74d4a0 : (d.see[q] ? 0x5a86d6 : 0x2b3352);
+        var dg = this.add.graphics().setDepth(7);
+        dg.fillStyle(dotC, 1);
+        dg.fillCircle(cx + cellW*0.36 + q*Math.max(5, cellW*0.075), cy+cellH2*0.935, Math.max(1.6, cellW*0.028));
+        this.track(dg);
+      }
+
+      (function(sid, kn){
+        var hx = cx, hy = cy, hw = cellW, hh = cellH2;
+        self.hit(hx, hy, hw, hh, function(){
+          if (!kn){ self.flashNote('还没发现过这只精灵'); return; }
+          self.selId = sid; self.render();
+        });
+      })(sp.id, known);
+    }
+
+    // 底部：翻页
+    var bw = Math.min(foot.w*0.22, fz(110));
+    var bh = foot.h;
+    this.makeBtn(foot.x, foot.y, bw, bh, '◀ 上一页', function(){
+      if (self.dexPage > 0){ self.dexPage--; self.render(); }
+    }, { size: fz(13), disabled: this.dexPage === 0 });
+    this.makeBtn(foot.x+bw+gap, foot.y, Math.min(foot.w*0.2, fz(96)), bh,
+      (this.dexPage+1)+' / '+pages, function(){}, { size: fz(13), disabled: true });
+    this.makeBtn(foot.x+bw*2+gap*2, foot.y, bw, bh, '下一页 ▶', function(){
+      if (self.dexPage < pages-1){ self.dexPage++; self.render(); }
+    }, { size: fz(13), disabled: this.dexPage >= pages-1 });
+
+    var tipW = foot.w - bw*2 - gap*2 - Math.min(foot.w*0.2, fz(96)) - gap;
+    if (tipW > fz(90)){
+      this.utext(foot.x+foot.w-tipW/2, foot.y+foot.h*0.5,
+        '● 收服  ● 见过  ● 未知', Math.max(9, Math.round(fz(10))), '#7c88ad', 0.5);
+    }
+  };
+
+  /* ---------------- 图鉴：单只详情 ---------------- */
+  UIScene.prototype.renderDexDetail = async function(head, body, foot){
+    var self = this, fz = this.fz.bind(this);
+    var tok = ++this._tok;
+    var sp = spOf(this.selId);
+    if (!sp){ this.selId = null; return this.render(); }
+    var d = dexSum(sp.id);
+    var no = String(SR.SPIRITS.indexOf(sp)+1); while (no.length<2) no='0'+no;
+
+    this.header(head, 'No.'+no+' '+sp.name, null, function(){ self.selId=null; self.render(); });
+
+    var tall = this.mode() === 'P' || body.w < 520;
+    // 立绘用「已收服的最高阶」，没有就用见过的最高阶（剪影）
+    var showSt = d.topGot >= 0 ? d.topGot : Math.max(0, d.topSee);
+    var isGot  = d.topGot >= 0;
+    await loadTex(this, sp.id+'_'+showSt);
+    if (tok !== this._tok) return;
+
+    var artBox = tall
+      ? { x:body.x+body.w*0.5-body.h*0.26, y:body.y, w:body.h*0.52, h:body.h*0.52 }
+      : { x:body.x, y:body.y, w:body.w*0.34, h:Math.min(body.h*0.86, body.w*0.34) };
+    var info = tall
+      ? { x:body.x, y:body.y+artBox.h+this.gap*1.5, w:body.w, h:body.h-artBox.h-this.gap*1.5 }
+      : { x:body.x+artBox.w+this.gap*2, y:body.y, w:body.w-artBox.w-this.gap*2, h:body.h };
+
+    // 立绘卡
+    var cg = this.add.graphics().setDepth(5);
+    cg.fillStyle(0x101830, 0.9); cg.fillRoundedRect(artBox.x, artBox.y, artBox.w, artBox.h, 10);
+    cg.lineStyle(2, isGot ? 0x5a86d6 : 0x40506f, 0.9);
+    cg.strokeRoundedRect(artBox.x, artBox.y, artBox.w, artBox.h, 10);
+    this.track(cg);
+    if (this.textures.exists(sp.id+'_'+showSt)){
+      var size = Math.min(artBox.w, artBox.h)*0.86;
+      var im = this.add.image(artBox.x+artBox.w/2, artBox.y+artBox.h*0.5, sp.id+'_'+showSt).setDepth(6);
+      im.setScale(size/256);
+      if (!isGot){ if (im.setTintFill) im.setTintFill(0x121c34); else im.setTint(0x18203a); }
+      this.track(im);
+    }
+
+    // 名称 / 属性
+    var y = info.y;
+    var lh = Math.max(16, Math.round(fz(20)));
+    var nm = this.label(info.x, y+lh*0.5, isGot ? sp.stages[d.topGot] : sp.name, fz(20), '#eaf0ff', 6);
+    y += lh*1.15;
+    var types = sp.types || [sp.type];
+    var bx = info.x;
+    for (var i=0;i<types.length;i++){
+      var r = this.badge(bx, y+lh*0.42, (SR.TYPES[types[i]]?SR.TYPES[types[i]].name:'—'), types[i], 8);
+      bx += (r.t.width + fz(16)) + fz(6);
+    }
+    y += lh;
+    if (!isGot) this.utext(info.x, y+lh*0.4, '尚未收服 · 显示为见过的形态', fz(11), '#7c88ad', 0);
+    y += isGot ? lh*0.2 : lh*0.9;
+
+    // 三阶进度
+    var stageLine = '';
+    for (var s2=0;s2<3;s2++){
+      var nmS = d.got[s2] ? sp.stages[s2] : (d.see[s2] ? '？？？' : '未知');
+      stageLine += (s2? '  →  ':'') + nmS;
+    }
+    var st = this.utext(info.x, y+lh*0.5, '形态  '+stageLine, fz(12),
+                        d.gotCount ? '#9ee6b8' : '#7c88ad', 0, 6);
+    st.setWordWrapWidth(info.w, true);
+    y += Math.max(lh, st.height) + this.gap;
+
+    // 图鉴描述
+    var desc = isGot ? sp.desc : '收服后解锁介绍。';
+    var dt2 = this.utext(info.x, 0, desc, fz(13), '#c9d6ff', 0, 6);
+    dt2.setWordWrapWidth(info.w, true);
+    dt2.setY(y + dt2.height*0.5);
+    y += dt2.height + this.gap*1.4;
+
+    // 基础数值
+    var b = sp.base;
+    var rows = [['HP', b.hp], ['攻击', b.atk], ['防御', b.def], ['速度', b.spd]];
+    var cellW = (info.w - this.gap*(rows.length-1)) / rows.length;
+    var barH = Math.max(5, Math.round(fz(6)));
+    for (var k=0;k<rows.length;k++){
+      var rx = info.x + k*(cellW+this.gap);
+      this.utext(rx+cellW/2, y+lh*0.42, rows[k][0], fz(11), '#8fa0cc');
+      this.utext(rx+cellW/2, y+lh*0.42+lh, String(rows[k][1]), fz(15), '#dfe8ff');
+      var ratio = clamp(rows[k][1]/90, 0.05, 1);
+      var bg = this.add.graphics().setDepth(6);
+      var by = y+lh*0.42+lh*1.85;
+      bg.fillStyle(0x1a2140, 1); bg.fillRoundedRect(rx, by, cellW, barH, barH/2);
+      bg.fillStyle(0x6b8cff, 1); bg.fillRoundedRect(rx, by, Math.max(barH, cellW*ratio), barH, barH/2);
+      this.track(bg);
+    }
+    y += lh*2.6;
+
+    // 栖息地（从群系遇敌池反查，说明在哪能找到）
+    var homes = [];
+    BIOMES.forEach(function(bm){
+      if (bm.pools.indexOf(sp.id) >= 0) homes.push(bm.name + (bm.rare===sp.id?'（稀有）':''));
+      else if (bm.rare === sp.id) homes.push(bm.name + '（稀有）');
+    });
+    var homeTxt = homes.length ? homes.join('、') : '本作暂未在野外发现';
+    var ht = this.utext(info.x, 0, '栖息地  '+homeTxt, fz(12),
+                        homes.length ? '#9fb0dd' : '#d98f8f', 0, 6);
+    ht.setWordWrapWidth(info.w, true);
+    ht.setY(y + ht.height*0.5);
+    y += ht.height + this.gap;
+
+    // 底部
+    this.makeBtn(foot.x, foot.y, Math.min(foot.w*0.34, fz(160)), foot.h, '← 返回图鉴', function(){
+      self.selId = null; self.render();
+    }, { size: fz(13) });
+  };
+
+  /* ---------------- 队伍 ---------------- */
+  UIScene.prototype.renderTeam = async function(head, body, foot){
+    var self = this, fz = this.fz.bind(this);
+    var tok = ++this._tok;
+    var alive = 0;
+    G.party.forEach(function(c){ if (hpOf(c) > 0) alive++; });
+    this.header(head, '我的队伍', G.party.length + '/' + SR.CFG.MAX_PARTY + ' · 可战斗 ' + alive);
+
+    var keys = G.party.map(function(c){ return c.id + '_' + (c.stage||0); });
+    await Promise.all(keys.map(function(k){ return loadTex(self, k); }));
+    if (tok !== this._tok) return;
+
+    var n = G.party.length;
+    var cols = (this.mode() === 'P' || body.w < 520) ? 1 : 2;
+    var rows = Math.ceil(Math.max(1,n) / cols);
+    var gap = this.gap;
+    var cw = (body.w - gap*(cols-1)) / cols;
+    var ch = Math.min((body.h - gap*(rows-1)) / Math.max(1,rows), fz(96));
+
+    for (var i=0;i<n;i++){
+      var c = G.party[i], sp = spOf(c.id);
+      var col = i % cols, row = Math.floor(i / cols);
+      var cx = body.x + col*(cw+gap), cy = body.y + row*(ch+gap);
+      var hp = hpOf(c), mh = maxHpOf(c), ratio = mh ? hp/mh : 0;
+      var isActive = i === G.activeIdx;
+      var fainted = hp <= 0;
+
+      var g = this.add.graphics().setDepth(5);
+      g.fillStyle(fainted ? 0x241a24 : 0x18223c, 0.96);
+      g.fillRoundedRect(cx, cy, cw, ch, 9);
+      g.lineStyle(2, fainted ? 0x6b3b4a : (isActive ? 0xffd166 : 0x46557f), isActive ? 1 : 0.9);
+      g.strokeRoundedRect(cx, cy, cw, ch, 9);
+      this.track(g);
+
+      var artS = Math.min(ch*0.78, cw*0.26);
+      if (this.textures.exists(c.id+'_'+(c.stage||0))){
+        var im = this.add.image(cx + ch*0.10 + artS*0.5, cy+ch*0.5, c.id+'_'+(c.stage||0)).setDepth(6);
+        im.setScale(artS/256);
+        if (fainted) im.setAlpha(0.35);
+        this.track(im);
+      }
+
+      var tx = cx + ch*0.10 + artS + this.gap;
+      var tw = cw - (tx-cx) - this.gap;
+      var nmT = this.utext(tx, cy+ch*0.24, (isActive?'▶ ':'')+sp.stages[c.stage||0], fz(14),
+                           fainted ? '#a08a94' : '#eaf0ff', 0, 7);
+      this.utext(tx+tw, cy+ch*0.24, 'Lv.'+c.lv, fz(12), '#9fb0dd', 1, 7);
+
+      // HP 条
+      var barY = cy+ch*0.52, barW = tw, barH = Math.max(6, Math.round(ch*0.10));
+      var hg = this.add.graphics().setDepth(6);
+      hg.fillStyle(0x0e1428, 1); hg.fillRoundedRect(tx, barY, barW, barH, barH/2);
+      var hc = ratio > 0.5 ? 0x4ade80 : ratio > 0.2 ? 0xfbbf24 : 0xef4444;
+      if (ratio > 0){ hg.fillStyle(hc, 1); hg.fillRoundedRect(tx, barY, Math.max(barH, barW*ratio), barH, barH/2); }
+      hg.lineStyle(1, 0x0b1026, 0.8); hg.strokeRoundedRect(tx, barY, barW, barH, barH/2);
+      this.track(hg);
+      this.utext(tx+barW, barY+barH+Math.max(7,fz(9))*0.7, hp+' / '+mh,
+                 Math.max(8, Math.round(fz(10))), '#9fb0dd', 1, 7);
+
+      // 经验条（细线，贴在卡片底部）
+      var need = expNeed(c.lv), eRatio = clamp((c.exp||0)/need, 0, 1);
+      var eg = this.add.graphics().setDepth(6);
+      eg.fillStyle(0x0e1428, 1); eg.fillRoundedRect(cx+4, cy+ch-Math.max(4,ch*0.055)-2, cw-8, Math.max(3,ch*0.055), 3);
+      eg.fillStyle(0x6b8cff, 1); eg.fillRoundedRect(cx+4, cy+ch-Math.max(4,ch*0.055)-2, Math.max(3,(cw-8)*eRatio), Math.max(3,ch*0.055), 3);
+      this.track(eg);
+
+      (function(idx){
+        self.hit(cx, cy, cw, ch, function(){ self.selMon = idx; self.render(); });
+      })(i);
+    }
+
+    // 空位提示
+    if (n < SR.CFG.MAX_PARTY){
+      var emptyTxt = '还有 '+(SR.CFG.MAX_PARTY-n)+' 个空位 · 在草丛削弱野生精灵后投球捕捉';
+      this.utext(body.x+body.w/2, foot.y-foot.h*0.55, emptyTxt,
+                 Math.max(9, Math.round(fz(11))), '#6b78a0', 0.5);
+    }
+
+    this.makeBtn(foot.x, foot.y, Math.min(foot.w*0.34, fz(160)), foot.h, '关闭', this.close.bind(this),
+      { size: fz(13) });
+  };
+
+  /* ---------------- 队伍：单只详情 ---------------- */
+  UIScene.prototype.renderMonDetail = async function(head, body, foot){
+    var self = this, fz = this.fz.bind(this);
+    var idx = this.selMon;
+    var c = G.party[idx];
+    if (!c){ this.selMon = null; return this.render(); }
+    var sp = spOf(c.id), tok = ++this._tok;
+    await loadTex(this, c.id+'_'+(c.stage||0));
+    if (tok !== this._tok) return;
+
+    this.header(head, sp.stages[c.stage||0], 'Lv.'+c.lv+' · 羁绊 '+c.bond+'/'+SR.CFG.MAX_BOND,
+      function(){ self.selMon = null; self.render(); });
+
+    var tall = this.mode() === 'P' || body.w < 520;
+    var artBox = tall
+      ? { x:body.x+body.w*0.5-body.h*0.24, y:body.y, w:body.h*0.48, h:body.h*0.48 }
+      : { x:body.x, y:body.y, w:body.w*0.32, h:Math.min(body.h*0.9, body.w*0.32) };
+    var info = tall
+      ? { x:body.x, y:body.y+artBox.h+this.gap*1.5, w:body.w, h:body.h-artBox.h-this.gap*1.5 }
+      : { x:body.x+artBox.w+this.gap*2, y:body.y, w:body.w-artBox.w-this.gap*2, h:body.h };
+
+    var cg = this.add.graphics().setDepth(5);
+    cg.fillStyle(0x101830, 0.9); cg.fillRoundedRect(artBox.x, artBox.y, artBox.w, artBox.h, 10);
+    cg.lineStyle(2, 0x5a86d6, 0.9); cg.strokeRoundedRect(artBox.x, artBox.y, artBox.w, artBox.h, 10);
+    this.track(cg);
+    if (this.textures.exists(c.id+'_'+(c.stage||0))){
+      var size = Math.min(artBox.w, artBox.h)*0.86;
+      var im = this.add.image(artBox.x+artBox.w/2, artBox.y+artBox.h*0.5, c.id+'_'+(c.stage||0)).setDepth(6);
+      im.setScale(size/256);
+      if (hpOf(c) <= 0) im.setAlpha(0.4);
+      this.track(im);
+    }
+
+    var lh = Math.max(16, Math.round(fz(20)));
+    var y = info.y;
+    var types = sp.types || [sp.type];
+    var bx = info.x;
+    for (var i=0;i<types.length;i++){
+      var r = this.badge(bx, y+lh*0.42, (SR.TYPES[types[i]]?SR.TYPES[types[i]].name:'—'), types[i], 8);
+      bx += (r.t.width + fz(16)) + fz(6);
+    }
+    this.utext(info.x+info.w, y+lh*0.42, '羁绊 '+c.bond+'/'+SR.CFG.MAX_BOND, fz(12), '#9fb0dd', 1, 7);
+    y += lh;
+
+    // HP + 经验
+    var hp = hpOf(c), mh = maxHpOf(c), ratio = mh ? hp/mh : 0;
+    var barH = Math.max(7, Math.round(fz(9)));
+    var hg = this.add.graphics().setDepth(6);
+    hg.fillStyle(0x0e1428, 1); hg.fillRoundedRect(info.x, y, info.w, barH, barH/2);
+    var hc = ratio > 0.5 ? 0x4ade80 : ratio > 0.2 ? 0xfbbf24 : 0xef4444;
+    if (ratio > 0){ hg.fillStyle(hc,1); hg.fillRoundedRect(info.x, y, Math.max(barH, info.w*ratio), barH, barH/2); }
+    this.track(hg);
+    y += barH + Math.max(9, Math.round(fz(11)));
+    var need = expNeed(c.lv);
+    this.utext(info.x, y, 'HP '+hp+' / '+mh, fz(11), '#c9d6ff', 0, 7);
+    this.utext(info.x+info.w, y, '经验 '+(c.exp||0)+' / '+need, fz(11), '#8fa0cc', 1, 7);
+    y += Math.max(9, Math.round(fz(11)))*1.2;
+    var eg = this.add.graphics().setDepth(6);
+    var ebH = Math.max(4, Math.round(fz(5)));
+    eg.fillStyle(0x0e1428, 1); eg.fillRoundedRect(info.x, y, info.w, ebH, ebH/2);
+    eg.fillStyle(0x6b8cff, 1);
+    eg.fillRoundedRect(info.x, y, Math.max(ebH, info.w*clamp((c.exp||0)/need,0,1)), ebH, ebH/2);
+    this.track(eg);
+    y += ebH + this.gap*1.6;
+
+    // 招式（与原版 movesFor 一致：按等级解锁 1/8/16）
+    var mv = movesFor(sp, c.lv);
+    this.utext(info.x, y+lh*0.35, '招式', fz(12), '#8fa0cc', 0, 7);
+    y += lh*0.8;
+    var mCols = info.w > 400 ? 2 : 1;
+    var mw = (info.w - this.gap*(mCols-1)) / mCols;
+    var mh2 = Math.max(24, Math.round(fz(30)));
+    for (var m=0;m<mv.length;m++){
+      var mo = mv[m], cc = m % mCols, rr = Math.floor(m / mCols);
+      var mx = info.x + cc*(mw+this.gap), my = y + rr*(mh2+this.gap*0.5);
+      var tc = typeC(mo.type), col = Array.isArray(tc)?tc[0]:tc;
+      var mg = this.add.graphics().setDepth(6);
+      mg.fillStyle(0x141c33, 1); mg.fillRoundedRect(mx, my, mw, mh2, 6);
+      mg.fillStyle(col, 1); mg.fillRoundedRect(mx, my, Math.max(3, mw*0.02), mh2, 3);
+      this.track(mg);
+      var sw = Math.max(8, Math.round(fz(9)));
+      var tn = (mo.type==='none') ? '普通' : (SR.TYPES[mo.type]?SR.TYPES[mo.type].name:'—');
+      this.utext(mx+this.gap*0.9, my+mh2*0.5, mo.name+' · '+tn+' · 威力 '+mo.power,
+                 Math.max(9, Math.round(fz(11))), '#dfe8ff', 0, 7);
+    }
+    y += Math.ceil(mv.length/mCols)*(mh2+this.gap*0.5) + this.gap*1.2;
+
+    // 进化条件（只看羁绊，与原版 evolveInst 完全一致）
+    var canEvo = (c.stage||0) < 2 && c.bond >= EVO_BOND[(c.stage||0)+1];
+    var evoTxt = (c.stage||0) >= 2
+      ? '已是最终形态'
+      : (canEvo ? '可以进化！' : '进化需羁绊 '+EVO_BOND[(c.stage||0)+1]+'（当前 '+c.bond+'）');
+    this.utext(info.x, y, '进化  '+evoTxt, fz(12), canEvo ? '#9ee6b8' : '#8fa0cc', 0, 7);
+
+    // 底部：出战 / 调整位置
+    var gap = this.gap;
+    var isActive = idx === G.activeIdx;
+    var bw3 = (foot.w - gap*2) / 3;
+    this.makeBtn(foot.x, foot.y, bw3, foot.h, isActive ? '★ 当前出战' : '设为出战', function(){
+      if (hpOf(G.party[idx]) <= 0){ self.flashNote('失去战斗力的精灵不能出战'); return; }
+      if (idx === G.activeIdx) return;
+      G.activeIdx = idx; saveG();
+      self.flashNote('出战精灵已切换'); self.selMon = null; self.render();
+    }, { size: fz(13), disabled: isActive || hpOf(c) <= 0, accent: 0xffd166 });
+
+    this.makeBtn(foot.x+bw3+gap, foot.y, bw3, foot.h, '↑ 前移', function(){
+      if (idx <= 0) return;
+      var t = G.party[idx-1]; G.party[idx-1] = G.party[idx]; G.party[idx] = t;
+      if (G.activeIdx === idx) G.activeIdx = idx-1; else if (G.activeIdx === idx-1) G.activeIdx = idx;
+      saveG(); self.selMon = idx-1; self.render();
+    }, { size: fz(13), disabled: idx <= 0 });
+
+    this.makeBtn(foot.x+(bw3+gap)*2, foot.y, bw3, foot.h, '↓ 后移', function(){
+      if (idx >= G.party.length-1) return;
+      var t = G.party[idx+1]; G.party[idx+1] = G.party[idx]; G.party[idx] = t;
+      if (G.activeIdx === idx) G.activeIdx = idx+1; else if (G.activeIdx === idx+1) G.activeIdx = idx;
+      saveG(); self.selMon = idx+1; self.render();
+    }, { size: fz(13), disabled: idx >= G.party.length-1 });
+  };
+
+  /* ---------------- 背包 ---------------- */
+  UIScene.prototype.renderBag = async function(head, body, foot){
+    var self = this, fz = this.fz.bind(this);
+    // 正在选使用对象时，整页交给选择界面（避免页头被画两遍）
+    if (this.bagSel) return this.renderBagPick(head, body, foot);
+    this.header(head, '背包', '精灵球 '+G.balls+' · 糖果 '+G.bag.candy+' · 进化石 '+G.bag.stone);
+
+    var items = [
+      { key:'ball',  icon:'⚪', name:'精灵球',       n:G.balls,      desc:'战斗中点「捕捉」消耗，野生精灵残血时成功率更高' },
+      { key:'candy', icon:'🍬', name:'亲密度糖果',   n:G.bag.candy,  desc:'给一只精灵 +2 羁绊，加快进化；羁绊是进化的唯一条件' },
+      { key:'stone', icon:'💎', name:'进化石',       n:G.bag.stone,  desc:'让满足羁绊条件的精灵立刻进化（羁绊不够会被拒绝）' }
+    ];
+
+    var rowH = Math.min((body.h - this.gap*2) / items.length, fz(84));
+    var y = body.y;
+    for (var i=0;i<items.length;i++){
+      var it = items[i];
+      var usable = it.key !== 'ball' && it.n > 0;
+      var g = this.add.graphics().setDepth(5);
+      g.fillStyle(usable ? 0x1c2f52 : 0x141a2e, 0.96);
+      g.fillRoundedRect(body.x, y, body.w, rowH, 9);
+      g.lineStyle(2, usable ? 0x5a86d6 : 0x2b3352, 0.9);
+      g.strokeRoundedRect(body.x, y, body.w, rowH, 9);
+      this.track(g);
+
+      this.utext(body.x+rowH*0.5, y+rowH*0.5, it.icon, Math.round(rowH*0.42), '#fff');
+      var nx = body.x + rowH*0.95;
+      this.utext(nx, y+rowH*0.33, it.name, fz(14), '#eaf0ff', 0, 7);
+      var ds = this.utext(nx, 0, it.desc, Math.max(9, Math.round(fz(10.5))), '#8fa0cc', 0, 7);
+      ds.setWordWrapWidth(body.w - (nx-body.x) - fz(70), true);
+      ds.setY(y+rowH*0.48+ds.height*0.5);
+
+      this.utext(body.x+body.w-rowH*0.35, y+rowH*0.42, '×'+it.n,
+                 Math.max(11, Math.round(fz(15))), it.n>0 ? '#ffd166' : '#5a6690', 1, 7);
+
+      (function(key, can){
+        self.hit(body.x, y, body.w, rowH, function(){
+          if (!can){ self.flashNote(key==='ball' ? '精灵球在战斗中直接使用' : '数量不足'); return; }
+          self.bagSel = key; self.render();
+        });
+      })(it.key, usable);
+
+      y += rowH + this.gap;
+    }
+
+    this.makeBtn(foot.x, foot.y, Math.min(foot.w*0.34, fz(160)), foot.h, '关闭', this.close.bind(this),
+      { size: fz(13) });
+  };
+
+  // 选择使用对象
+  UIScene.prototype.renderBagPick = async function(head, body, foot){
+    var self = this, fz = this.fz.bind(this);
+    var kind = this.bagSel;
+    var tok = ++this._tok;
+    var label = kind === 'candy' ? '亲密度糖果' : '进化石';
+    this.header(head, '使用 '+label, '选一只精灵', function(){ self.bagSel = null; self.render(); });
+
+    var keys = G.party.map(function(c){ return c.id+'_'+(c.stage||0); });
+    await Promise.all(keys.map(function(k){ return loadTex(self, k); }));
+    if (tok !== this._tok) return;
+
+    var rowH = Math.min((body.h - this.gap*5) / Math.max(1,G.party.length), fz(70));
+    var y = body.y;
+    for (var i=0;i<G.party.length;i++){
+      var c = G.party[i], sp = spOf(c.id);
+      var g = this.add.graphics().setDepth(5);
+      g.fillStyle(0x1a2440, 0.96); g.fillRoundedRect(body.x, y, body.w, rowH, 9);
+      g.lineStyle(2, 0x46557f, 0.9); g.strokeRoundedRect(body.x, y, body.w, rowH, 9);
+      this.track(g);
+
+      var artS = rowH*0.76;
+      if (this.textures.exists(c.id+'_'+(c.stage||0))){
+        var im = this.add.image(body.x+rowH*0.5, y+rowH*0.5, c.id+'_'+(c.stage||0)).setDepth(6);
+        im.setScale(artS/256); this.track(im);
+      }
+      var nx = body.x + rowH*0.95;
+      this.utext(nx, y+rowH*0.36, sp.stages[c.stage||0]+'  Lv.'+c.lv, fz(14), '#eaf0ff', 0, 7);
+      var evoNeed = (c.stage||0) < 2 ? EVO_BOND[(c.stage||0)+1] : 0;
+      var info = (c.stage||0) >= 2
+        ? '最终形态 · 羁绊 '+c.bond
+        : '羁绊 '+c.bond+' / 进化需 '+evoNeed;
+      this.utext(nx, y+rowH*0.68, info, fz(11), '#8fa0cc', 0, 7);
+
+      (function(idx){
+        self.hit(body.x, y, body.w, rowH, function(){ self.useItem(idx, kind); });
+      })(i);
+
+      y += rowH + this.gap;
+    }
+
+    this.makeBtn(foot.x, foot.y, Math.min(foot.w*0.34, fz(160)), foot.h, '← 返回背包', function(){
+      self.bagSel = null; self.render();
+    }, { size: fz(13) });
+  };
+
+  // 道具效果：糖果 +2 羁绊；进化石在羁绊够时进化（规则同原版 evolveInst）
+  UIScene.prototype.useItem = function(idx, kind){
+    var c = G.party[idx];
+    if (!c) return;
+    if (kind === 'candy'){
+      if (G.bag.candy <= 0){ this.flashNote('糖果不够了'); return; }
+      if (c.bond >= SR.CFG.MAX_BOND){ this.flashNote('羁绊已满'); return; }
+      G.bag.candy--;
+      c.bond = Math.min(SR.CFG.MAX_BOND, c.bond + 2);
+      saveG(); AUDIO.sfx('levelup');
+      this.flashNote(spOf(c.id).stages[c.stage||0]+' 羁绊 +2（'+c.bond+'/'+SR.CFG.MAX_BOND+'）');
+      this.render();
+      return;
+    }
+    // stone
+    if (G.bag.stone <= 0){ this.flashNote('进化石不够了'); return; }
+    if ((c.stage||0) >= 2){ this.flashNote('已是最终形态'); return; }
+    var need = EVO_BOND[(c.stage||0)+1];
+    if (c.bond < need){ this.flashNote('羁绊不足，需要 '+need+'（当前 '+c.bond+'）'); return; }
+    G.bag.stone--;
+    var sp = spOf(c.id);
+    var from = sp.stages[c.stage||0];
+    c.stage = (c.stage||0) + 1;
+    c.hp = maxHpOf(c);
+    dexGot(c.id, c.stage);
+    saveG();
+    AUDIO.sfx('levelup');
+    this.flashNote('🦋 进化！'+from+' → '+sp.stages[c.stage]);
+    this.bagSel = null;
+    this.render();
+  };
+
+  UIScene.prototype.flashNote = function(msg){
+    var el = document.getElementById('toast');
+    if (!el) return;
+    el.textContent = msg; el.classList.add('show');
+    clearTimeout(el._t); el._t = setTimeout(function(){ el.classList.remove('show'); }, 1700);
+  };
+
   // ===== 启动 =====
   new Phaser.Game({
     type: Phaser.AUTO, parent: 'game', backgroundColor: '#101018', pixelArt: true,
     scale: { mode: Phaser.Scale.RESIZE, width: '100%', height: '100%' },
-    scene: [WorldScene, BattleScene]
+    scene: [WorldScene, BattleScene, UIScene]
   });
 })();
 </script>
