@@ -6,3 +6,14 @@ art-基准图/
 
 # 本地备份
 index.html.bak
+
+# 美术预览/临时产图（本机调试用，不入库）
+_*.png
+
+# 本地依赖（canvas 预览工具用，不入库）
+node_modules/
+package-lock.json
+
+# 冻结/试验副本
+index.html.map-wip
+index.html.pre-map
