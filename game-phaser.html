@@ -3,18 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>灵契大陆 · Phaser 4 (batch 11 技能特效重做/升级习得)</title>
+<title>灵契大陆 · Phaser 4 (batch 12 地图扩展/路线指引/UI 重排)</title>
 <style>
   html,body{margin:0;height:100%;background:#101018;overflow:hidden;font-family:system-ui,"PingFang SC",sans-serif;
             -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
   #game{width:100vw;height:100vh}
-  #hud{position:fixed;left:8px;top:8px;color:#fff;font-size:13px;line-height:1.55;
-       background:rgba(0,0,0,.5);padding:8px 12px;border-radius:9px;pointer-events:none;
+  /* 状态条：挪到功能键下面一行，字号收小一档，只留三行真正会看的信息 */
+  #hud{position:fixed;left:calc(8px + env(safe-area-inset-left,0px));
+       top:calc(8px + var(--mbs) + 8px + env(safe-area-inset-top,0px));
+       color:#fff;font-size:11.5px;line-height:1.5;max-width:min(58vw,430px);
+       background:rgba(0,0,0,.44);padding:5px 10px;border-radius:9px;pointer-events:none;
        text-shadow:0 1px 2px rgba(0,0,0,.6)}
   #hint{position:fixed;left:8px;bottom:8px;color:#fff;opacity:.72;font-size:12px;pointer-events:none}
-  #toast{position:fixed;left:50%;bottom:64px;transform:translateX(-50%);background:rgba(0,0,0,.72);
-         color:#fff;padding:8px 18px;border-radius:20px;font-size:14px;opacity:0;transition:opacity .2s;
-         pointer-events:none;white-space:nowrap}
+  #toast{position:fixed;left:50%;bottom:64px;transform:translateX(-50%);background:rgba(0,0,0,.78);
+         color:#fff;padding:8px 18px;border-radius:14px;font-size:14px;opacity:0;transition:opacity .2s;
+         pointer-events:none;white-space:pre-line;text-align:center;line-height:1.5;
+         max-width:min(84vw,420px);box-shadow:0 6px 22px rgba(0,0,0,.45)}
   #toast.show{opacity:1}
   #err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;color:#ff6b6b;
        font-size:16px;text-align:center;padding:24px;white-space:pre-line;line-height:1.7}
@@ -82,11 +86,16 @@
          background:rgba(11,16,38,.80);border:1px solid rgba(88,106,158,.85);
          pointer-events:none;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.55)}
 
-  /* 任务导引：指向下一个道馆，但只是指路，不限制你去哪（保留自由探索） */
-  #quest{position:fixed;z-index:18;left:50%;top:calc(10px + env(safe-area-inset-top,0px));
-         transform:translateX(-50%);display:flex;align-items:center;gap:9px;
-         max-width:min(560px,calc(100vw - 240px));
-         padding:8px 16px;border-radius:24px;
+  /* 任务导引：指向下一个道馆，但只是指路，不限制你去哪（保留自由探索）
+     batch12：不再占屏幕正中，改为跟功能键同一条横带、从按钮右侧接出去。
+     这样顶栏是一条完整的「左边按钮 + 右边任务」，画面中央彻底让给场景。 */
+  #quest{position:fixed;z-index:18;
+         left:calc(8px + var(--mbn)*(var(--mbs) + var(--mbg)) + 4px + env(safe-area-inset-left,0px));
+         top:calc(8px + env(safe-area-inset-top,0px));
+         transform:none;display:flex;align-items:center;gap:9px;
+         height:var(--mbs);box-sizing:border-box;padding:0 16px;
+         max-width:min(620px,calc(100vw - (8px + var(--mbn)*(var(--mbs) + var(--mbg)) + 4px) - 66px));
+         border-radius:22px;
          background:rgba(11,16,38,.86);border:1.5px solid rgba(122,150,220,.72);
          box-shadow:0 6px 22px rgba(0,0,0,.45);backdrop-filter:blur(6px);
          color:#dbe6ff;font-size:13px;white-space:nowrap;pointer-events:none}
@@ -130,10 +139,15 @@
           border:1px solid #5a7bd6;background:#243358;color:#e8eeff;font-size:14px;letter-spacing:2px}
   #endBtn:active{background:#31456f}
 
-  /* 右上角菜单入口：图鉴 / 队伍 / 背包 / 徽章 */  #menuBar{position:fixed;z-index:19;display:flex;flex-direction:column;gap:7px;
-           right:calc(10px + env(safe-area-inset-right,0px));
-           top:calc(58px + env(safe-area-inset-top,0px))}
-  #menuBar b{width:44px;height:44px;border-radius:12px;cursor:pointer;user-select:none;
+  /* 功能入口（batch12）：从右侧竖排挪到左上角横排。
+     原来四项竖着挂在右边缘，44px×4 + 间距 ≈ 200px 高，正好压住右半幅画面，
+     战斗里还会糊在敌方信息面板和招式菜单上 —— 现在统一贴左边缘一条。
+     尺寸走 CSS 变量，任务条的位置靠 calc 跟着按钮宽度走，改小屏不用改第二处。 */
+  :root{--mbs:44px;--mbg:7px;--mbn:5}
+  #menuBar{position:fixed;z-index:19;display:flex;flex-direction:row;gap:var(--mbg);
+           left:calc(8px + env(safe-area-inset-left,0px));
+           top:calc(8px + env(safe-area-inset-top,0px))}
+  #menuBar b{width:var(--mbs);height:var(--mbs);border-radius:12px;cursor:pointer;user-select:none;
              display:flex;flex-direction:column;align-items:center;justify-content:center;
              background:rgba(11,16,38,.84);border:2px solid rgba(88,106,158,.92);color:#e8eeff;
              font-size:17px;line-height:1;box-shadow:0 3px 10px rgba(0,0,0,.34);
@@ -141,21 +155,51 @@
   #menuBar b i{font-size:9px;font-style:normal;color:#9fb0dd;margin-top:2px;letter-spacing:0}
   #menuBar b:active{background:rgba(58,90,154,.96);transform:scale(.95)}
   #menuBar b.off{opacity:.42}
+  /* 战斗时整条收起：战斗里这几个键本来就打不开（openUI 会被 inBattle 拦住），
+     留着只会挡住敌方血条和招式名。时段胶囊同理 —— 战斗中不关心天气，
+     但它固定在右下角，正好压住「逃跑」按钮的最后一行 */
+  body.battle #menuBar,body.battle #hud,body.battle #hint,
+  body.battle #clock,body.battle #navCmp{display:none!important}
+  /* 打开图鉴/队伍/背包/徽章时同理：这些页面自己顶部有标题和关闭键，
+     功能键叠上去正好压住「背包」两个字 —— 而且 UI 期间点它们本来就没反应 */
+  body.ui #menuBar,body.ui #hud,body.ui #quest,body.ui #hint,
+  body.ui #clock,body.ui #navCmp,body.ui #gear{display:none!important}
+
+  /* 路线指引罗盘：目标不在画面里时贴边指出方向 */
+  #navCmp{position:fixed;z-index:18;left:0;top:0;display:none;align-items:center;gap:7px;
+          padding:5px 12px 5px 9px;border-radius:20px;pointer-events:none;
+          background:rgba(11,16,38,.88);border:1.5px solid rgba(122,150,220,.85);
+          box-shadow:0 4px 16px rgba(0,0,0,.5);color:#dbe6ff;font-size:12px;
+          white-space:nowrap;transform:translate(-50%,-50%);will-change:transform}
+  #navCmp.on{display:flex}
+  /* 三角箭头用 border 画，朝右为 0°，JS 只改 rotate */
+  #navCmp i{display:block;width:0;height:0;flex:0 0 auto;
+            border-top:7px solid transparent;border-bottom:7px solid transparent;
+            border-left:13px solid #ffd98a}
+  #navCmp b{font-weight:600;letter-spacing:.5px}
+  #navCmp em{font-style:normal;color:#8fb8ff;font-variant-numeric:tabular-nums}
+  body.talk #navCmp{display:none!important}
+
+  /* 矮屏（手机横屏 390~430 高）：一行操作提示要占两行，还压住右下角的时段胶囊，
+     直接收起来 —— 这行字是给第一次打开的人看的，玩两分钟就没用了 */
+  @media (max-height:480px){ #hint{display:none} }
 
   /* 竖屏 / 窄屏：收起文字提示，压缩 HUD，避免遮挡画面 */
   @media (max-width:600px),(orientation:portrait){
+    :root{--mbs:38px;--mbg:6px}
     #hint{display:none}
-    #hud{font-size:11px;padding:6px 9px;line-height:1.5;max-width:52vw}
+    #hud{font-size:10.5px;padding:4px 8px;line-height:1.45;max-width:56vw}
     #toast{bottom:calc(190px + env(safe-area-inset-bottom,0px));font-size:13px;padding:7px 14px}
     #gear{width:34px;height:34px;font-size:16px;top:calc(6px + env(safe-area-inset-top,0px))}
-    #menuBar{top:calc(46px + env(safe-area-inset-top,0px));gap:6px}
-    #menuBar b{width:38px;height:38px;border-radius:10px;font-size:15px}
+    #menuBar{top:calc(6px + env(safe-area-inset-top,0px))}
+    #menuBar b{border-radius:10px;font-size:15px}
     #menuBar b i{font-size:8px}
+    #navCmp{font-size:11px;padding:4px 10px 4px 8px;gap:5px}
     #zone{font-size:17px;letter-spacing:2px;padding:9px 22px 8px;top:12%}
     #clock{font-size:11px;padding:4px 10px;bottom:calc(8px + env(safe-area-inset-bottom,0px))}
-    /* 小屏：任务条落到摇杆正上方左侧，不再跟 HUD / 设置键抢顶部空间 */
+    /* 小屏：任务条落到摇杆正上方左侧，不再跟功能键 / 设置键抢顶部空间 */
     #quest{left:calc(10px + env(safe-area-inset-left,0px));top:auto;transform:none;
-           bottom:calc(136px + env(safe-area-inset-bottom,0px));
+           bottom:calc(136px + env(safe-area-inset-bottom,0px));height:auto;
            max-width:calc(100vw - 24px);font-size:11.5px;padding:6px 12px;gap:7px}
     #dlg{bottom:calc(10px + env(safe-area-inset-bottom,0px));padding:10px 13px 8px}
     #dlgTxt{font-size:13.5px}
@@ -169,7 +213,7 @@
 <body>
 <div id="game"></div>
 <div id="hud">加载中…</div>
-<div id="hint">按住屏幕任意位置朝一个方向拖 → 走路（不按不动） · 双击屏幕切全屏 · 撞上馆主挑战道馆 · 集齐 8 枚徽章挑战冠军 · 右上 🏅 看徽章盒 · 方向键/WASD · Q/E/B 开图鉴/队伍/背包</div>
+<div id="hint">按住屏幕任意位置朝一个方向拖 → 走路（不按不动） · 双击屏幕切全屏 · 撞上馆主挑战道馆 · 集齐 8 枚徽章挑战冠军 · 左上角是功能键 · 方向键/WASD · Q/E/B/R 开图鉴/队伍/背包/徽章 · N 开关路线指引</div>
 <div id="toast"></div>
 <div id="zone"></div>
 <div id="clock"></div>
@@ -187,8 +231,10 @@
   <b data-page="dex" title="精灵图鉴 (Q)">📖<i>图鉴</i></b>
   <b data-page="team" title="我的队伍 (E)">🐾<i>队伍</i></b>
   <b data-page="bag" title="背包 (B)">🎒<i>背包</i></b>
-  <b data-page="badge" title="徽章盒">🏅<i>徽章</i></b>
+  <b data-page="badge" title="徽章盒 (R)">🏅<i>徽章</i></b>
+  <b data-page="nav" id="navBtn" title="路线指引 开/关 (N)">🧭<i>路线</i></b>
 </div>
+<div id="navCmp"><i></i><b></b><em></em></div>
 <div id="cfg">
   <div id="cfgBox">
     <h3>设置</h3>
@@ -214,32 +260,34 @@
   var FONT = '"PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,sans-serif';
 
   // ===== 基础常量（与 src/data/tiles.js 一致）=====
-  var TILE = 32, MAP_W = 48, MAP_H = 34;
+  // batch12：地图 48×34 → 64×46（+80% 面积）。群系半径同步放大、彼此拉开距离，
+  // 中间留出成片的荒野过渡带，走起来才有「大陆」而不是「八个格子」的感觉。
+  var TILE = 32, MAP_W = 64, MAP_H = 46;
   var T = SR.T;
   var TNAME = ['草地','高草','道路','树木','水面','岩石','雪地','沙地','熔岩','遗迹'];
   var WALK = [true,true,true,false,false,false,true,true,false,true];
   var ENC = SR.ENC_CHANCE;
-  var HUB = { x:25, y:17 };
+  var HUB = { x:32, y:23 };
 
   // 遇敌池：40 只精灵必须全部至少出现在一个池里。
   // batch5 时有 6 只（s5/s26/s27/s28/s31/s37）不在任何池 —— 图鉴永远收不齐。
   // 这批按属性归位补进对应群系，并用 test_story 断言覆盖率达到 40/40。
   var BIOMES = [
-    { key:'plains',  name:'微风草原', cx:8,  cy:8,  r:7, pools:['s1','s3','s11','s9','s18','s23','s35','s28'], rare:'s18', sub:'开阔草场 · 微风掠过芒草',
+    { key:'plains',  name:'微风草原', cx:10, cy:10, r:8, pools:['s1','s3','s11','s9','s18','s23','s35','s28'], rare:'s18', sub:'开阔草场 · 微风掠过芒草',
       sky:[0.62,0.80,0.96], ground:[0.48,0.74,0.44], hill:[0.36,0.58,0.36] },
-    { key:'forest',  name:'低语森林', cx:8,  cy:26, r:7, pools:['s3','s12','s1','s10','s22','s24','s39'], rare:'s39', sub:'密林深处 · 树影与孢子',
+    { key:'forest',  name:'低语森林', cx:11, cy:38, r:8, pools:['s3','s12','s1','s10','s22','s24','s39'], rare:'s39', sub:'密林深处 · 树影与孢子',
       sky:[0.34,0.52,0.44], ground:[0.26,0.44,0.32], hill:[0.16,0.30,0.22] },
-    { key:'lake',    name:'碧波湖',   cx:22, cy:7,  r:7, pools:['s2','s9','s4','s19','s20','s21'],       rare:'s20', sub:'碧水岸边 · 潮湿沙洲',
+    { key:'lake',    name:'碧波湖',   cx:30, cy:8,  r:8, pools:['s2','s9','s4','s19','s20','s21'],       rare:'s20', sub:'碧水岸边 · 潮湿沙洲',
       sky:[0.53,0.76,0.94], ground:[0.36,0.66,0.72], hill:[0.30,0.52,0.62] },
-    { key:'volcano', name:'灰烬火山', cx:41, cy:8,  r:7, pools:['s1','s11','s13','s7','s16','s17','s33'], rare:'s17', sub:'熔岩地貌 · 灼热岩层',
+    { key:'volcano', name:'灰烬火山', cx:52, cy:11, r:8, pools:['s1','s11','s13','s7','s16','s17','s33'], rare:'s17', sub:'熔岩地貌 · 灼热岩层',
       sky:[0.42,0.26,0.22], ground:[0.30,0.20,0.18], hill:[0.22,0.14,0.14] },
-    { key:'snow',    name:'霜白雪原', cx:41, cy:26, r:7, pools:['s8','s13','s7','s33','s34'],            rare:'s33', sub:'极寒高原 · 霜与冰晶',
+    { key:'snow',    name:'霜白雪原', cx:52, cy:38, r:8, pools:['s8','s13','s7','s33','s34'],            rare:'s33', sub:'极寒高原 · 霜与冰晶',
       sky:[0.72,0.84,0.94], ground:[0.84,0.90,0.95], hill:[0.64,0.75,0.85] },
-    { key:'desert',  name:'流沙荒漠', cx:22, cy:27, r:6, pools:['s7','s13','s4','s32','s25','s31','s26'], rare:'s25', sub:'流沙之地 · 干热风蚀',
+    { key:'desert',  name:'流沙荒漠', cx:30, cy:39, r:7, pools:['s7','s13','s4','s32','s25','s31','s26'], rare:'s25', sub:'流沙之地 · 干热风蚀',
       sky:[0.90,0.76,0.50], ground:[0.86,0.72,0.46], hill:[0.74,0.58,0.34] },
-    { key:'ruins',   name:'遗忘遗迹', cx:13, cy:17, r:4, pools:['s10','s6','s14','s29','s30','s38','s5','s27'], rare:'s38', sub:'上古石阵 · 无人的守夜',
+    { key:'ruins',   name:'遗忘遗迹', cx:13, cy:24, r:5, pools:['s10','s6','s14','s29','s30','s38','s5','s27'], rare:'s38', sub:'上古石阵 · 无人的守夜',
       sky:[0.36,0.34,0.46], ground:[0.40,0.39,0.46], hill:[0.26,0.25,0.34] },
-    { key:'ridge',   name:'龙脊山道', cx:35, cy:17, r:4, pools:['s14','s15','s7','s40','s36','s37'], rare:'s40', sub:'龙脊山道 · 高处强风',
+    { key:'ridge',   name:'龙脊山道', cx:50, cy:24, r:6, pools:['s14','s15','s7','s40','s36','s37'], rare:'s40', sub:'龙脊山道 · 高处强风',
       sky:[0.56,0.60,0.68], ground:[0.48,0.48,0.52], hill:[0.32,0.33,0.40] }
   ];
   var BIOME_BY_KEY = {}; BIOMES.forEach(function(b){ BIOME_BY_KEY[b.key]=b; });
@@ -260,6 +308,7 @@
       cloth:'#6BBF59', cloth2:'#3E8E41', hair:'#6B4A2B',
       intro:'草会记住每一次风的方向。让我看看你听得懂多少。',
       win:'…你的节奏比风还快。这枚萌芽徽章，你配得上。',
+      after:'草原的风是软的，所以这儿的人学不会狠。等见着别的馆主，你就知道风也有硬的时候。',
       team:[['s3',0,10],['s23',0,11]] },
 
     { key:'forest',  badge:'苔痕徽章', icon:'moss',    color:0x4FA87A,
@@ -267,6 +316,7 @@
       cloth:'#2E8B6B', cloth2:'#1C5E47', hair:'#3A2A1A',
       intro:'林子里每片叶子都在说话，你听见了吗？',
       win:'森林把你的脚步声记下来了。苔痕徽章归你。',
+      after:'树活着的时候不说话，死了才有人听。别急着长大——先学会站着。',
       team:[['s12',1,13],['s22',1,13],['s24',1,14]] },
 
     { key:'desert',  badge:'砂砾徽章', icon:'sand',    color:0xD8A84A,
@@ -274,6 +324,7 @@
       cloth:'#D9A441', cloth2:'#A8762A', hair:'#3A2A1A',
       intro:'沙子从不站队，它只站在赢的人脚边。',
       win:'啧，你踩过的沙子比我稳。砂砾徽章，拿去。',
+      after:'沙子底下埋着很多人的骄傲。你的还立着，收好，别埋进去。',
       team:[['s7',1,16],['s32',1,17]] },
 
     { key:'ruins',   badge:'夜辉徽章', icon:'moon',    color:0x8A78D8,
@@ -281,6 +332,7 @@
       cloth:'#46506B', cloth2:'#2E3550', hair:'#15131F',
       intro:'这地方没人来。你来了，说明你带着光。',
       win:'夜没有吞掉你。夜辉徽章，收好。',
+      after:'夜不害人，害人的是怕黑的人。你身上有光，别在更亮的地方弄丢。',
       team:[['s29',1,19],['s30',1,19],['s10',2,21]] },
 
     { key:'lake',    badge:'潮汐徽章', icon:'drop',    color:0x4D9BDE,
@@ -288,6 +340,7 @@
       cloth:'#3E9BD6', cloth2:'#2A6DA0', hair:'#2A2A3A',
       intro:'钓鱼和战斗一样，急的人先输。',
       win:'你的心比湖面还静。潮汐徽章，给你了。',
+      after:'水最有耐心。你要赢的从来不是我，是水底下那个更急的自己。',
       team:[['s2',1,22],['s21',1,22],['s20',2,24]] },
 
     { key:'ridge',   badge:'龙脊徽章', icon:'wing',    color:0x8A6BE8,
@@ -295,6 +348,7 @@
       cloth:'#8A5CD6', cloth2:'#5A2FA0', hair:'#2A2A3A',
       intro:'山道上的风能把人吹下去。站稳了再说。',
       win:'你在我头顶飞过去了。龙脊徽章，是你的荣誉。',
+      after:'山道上的风只认站得稳的人。站稳了，你就比风高。',
       team:[['s14',1,25],['s15',1,25],['s40',2,27]] },
 
     { key:'volcano', badge:'炽焰徽章', icon:'flame',   color:0xE2603A,
@@ -302,6 +356,7 @@
       cloth:'#E2603A', cloth2:'#A8351C', hair:'#2A1A14',
       intro:'这里每一步都在烧。你还要往前走吗？',
       win:'好！你的血是滚的！炽焰徽章拿稳了。',
+      after:'火不是烧给别人看的，烧的是你心里那点不肯熄的东西。别让它灭。',
       team:[['s17',2,28],['s11',2,28],['s16',2,30]] },
 
     { key:'snow',    badge:'霜晶徽章', icon:'crystal', color:0x7FD3E8,
@@ -309,6 +364,7 @@
       cloth:'#7FD3E8', cloth2:'#4FA8C4', hair:'#D9E8F0',
       intro:'最后一座馆。冷会让人看清自己剩下多少决心。',
       win:'冰化了。你带走了这里最硬的一块——霜晶徽章。',
+      after:'冰把声音都冻住了，所以我话少。你听见的这句，是真的。',
       team:[['s34',2,32],['s8',2,32],['s33',2,34]] }
   ];
   var GYM_BY_KEY = {}; GYMS.forEach(function(g){ GYM_BY_KEY[g.key] = g; });
@@ -370,7 +426,26 @@
   function mult(a,d){ var row=SR.TYPE_CHART[a]; return (row && row[d]!==undefined) ? row[d] : 1; }
   function findNature(n){ for (var i=0;i<SR.NATURES.length;i++) if (SR.NATURES[i].name===n) return SR.NATURES[i]; return SR.NATURES[0]; }
   function randNature(){ return pick(SR.NATURES); }
-  function stageScale(st){ return 1+st*0.18; }
+  /* 进化成长（batch12）
+     旧版 stageScale = 1 + 0.18*stage —— 一阶升二阶只涨 18%，进化完打起来手感没差别，
+     玩家自然觉得「进化只是个换皮」。
+     现在玩家侧：一阶→二阶 攻/防/速 ×1.50、HP ×1.58；二阶→三阶 ×2.05、×2.20。
+     对手侧（野生 / 馆主 / 冠军）按 STAGE_DAMP 打折兑现 —— 这三类队伍写死了大量
+     二阶三阶，全额兑现会直接碾压还没进化的玩家，难度曲线崩掉。
+     玩家进化是「和精灵的羁绊兑现」，野生个体只是「长成了那个样子」，这个不对称是有意的。 */
+  var STAGE_ATK  = [1, 1.50, 2.05];
+  var STAGE_HP   = [1, 1.58, 2.20];
+  var STAGE_DAMP = 0.58;
+  function stageMul(st, damp){
+    st = clamp(st|0, 0, 2);
+    return 1 + (STAGE_ATK[st] - 1) * (damp === undefined ? 1 : damp);
+  }
+  function stageHpMul(st, damp){
+    st = clamp(st|0, 0, 2);
+    return 1 + (STAGE_HP[st] - 1) * (damp === undefined ? 1 : damp);
+  }
+  // 兼容旧调用（图鉴/详情页只想知道「进化大概强多少」）
+  function stageScale(st){ return stageMul(st, 1); }
   function lvScale(lv){ return clamp(1+((lv||20)-20)*0.012, .7, 1.55); }
   function lvHpScale(lv){ return clamp(1+((lv||20)-20)*0.022, .78, 1.85); }
   var MOVE_LV = [1,8,16];
@@ -497,8 +572,8 @@
     for (i=0;i<before.length;i++) if (after.indexOf(before[i]) < 0) lost.push(before[i]);
     return { got:mv.name, lost:lost };
   }
-  function buildStats(sp, nature, stage, lv){
-    var sc = stageScale(stage)*lvScale(lv), hpSc = stageScale(stage)*lvHpScale(lv);
+  function buildStats(sp, nature, stage, lv, damp){
+    var sc = stageMul(stage, damp)*lvScale(lv), hpSc = stageHpMul(stage, damp)*lvHpScale(lv);
     var hp = (sp.base.hp*2+60)*hpSc, atk = sp.base.atk*sc, def = sp.base.def*sc, spd = sp.base.spd*sc;
     function apply(s,m){ if(s==='atk')atk*=m; else if(s==='def')def*=m; else if(s==='spd')spd*=m; else if(s==='hp')hp*=m; }
     if (nature.up) apply(nature.up,1.1);
@@ -509,8 +584,8 @@
     if (sp.ability.kind==='swift') spd*=1.1;
     return { hp:Math.floor(hp), atk:Math.floor(atk), def:Math.floor(def), spd:Math.floor(spd) };
   }
-  function buildFighter(sp, stage, nature, lv){
-    var L = lv||20, stats = buildStats(sp,nature,stage,L);
+  function buildFighter(sp, stage, nature, lv, damp){
+    var L = lv||20, stats = buildStats(sp,nature,stage,L,damp);
     return { species:sp, stage:stage, nature:nature, lv:L, name:sp.stages[stage],
              stats:stats, hp:stats.hp, maxHp:stats.hp, moves:movesFor(sp,L) };
   }
@@ -762,16 +837,51 @@
         case 'ridge':  grid[y][x]= r<.4?T.ROCK : (r<.62?T.TALL:T.PATH); break;
       }
     }
+
+    /* 荒野过渡带（batch12）
+       八个群系之外原本是整片纯草地，地图放大后成了大片「空」。这里补一层
+       稀疏树丛 + 高草，让群系之间也有地貌。关键取舍：
+       - 只用确定哈希，不消耗 rng 流，群系内部的生成结果与旧版逐格一致；
+       - 树最多 14%，且主干道随后会被整条 carveTo 抹平 → 路网永远连通，
+         不会出现「树墙把某个道馆封死」。 */
+    for (var y=2;y<MAP_H-2;y++) for (var x=2;x<MAP_W-2;x++){
+      if (biomeMap[y][x]) continue;
+      var wv = h2(x,y,71);
+      if (wv < 0.14) grid[y][x] = T.TREE;
+      else if (wv < 0.56) grid[y][x] = T.TALL;
+      else grid[y][x] = T.GRASS;
+    }
+
     for (var y=HUB.y-4;y<=HUB.y+4;y++) for (var x=HUB.x-4;x<=HUB.x+4;x++){
       if (x<2||y<2||x>=MAP_W-2||y>=MAP_H-2) continue;
       grid[y][x]=T.PATH; biomeMap[y][x]=null;
     }
-    function carveTo(tx,ty){
-      var x=HUB.x, y=HUB.y;
+    function carveTo(sx, sy, tx, ty){
+      var x=sx, y=sy;
       while(x!==tx){ x+=Math.sign(tx-x); if(x>=2&&x<MAP_W-2&&y>=2&&y<MAP_H-2){ grid[y][x]=T.PATH; biomeMap[y][x]=null; } }
       while(y!==ty){ y+=Math.sign(ty-y); if(x>=2&&x<MAP_W-2&&y>=2&&y<MAP_H-2){ grid[y][x]=T.PATH; biomeMap[y][x]=null; } }
     }
-    for (var j=0;j<BIOMES.length;j++) carveTo(BIOMES[j].cx, BIOMES[j].cy);
+    for (var j=0;j<BIOMES.length;j++) carveTo(HUB.x, HUB.y, BIOMES[j].cx, BIOMES[j].cy);
+    /* 环线：只靠「中心到八方」的星形路网，走起来每次都要回广场，地图越大越枯燥。
+       再拉五条群系之间的连接路，形成可以绕圈的闭环。
+       用阶梯对角线而不是 L 形折线 —— L 形全部拐直角，放大后一眼看出是网格。 */
+    function carveLine(ax, ay, bx, by){
+      var cx=ax, cy=ay, dx=Math.abs(bx-ax), dy=Math.abs(by-ay);
+      var sx = bx>ax?1:-1, sy = by>ay?1:-1, err = dx-dy;
+      for (var guard=0; guard<4096; guard++){
+        if (cx>=2&&cx<MAP_W-2&&cy>=2&&cy<MAP_H-2){ grid[cy][cx]=T.PATH; biomeMap[cy][cx]=null; }
+        if (cx===bx && cy===by) break;
+        var e2 = 2*err;
+        if (e2 > -dy){ err -= dy; cx += sx; }
+        if (e2 < dx){ err += dx; cy += sy; }
+      }
+    }
+    var LINKS = [['plains','ruins'],['ruins','forest'],['volcano','ridge'],['ridge','snow'],['lake','volcano'],
+                 ['snow','desert'],['forest','desert']];
+    for (var li=0; li<LINKS.length; li++){
+      var A = BIOME_BY_KEY[LINKS[li][0]], B = BIOME_BY_KEY[LINKS[li][1]];
+      carveLine(A.cx, A.cy, B.cx, B.cy);
+    }
     return { grid:grid, biomeMap:biomeMap };
   }
   function biomeAt(x,y,biomeMap){
@@ -1055,6 +1165,10 @@
                          noise(t+0.33, 0.5, 0.09, 300, 2600, 'bandpass'); break;
         case 'faint':    tone(440, t, 0.55, 'sawtooth', 0.07, null, 70); break;
         case 'levelup':  [0,4,7,12,16].forEach(function(s,i){ tone(mf(72+s), t+i*0.075, 0.26, 'triangle', 0.085); }); break;
+        // 进化：比升级更长、更高、带一层亮片噪音 —— 玩家点下进化石要听见「这件事很大」
+        case 'evolve':   [0,7,12,19,24].forEach(function(s,i){ tone(mf(64+s), t+i*0.11, 0.46, 'triangle', 0.09); });
+                         [0,12,19].forEach(function(s,i){ tone(mf(76+s), t+0.42+i*0.07, 0.5, 'sine', 0.05, mBus); });
+                         noise(t+0.10, 0.9, 0.05, 900, 5200, 'bandpass', 0.7); break;
         case 'win':      [0,4,7,12,7,12,16].forEach(function(s,i){ tone(mf(69+s), t+i*0.13, 0.30, 'triangle', 0.085); }); break;
         case 'lose':     [0,-3,-7,-12].forEach(function(s,i){ tone(mf(64+s), t+i*0.20, 0.42, 'sine', 0.095); }); break;
         case 'throw':    noise(t, 0.34, 0.085, 500, 2800, 'bandpass'); break;
@@ -1191,6 +1305,97 @@
     var t = document.getElementById('questTxt'), n = document.getElementById('questNum');
     if (t) t.textContent = q.title + ' — ' + q.hint;
     if (n) n.textContent = q.num;
+  }
+
+  // 拿完徽章后的「下一站」提示。地图扩到 64×46 之后，只报一句「战斗胜利」
+  // 会让玩家站在原地不知道往哪走 —— 这里直接把下一馆的群系和馆主写出来，
+  // 和路线指引指向的是同一个目标（都走 nextGym，不会互相打架）。
+  function chapterHook(){
+    if (G.cleared) return '旅程继续 · 自由探索';
+    if (G.badges.length >= GYMS.length) return '最后的对手：冠军 曜（灵契广场东侧）';
+    var n = nextGym();
+    if (!n) return '';
+    return '下一站：' + BIOME_BY_KEY[n.key].name + ' · ' + n.leader;
+  }
+  // 「草原少年 阿澈」→「阿澈」：台词里连称号一起念太生硬
+  function shortName(s){ return String(s || '').split(/[\s　]+/).pop(); }
+
+  /* =====================================================================
+     路线指引（batch12）
+
+     用户原话：「任务指引没有路线指引，只能自己瞎找」。
+     之前只有一条文字任务条写着「去草原道馆」，但 64×46 的地图上没有方向参照，
+     玩家只能沿着路一格一格试。
+
+     做法分三层，各自解决一个问题：
+
+     1) 地面路径：BFS 在真实碰撞网格上跑最短路，把结果画成一串「>」箭头。
+        走的是玩家真能走的路（绕树、绕水、绕建筑），不是直线拉一条虚线。
+     2) 流动光点：三个光点沿路径匀速爬行 —— 静态线只能说明「路在哪」，
+        有流向才知道「往哪边走」。
+     3) 离屏罗盘：目标出了视野就贴到屏幕边缘指方向，附距离格数；
+        进视野后自动收起，改成目标头顶的浮动信标。
+
+     刻意不做的事：
+     - 不做自动寻路 / 自动行走，走位还是玩家的（保留了摇杆手感）；
+     - 不改任务门槛，指路只是「指」，玩家爱去哪去哪。
+     ===================================================================== */
+  var NAV_KEY = 'sr_nav_on';
+  var NAV_ON = true;
+  try { NAV_ON = localStorage.getItem(NAV_KEY) !== '0'; } catch(e){}
+
+  // 当前指引目标：通关后取消，前置剧情期指向长老，八徽章后指向冠军
+  function navTargetInfo(){
+    if (G.cleared) return null;
+    if (G.badges.length >= GYMS.length)
+      return { kind:'npc', key:'lumen', name:'冠军 曜', hint:'灵契广场东侧 · 冠军战', color:0xFFD98A };
+    if (!G.flags.metElder)
+      return { kind:'npc', key:'elder', name:'长老 岑', hint:'灵契中心附近 · 接主线', color:0xFFD98A };
+    var g = nextGym();
+    if (!g) return null;
+    return { kind:'gym', key:g.key, name:g.leader,
+             hint:BIOME_BY_KEY[g.key].name + ' · ' + g.badge, color:g.color };
+  }
+
+  /* 网格 BFS 最短路。只走 WALK 格；返回含首尾的格序列，不可达返回 null。
+     用 Int32Array 当队列和父指针表：64×46 的图每次重算 ~3k 节点，
+     每走一步重算一次也只要不到 1ms。 */
+  function bfsPath(grid, sx, sy, tx, ty, block){
+    if (sx === tx && sy === ty) return [{x:sx, y:sy}];
+    if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return null;
+    var N = MAP_W * MAP_H;
+    var prev = new Int32Array(N); prev.fill(-1);
+    var q = new Int32Array(N), head = 0, tail = 0;
+    var s = sy * MAP_W + sx, goal = ty * MAP_W + tx;
+    if (!grid[sy] || !grid[ty]) return null;
+    prev[s] = s; q[tail++] = s;
+    var found = false, cur, cx, cy, i, nx, ny, ni;
+    while (head < tail){
+      cur = q[head++];
+      if (cur === goal){ found = true; break; }
+      cx = cur % MAP_W; cy = (cur - cx) / MAP_W;
+      for (i = 0; i < 4; i++){
+        nx = cx + (i === 0 ? 1 : i === 1 ? -1 : 0);
+        ny = cy + (i === 2 ? 1 : i === 3 ? -1 : 0);
+        if (nx < 0 || ny < 0 || nx >= MAP_W || ny >= MAP_H) continue;
+        if (!WALK[grid[ny][nx]]) continue;
+        if (block && block(nx, ny)) continue;
+        ni = ny * MAP_W + nx;
+        if (prev[ni] !== -1) continue;
+        prev[ni] = cur; q[tail++] = ni;
+        if (tail >= N) break;
+      }
+    }
+    if (!found) return null;
+    var out = [], p = goal, pc;
+    while (p !== s){
+      pc = p % MAP_W;
+      out.push({ x:pc, y:(p - pc) / MAP_W });
+      p = prev[p];
+    }
+    out.push({ x:sx, y:sy });
+    out.reverse();
+    return out;
   }
 
   /* ---------------- 对话 ---------------- */
@@ -1543,6 +1748,25 @@
     q.ruin=[[0.80,0.79,0.76],[0.62,0.60,0.60],[0.92,0.91,0.88]];
     return q;
   })();
+  /* 荒野配色（batch12）
+     地图放大后，群系之间出现了大片 biomeMap 为 null 的过渡带。旧逻辑对这类格子
+     调 biomeAt 就近兜底，于是「遗迹的灰」和「山道的青灰」把整条中部横带染成一片
+     石头色，八个群系反而糊在一起分不出来。
+     这里给荒野一套独立的冷绿草地色（比微风草原略暗、略偏青），
+     让群系像岛、荒野像海，一眼能看出「我走出这片区域了」。 */
+  var WILD_PAL = (function(){
+    var q={}, src=PAL.plains, kk;
+    for (kk in src) q[kk]=src[kk];
+    q.grass = [shade([0.44,0.62,0.40], 0.94), shade([0.44,0.62,0.40], 0.80), shade([0.44,0.62,0.40], 1.10)];
+    q.tall  = [shade([0.36,0.56,0.36], 0.92), shade([0.36,0.56,0.36], 0.78), shade([0.36,0.56,0.36], 1.08)];
+    return q;
+  })();
+  // 荒野里没有群系，地表/装饰/树色统一按这套读，不再「就近认领」某个群系
+  function palAt(x, y, biomeMap, core){
+    if (core) return HUB_PAL;
+    var b = (biomeMap && biomeMap[y]) ? biomeMap[y][x] : null;
+    return b ? palOf(b) : WILD_PAL;
+  }
   // 参与柔边的「地面类」—— 树/水/岩/熔岩是物件格，不向外扩散暗色（否则全图出现黑描边）
   var GROUNDY = { 0:1, 1:1, 2:1, 6:1, 7:1, 9:1 };
 
@@ -1557,9 +1781,9 @@
 
     // 1) 基础瓦片，3 变体按坐标哈希选，消除网格重复感
     for (y=0;y<MAP_H;y++) for (x=0;x<MAP_W;x++){
-      k=grid[y][x]; bio=biomeAt(x,y,biomeMap);
+      k=grid[y][x];
       var core = isHubCore(x,y);
-      p = core ? HUB_PAL : palOf(bio);
+      p = palAt(x, y, biomeMap, core);   // 荒野用自己的草地色，不再就近认领群系
       v = Math.floor(h2(x,y,3)*3);
       ctx.save(); ctx.translate(x*TILE,y*TILE);
       paintTile(ctx, core ? 9 : k, p, v, x, y);
@@ -1591,7 +1815,7 @@
         if (!GROUNDY[nk] || nk===k) continue;
         if (isHubCore(x,y) && isHubCore(nx,ny)) continue;   // 广场内部不留接缝
         // 注意：baseOf 返回的是「三阶色组」，这里要取 [0] 底色，直接传数组会得到 NaN
-        nb = isHubCore(nx,ny) ? HUB_PAL.ruin[0] : baseOf(nk, palOf(biomeAt(nx,ny,biomeMap)))[0];
+        nb = baseOf(nk, palAt(nx, ny, biomeMap, isHubCore(nx,ny)))[0];
         ctx.fillStyle=css(nb,0.30);
         if (d===0) ctx.fillRect(x*TILE, y*TILE, TILE, 3);
         else if (d===1) ctx.fillRect(x*TILE+TILE-3, y*TILE, 3, TILE);
@@ -1610,7 +1834,7 @@
         nk=grid[ny][nx];
         if (nk!==4 && nk!==8) continue;
         var isW = nk===4;
-        var col = isW ? baseOf(4, palOf(biomeAt(nx,ny,biomeMap)))[2] : [1.0,0.58,0.22];
+        var col = isW ? baseOf(4, palAt(nx, ny, biomeMap, isHubCore(nx,ny)))[2] : [1.0,0.58,0.22];
         ctx.fillStyle=css(col, isW?0.42:0.30);
         if (d===0) ctx.fillRect(x*TILE, y*TILE, TILE, 3);
         else if (d===1) ctx.fillRect(x*TILE+TILE-3, y*TILE, 3, TILE);
@@ -1625,7 +1849,7 @@
       if (isHubCore(x,y)) continue;                        // 广场保持干净
       if (lmMask && lmMask[y] && lmMask[y][x]) continue;   // 地标脚下不长草叶
       if (h2(x,y,41)>0.22) continue;
-      bio=biomeAt(x,y,biomeMap);
+      bio = biomeMap[y][x];                                // 荒野不装饰成群系的花草
       ctx.save(); ctx.translate(x*TILE,y*TILE);
       paintDecor(ctx, bio?bio.key:'plains', h2(x,y,43), h2(x,y,47));
       ctx.restore();
@@ -2521,6 +2745,11 @@
     wg.fillStyle(0xffffff,1); wg.fillRoundedRect(0,0,14,3.4,1.7);
     wg.generateTexture('wsh',14,4); wg.destroy();
     drawAmbientTex(this);
+    // 路线指引信标：白色实心图钉，运行时按道馆色 tint（白色才能被 tint 完整染色）
+    var nd = this.add.graphics();
+    nd.fillStyle(0xffffff, 1); nd.fillTriangle(0, 0, 26, 0, 13, 18);
+    nd.fillStyle(0xffffff, 0.5); nd.fillRoundedRect(9.5, 20, 7, 6, 3);
+    nd.generateTexture('navDrop', 26, 26); nd.destroy();
   };
 
   WorldScene.prototype.create = function(){
@@ -2655,6 +2884,9 @@
 
     this.refreshHud(G.pos.x, G.pos.y);
     refreshQuest();
+    // 路线指引：先建对象再算一次（此时 player / ent 都已就绪）
+    this.buildNav();
+    this.refreshNav();
 
     // 开场地名条
     var ws = this;
@@ -2668,11 +2900,13 @@
       ws.showZone(startBio.name, startBio.sub);
     });
 
-    // ---- UI 页面快捷键（Q 图鉴 / E 队伍 / B 背包）----
+    // ---- UI 页面快捷键（Q 图鉴 / E 队伍 / B 背包 / R 徽章 / N 路线）----
     this.input.keyboard.on('keydown-Q', function(){ ws.openUI('dex'); });
     this.input.keyboard.on('keydown-E', function(){ ws.openUI('team'); });
     this.input.keyboard.on('keydown-B', function(){ ws.openUI('bag'); });
-    // 右上角菜单按钮（手机主要入口）
+    this.input.keyboard.on('keydown-R', function(){ ws.openUI('badge'); });
+    this.input.keyboard.on('keydown-N', function(){ ws.setNav(!NAV_ON); });
+    // 左上角菜单按钮（手机主要入口）
     var bar = document.getElementById('menuBar');
     if (bar){
       bar.addEventListener('pointerdown', function(ev){
@@ -2681,6 +2915,8 @@
         var page = (el && el.getAttribute) ? el.getAttribute('data-page') : null;
         if (!page) return;
         ev.preventDefault();
+        // 路线键不是页面，是开关
+        if (page === 'nav'){ ws.setNav(!NAV_ON); return; }
         ws.openUI(page);
       });
     }
@@ -2854,6 +3090,7 @@
       self.setPad(true);
       self.refreshHud(self.gx(), self.gy());
       refreshQuest();
+      self.refreshNav();          // 打完馆主可能换了目标（下一枚徽章 / 冠军）
       if (self._battleToast) { self.showToast(self._battleToast); self._battleToast=null; }
       // 战斗后的剧情台词：等 toast 播一会儿再开口，否则两句叠在一起看不清
       if (self._pendingTalk){
@@ -2890,17 +3127,253 @@
     if (!page) page = 'dex';
     this.uiOpen = true;
     this.setPad(false);
+    document.body.classList.add('ui');       // 收起 HUD / 功能键，别压住页面自己的标题
     AUDIO.sfx('click');
     this.scene.pause();
     this.scene.launch('ui', { page: page, world: this });
   };
   WorldScene.prototype.closeUI = function(){
     this.uiOpen = false;
+    document.body.classList.remove('ui');
     this.setPad(true);
     this.refreshHud(this.gx(), this.gy());
   };
   WorldScene.prototype.gx = function(){ return Math.round(this.player.x/TILE - 0.5); };
   WorldScene.prototype.gy = function(){ return Math.round(this.player.y/TILE - 0.5); };
+
+  /* ---------------- 路线指引：建对象 / 重算 / 绘制 / 每帧推进 ---------------- */
+  WorldScene.prototype.navEntity = function(info){
+    if (!info || !this.ent) return null;
+    var list = info.kind === 'gym' ? this.ent.trainers : this.ent.npcs, i;
+    for (i = 0; i < list.length; i++) if (list[i].key === info.key) return list[i];
+    return null;
+  };
+
+  WorldScene.prototype.buildNav = function(){
+    // 地面路径 depth 4：压在地表烘焙(0)/水面高光(1)/脚下柔光(3)之上，
+    // 但仍在树、建筑、人物按 y 排序的图层之下 —— 树冠会自然盖住路，不会穿模
+    this.navG = this.add.graphics().setDepth(4);
+    this.navPulses = [];
+    for (var i = 0; i < 3; i++){
+      this.navPulses.push(this.add.image(0, 0, 'a_glow')
+        .setDepth(5).setVisible(false).setDisplaySize(26, 26));
+    }
+    // 目标信标：depth 6000 越过昼夜蒙版(5000)，夜里也能一眼看见
+    this.navMarkGlow = this.add.image(0, 0, 'a_glow').setDepth(5999)
+      .setVisible(false).setDisplaySize(78, 78).setAlpha(0.3);
+    this.navMark = this.add.image(0, 0, 'navDrop').setDepth(6000)
+      .setVisible(false).setOrigin(0.5, 1);
+
+    this.navPath = null; this.navPts = null; this.navSeg = null; this.navAt = null;
+    this.navTotal = 0; this.navT = 0; this.navClock = 0;
+    this.navCmpEl = document.getElementById('navCmp');
+    this.navArrEl = this.navCmpEl ? this.navCmpEl.querySelector('i') : null;
+    this.navNameEl = this.navCmpEl ? this.navCmpEl.querySelector('b') : null;
+    this.navDistEl = this.navCmpEl ? this.navCmpEl.querySelector('em') : null;
+    this.navCmpOn = false;
+  };
+
+  // 重算目标与路径。玩家每走一步都会调，BFS 最多扫 2944 格，代价可以忽略。
+  WorldScene.prototype.refreshNav = function(){
+    if (!this.navG) return;
+    var info = NAV_ON ? navTargetInfo() : null;
+    var ent = this.navEntity(info);
+    this.navInfo = info; this.navEnt = ent;
+    this.setNavBtn();
+    if (!info || !ent){ this.navPath = null; this.drawNav(); return; }
+    // 绕开挡在路上的 NPC / 馆主：否则路线会从长老身上穿过去，
+    // 玩家照着走反而先被拉进一段对话。终点自己那格不算障碍。
+    var avoid = {}, self = this;
+    var addAvoid = function(o){
+      if (o.x === ent.x && o.y === ent.y) return;
+      avoid[o.x + ',' + o.y] = 1;
+    };
+    this.ent.npcs.forEach(addAvoid);
+    this.ent.trainers.forEach(addAvoid);
+    var px = this.gx(), py = this.gy();
+    var p = bfsPath(this.grid, px, py, ent.x, ent.y, function(x, y){ return avoid[x + ',' + y] === 1; });
+    // 万一路口被人物堵死，退回不避让的版本 —— 指路宁可穿人也不能断
+    if (!p) p = bfsPath(this.grid, px, py, ent.x, ent.y);
+    this.navPath = p;
+    this.drawNav();
+  };
+
+  // 道馆色多半是深绿/深蓝，直接铺在同类色地面上会糊掉 → 提亮一档再画
+  function navTint(c, k){
+    var r = (c >> 16) & 255, g2 = (c >> 8) & 255, b = c & 255;
+    r = Math.round(r + (255 - r) * k);
+    g2 = Math.round(g2 + (255 - g2) * k);
+    b = Math.round(b + (255 - b) * k);
+    return (r << 16) | (g2 << 8) | b;
+  }
+
+  WorldScene.prototype.drawNav = function(){
+    var g = this.navG;
+    if (!g) return;
+    g.clear();
+    var path = this.navPath, info = this.navInfo, i;
+    if (!path || path.length < 2 || !info){
+      this.navTotal = 0; this.navPts = null; this.navSeg = null; this.navAt = null;
+      for (i = 0; i < this.navPulses.length; i++) this.navPulses[i].setVisible(false);
+      if (this.navMark) this.navMark.setVisible(false);
+      if (this.navMarkGlow) this.navMarkGlow.setVisible(false);
+      return;
+    }
+
+    var H2 = TILE / 2, pts = [];
+    for (i = 0; i < path.length; i++) pts.push({ x:path[i].x*TILE + H2, y:path[i].y*TILE + H2 });
+    if (this.player) pts[0] = { x:this.player.x, y:this.player.y };   // 首点贴脚下
+
+    var col = navTint(info.color, 0.32);
+    // 两层线：宽而淡的一层当柔光，窄的一层当路脊；再垫一层深色保证任何地面上都看得见
+    g.lineStyle(17, 0x0a1024, 0.10); g.strokePoints(pts, false, false);
+    g.lineStyle(15, col, 0.11); g.strokePoints(pts, false, false);
+    g.lineStyle(3.5, col, 0.36); g.strokePoints(pts, false, false);
+
+    // 弧长参数化：箭头与流动光点共用同一套「按距离取点」
+    var lens = [], cum = [0], total = 0;
+    for (i = 0; i < pts.length - 1; i++){
+      var L = Math.hypot(pts[i+1].x - pts[i].x, pts[i+1].y - pts[i].y) || 0.001;
+      lens.push(L); total += L; cum.push(total);
+    }
+    this.navPts = pts; this.navTotal = total; this.navSeg = { lens:lens, cum:cum };
+    this.navAt = function(s){
+      s = clamp(s, 0, total);
+      var j = 0;
+      while (j < lens.length - 1 && cum[j+1] < s) j++;
+      var a = pts[j], b = pts[j+1], t = (s - cum[j]) / (lens[j] || 1);
+      return { x:a.x + (b.x-a.x)*t, y:a.y + (b.y-a.y)*t,
+               ux:(b.x-a.x)/(lens[j] || 1), uy:(b.y-a.y)/(lens[j] || 1) };
+    };
+
+    // 「>」箭头：每 30px 一枚，尖端朝下一段。
+    // 每枚画两遍：先深色描底、再亮色描面 —— 草地/雪地/石板/岩浆都压不住它
+    for (var s = 40; s < total - 10; s += 30){
+      var p = this.navAt(s), nx = -p.uy, ny = p.ux;
+      var ax = p.x - p.ux*5, ay = p.y - p.uy*5;
+      var bx = p.x + p.ux*6, by = p.y + p.uy*6;
+      g.lineStyle(8, 0x0a1024, 0.34);
+      g.beginPath();
+      g.moveTo(ax + nx*6.5, ay + ny*6.5); g.lineTo(bx, by);
+      g.lineTo(ax - nx*6.5, ay - ny*6.5);
+      g.strokePath();
+      g.lineStyle(4, col, 0.95);
+      g.beginPath();
+      g.moveTo(ax + nx*6.5, ay + ny*6.5); g.lineTo(bx, by);
+      g.lineTo(ax - nx*6.5, ay - ny*6.5);
+      g.strokePath();
+    }
+    // 终点：脚下一圈，提示「撞上去就开战」
+    var end = pts[pts.length-1];
+    g.lineStyle(6, 0x0a1024, 0.30); g.strokeCircle(end.x, end.y, 15);
+    g.lineStyle(3, col, 0.70); g.strokeCircle(end.x, end.y, 15);
+    g.lineStyle(2, col, 0.26); g.strokeCircle(end.x, end.y, 22);
+
+    for (i = 0; i < this.navPulses.length; i++) this.navPulses[i].setVisible(true).setTint(col);
+  };
+
+  WorldScene.prototype.tickNav = function(dt){
+    if (!this.navG) return;
+    this.navClock += dt;
+
+    // 流动光点：恒定 190px/s（≈6 格/秒），路径越长走得越久，不按百分比推进
+    var total = this.navTotal || 0, i, p, t, q;
+    if (NAV_ON && this.navPath && total > 0 && this.navAt){
+      this.navT = (this.navT + dt * 190 / total) % 1;
+      for (i = 0; i < this.navPulses.length; i++){
+        p = this.navPulses[i];
+        t = (this.navT + i / this.navPulses.length) % 1;
+        q = this.navAt(t * total);
+        p.setVisible(true).setPosition(q.x, q.y - 3)
+         .setAlpha(0.16 + 0.44 * Math.sin(t * Math.PI));
+      }
+    } else {
+      for (i = 0; i < this.navPulses.length; i++) this.navPulses[i].setVisible(false);
+    }
+
+    // 目标信标：上下浮动 + 柔光呼吸
+    var ent = this.navEnt, info = this.navInfo;
+    if (this.navMark){
+      if (NAV_ON && ent && info){
+        var bx = ent.x*TILE + TILE/2, by = ent.y*TILE + TILE/2;
+        var bob = Math.sin(this.navClock * 0.0042) * 5;
+        this.navMark.setVisible(true).setPosition(bx, by - 40 + bob).setTint(navTint(info.color, 0.30));
+        this.navMarkGlow.setVisible(true).setPosition(bx, by - 52 + bob).setTint(navTint(info.color, 0.18))
+          .setAlpha(0.18 + 0.12 * Math.sin(this.navClock * 0.0042 + 1.2));
+      } else {
+        this.navMark.setVisible(false);
+        this.navMarkGlow.setVisible(false);
+      }
+    }
+    this.updateCompass();
+  };
+
+  // 离屏罗盘：目标出了视野就贴边指方向 + 距离，进视野自动收起
+  WorldScene.prototype.updateCompass = function(){
+    var el = this.navCmpEl;
+    if (!el) return;
+    var ent = this.navEnt, info = this.navInfo;
+    if (!NAV_ON || !ent || !info || !this.player){ this.hideCompass(); return; }
+    var cam = this.cameras.main, z = cam.zoom || 1;
+    var wx = ent.x*TILE + TILE/2, wy = ent.y*TILE + TILE/2;
+    var sx = (wx - cam.worldView.x) * z;
+    var sy = (wy - cam.worldView.y) * z;
+    var W = this.scale.width, H = this.scale.height;
+    // 内缩量不对称：顶部让开功能键 / 状态条（约 120px），其余三边留一圈
+    var sideM = Math.min(86, W * 0.14);
+    var topM  = Math.min(132, Math.max(72, H * 0.19));
+    var botM  = Math.min(86, H * 0.13);
+    var L = sideM, R = W - sideM, T = topM, B = H - botM;
+    if (sx > L && sy > T && sx < R && sy < B){ this.hideCompass(); return; }
+
+    if (!this.navCmpOn){ el.classList.add('on'); this.navCmpOn = true; }
+
+    // 文案只在「名字 / 格数」变了时才写 DOM，顺便量一次尺寸缓存下来。
+    // 每帧量 offsetWidth 会逼浏览器同步布局，60fps 下很伤。
+    var dist = Math.round(Math.hypot(wx - this.player.x, wy - this.player.y) / TILE);
+    var key = info.name + '|' + dist;
+    if (this.navKey !== key){
+      this.navKey = key;
+      if (this.navNameEl) this.navNameEl.textContent = info.name;
+      if (this.navDistEl) this.navDistEl.textContent = dist + ' 格';
+      this.navW = el.offsetWidth || 158;
+      this.navH = el.offsetHeight || 26;
+    }
+    var hw = (this.navW || 158) / 2 + 12, hh = (this.navH || 26) / 2 + 8;
+
+    // 从可用区域中心朝目标方向外推，落在这块内缩矩形的边上；
+    // 再按胶囊自身尺寸回收一次，避免贴右边时被屏幕裁掉半截
+    var cx = (L + R) / 2, cy = (T + B) / 2;
+    var dx = sx - cx, dy = sy - cy, k = 1;
+    if (dx) k = Math.min(k, (R - L) / 2 / Math.abs(dx));
+    if (dy) k = Math.min(k, (B - T) / 2 / Math.abs(dy));
+    var ex = clamp(cx + dx*k, hw, W - hw);
+    var ey = clamp(cy + dy*k, T + hh, B - hh);
+    var ang = Math.atan2(dy, dx) * 180 / Math.PI;
+
+    el.style.transform = 'translate(' + ex.toFixed(1) + 'px,' + ey.toFixed(1) + 'px) translate(-50%,-50%)';
+    if (this.navArrEl) this.navArrEl.style.transform = 'rotate(' + ang.toFixed(1) + 'deg)';
+  };
+  WorldScene.prototype.hideCompass = function(){
+    if (this.navCmpOn && this.navCmpEl){
+      this.navCmpEl.classList.remove('on');
+      this.navCmpOn = false;
+    }
+  };
+  WorldScene.prototype.setNavBtn = function(){
+    var b = document.getElementById('navBtn');
+    if (!b) return;
+    if (NAV_ON) b.classList.remove('off'); else b.classList.add('off');
+  };
+  WorldScene.prototype.setNav = function(on){
+    NAV_ON = !!on;
+    try { localStorage.setItem(NAV_KEY, NAV_ON ? '1' : '0'); } catch(e){}
+    if (!NAV_ON) this.hideCompass();
+    this.refreshNav();
+    this.showToast(NAV_ON ? '路线指引：开 · 跟着地面箭头走'
+                          : '路线指引：关 · 按 N 或点 🧭 再开');
+    AUDIO.sfx(NAV_ON ? 'click' : 'bump');
+  };
 
   WorldScene.prototype.step = function(dx,dy){
     if (this.moving || this.inBattle || this.talking) return;
@@ -2951,6 +3424,8 @@
       this.showZone(bio.name, bio.sub);
       if (this.amb) this.amb.set(bioKey === 'town' ? 'plains' : bioKey);   // 天气跟着区域走
     }
+    // 走完一格就重算路线：玩家可能为了捡道具偏离原路径，也可能刚拿徽章换了目标
+    this.refreshNav();
 
     var it = this.itemMap[kOf(nx,ny)];
     if (it && !it.taken){
@@ -2999,7 +3474,6 @@
     var lead = G.party[G.activeIdx] ? spOf(G.party[G.activeIdx].id).stages[G.party[G.activeIdx].stage] : '—';
     var dt = dexTotals();
     this.hud.innerHTML =
-      '灵契大陆 · Phaser 4 (batch 11)<br>' +
       '坐标 ('+gx+', '+gy+') · '+TNAME[tile]+' · '+bio.name+'<br>' +
       '队伍 '+G.party.length+' 只 · 出战 '+lead+' · 精灵球 ×'+G.balls+'<br>' +
       '徽章 '+G.badges.length+'/'+GYMS.length+' · 图鉴 '+dt.got+'/'+dt.total+' 收服';
@@ -3024,7 +3498,7 @@
     if (tier==='rare') lv += 5;
     if (tier==='boss') lv += 10;
     lv = clamp(lv, 2, SR.CFG.MAX_LV);
-    var f = buildFighter(sp, stage, randNature(), lv);
+    var f = buildFighter(sp, stage, randNature(), lv, STAGE_DAMP);   // 野生个体的进化只兑现一部分
     if (tier==='boss'){
       ['atk','def','spd'].forEach(function(k){ f.stats[k]=Math.round(f.stats[k]*1.2); });
       f.maxHp = Math.round(f.maxHp*1.25); f.hp = f.maxHp;
@@ -3057,7 +3531,7 @@
     for (i=0; i<opt.team.length; i++){
       var e = opt.team[i], sp = spOf(e[0]);
       if (sp){
-        team.push(buildFighter(sp, e[1], findNature('固执'), e[2]));
+        team.push(buildFighter(sp, e[1], findNature('固执'), e[2], STAGE_DAMP));
         dexSee(sp.id, e[1]);
       }
     }
@@ -3116,9 +3590,9 @@
         { who:'长老 岑', text:'这片地方叫灵契大陆。人与精灵之间有一条看不见的线——线在，就能一起变强。' },
         { who:'长老 岑', text:'大陆上有八座道馆。每位馆主守着一枚徽章，也守着一门功课。' },
         { who:'长老 岑', text:'走完八座、集齐八枚，你才有资格站到冠军面前。' },
-        { who:'长老 岑', text:'这些精灵球给你。路怎么走，你自己找。' }
+        { who:'长老 岑', text:'这些精灵球给你。脚下会浮出一串箭头，它指着你该去的地方——嫌吵就按 N 收起来。' },
+        { who:'长老 岑', text:'路怎么走，还是你自己定。' }
       ], function(){
-        refreshQuest();
         refreshQuest();
       }, this);
       return;
@@ -3131,15 +3605,20 @@
       ], null, this);
       return;
     }
+    // 老台词按「第几枚」分段，但地图扩到 64×46 之后玩家可以乱序打，
+    // 所以具体是哪一馆一律走 nextGym() 现算，不写死「去微风草原」
+    var g = nextGym();
+    var where = g ? BIOME_BY_KEY[g.key].name : '大陆深处';
+    var who = g ? shortName(g.leader) : '下一位馆主';
     var lines;
     if (n === 0) lines = ['还在起点。别急，第一步最难。',
-                          '去微风草原看看。阿澈那孩子心软，但会认真跟你打。'];
+                          '去'+where+'看看。'+who+'心软，但会认真跟你打。'];
     else if (n <= 3) lines = ['才 '+n+' 枚？嗯……不过你走路的样子变了。',
-                              '影那家伙问起过你。别理他，他嘴硬。'];
+                              '下一枚在'+where+'，'+who+'守的。路上当心影。'];
     else if (n <= 6) lines = ['过半了。'+n+' 枚徽章，比我年轻时快。',
-                              '后面的馆主不会留手。记得回灵契中心回复。'];
-    else lines = ['七枚了。最后一枚在霜白雪原。',
-                  '霜那孩子守的是最冷的一枚。她不太说话，但她看得懂人。'];
+                              '接下来是'+where+'。'+who+'不会留手，记得回灵契中心回复。'];
+    else lines = ['七枚了。只剩'+where+'这一枚。',
+                  who+'守的那门功课最难。过了它，你就能站到冠军面前。'];
     say(lines.map(function(t){ return { who:'长老 岑', text:t }; }), null, this);
   };
 
@@ -3334,7 +3813,9 @@
   };
 
   WorldScene.prototype.update = function(time, delta){
-    this.tickAmbient(Math.min(60, delta || 16));
+    var dms = Math.min(60, delta || 16);
+    this.tickAmbient(dms);
+    this.tickNav(dms);            // 必须在下面的早退之前：走路时路径也要流动
     if (this.moving || this.inBattle || this.talking) return;
     var c=this.cursors, k=this.keys;
     if (c.left.isDown  || k.A.isDown)  this.step(-1,0);
@@ -3536,28 +4017,477 @@
     // 重排会覆写 scale，先停呼吸补间，排完按新基准重新起步（否则补间会一直用旧基准）
     this.stopBreath(this.enemySpr); this.stopBreath(this.playerSpr);
     var M = this.mode(), eSize, pSize;
+    /* 体型随阶成长（batch12）
+       立绘统一按「盒子尺寸 / 256」等比缩，三阶和初阶在屏幕上一样大 —— 体型上
+       完全看不出「进化过」。这里按阶补 7%/14%，让三阶明显压过一阶一头。 */
+    var eGrow = 1 + ((this.B && this.B.enemy) ? (this.B.enemy.stage|0) : 0) * 0.07;
+    var pGrow = 1 + ((this.B && this.B.player) ? (this.B.player.stage|0) : 0) * 0.07;
     if (M === 'P'){
-      eSize = Math.min(w*0.42, h*0.19);
-      pSize = Math.min(w*0.46, h*0.155);
+      eSize = Math.min(w*0.42, h*0.19) * eGrow;
+      pSize = Math.min(w*0.46, h*0.155) * pGrow;
       this.enemySpr.setPosition(w*0.70, h*0.445).setScale(eSize/256);
       this.playerSpr.setPosition(w*0.28, h*0.700).setScale(pSize/256);
     } else if (M === 'C'){
-      eSize = Math.min(w*0.16, h*0.26);
-      pSize = Math.min(w*0.20, h*0.34);
+      eSize = Math.min(w*0.16, h*0.26) * eGrow;
+      pSize = Math.min(w*0.20, h*0.34) * pGrow;
       this.enemySpr.setPosition(w*0.75, h*0.460).setScale(eSize/256);
       this.playerSpr.setPosition(w*0.24, h*0.620).setScale(pSize/256);
     } else {
-      eSize = Math.min(w*0.22, h*0.34);
-      pSize = Math.min(w*0.24, h*0.34);
+      eSize = Math.min(w*0.22, h*0.34) * eGrow;
+      pSize = Math.min(w*0.24, h*0.34) * pGrow;
       this.enemySpr.setPosition(w*0.735, h*0.60).setScale(eSize/256);
       this.playerSpr.setPosition(w*0.255, h*0.785).setScale(pSize/256);
     }
     this.enemySpr._bs = eSize/256;    // 基准 scale，呼吸与落地回弹都以它为准
     this.playerSpr._bs = pSize/256;
     this.drawStands();
+    // 进化形态装饰：换人 / 换对手 / 转屏都会走这里，所以重建放在 layoutSprites 里
+    if (this.B){
+      if (this.B.enemy)  this.buildEvoAura(this.enemySpr,  this.B.enemy.species,  this.B.enemy.stage|0);
+      if (this.B.player) this.buildEvoAura(this.playerSpr, this.B.player.species, this.B.player.stage|0);
+    }
     // 双方错开相位，否则会像同一个节奏的两个木偶
     this.idleBreath(this.enemySpr, 0);
     this.idleBreath(this.playerSpr, 380);
+  };
+
+  /* =====================================================================
+     进化形态装饰（batch12）
+
+     用户要的是「赛尔号那种进化，外形差别大而夸张」。80 张立绘不可能重画，
+     但「进化感」其实来自三件事：体型更大、身边有能量、背后多了部件。
+     前两件可以做，第三件用程序化光翼补 —— 二阶加底座光环 + 两颗环绕光点，
+     三阶再长出双翼 + 四颗环绕碎片 + 常驻光晕。
+
+     实现用 Container 挂在精灵脚下：位置每帧跟着精灵走，子元素用「256px 立绘」
+     坐标系画（脚底 = 原点，向上为负），容器 scale 直接取精灵 scale，于是
+     任何分辨率 / 任何体型都不用重新算坐标。
+     ===================================================================== */
+  /* =====================================================================
+     进化形态：按「这只精灵本身是什么」决定长出什么（batch12）
+
+     第一版偷懒，所有二阶三阶都套同一个「底座光环 + 光翼」，用户一眼看出不对：
+     一只火狐、一只石龟、一朵花蝶，进化完长的是同一对翅膀。
+     这里改成按物种分配「进化特征」——特征来自名字与属性，不是随机：
+
+       光翼   → 鸟 / 龙 / 蝶 / 隼 / 鹏（s9 s15 s16 s34 s35 s37）
+       尾焰   → 火狐 / 火虎 / 炎狼（s1 s11 s18）
+       熔火   → 熔岩蟹（s17）
+       冰晶   → 冰狐 / 霜熊（s8 s33）
+       岩块   → 龟 / 岩蜥 / 土龙 / 岩蟹（s7 s13 s14 s31 s32）
+       草叶   → 兔 / 鹿 / 藤蟒 / 林熊（s3 s12 s22 s23）
+       花瓣   → 花灵蝶（s24）
+       水环   → 蛙 / 鱼 / 鲨（s2 s19 s20 s21）
+       电弧   → 电鼠 / 雷牛（s4 s25 s26）
+       光环   → 光鸟 / 晨光鹿 / 辉羽枭（s5 s27 s28）
+       暗影   → 暗猫 / 影蝠 / 暗蛛 / 深渊龙（s6 s29 s30 s40）
+       符环   → 心灵枭 / 念力章 / 幻梦枭（s10 s38 s39）
+       旋风   → 旋风蛇（s36）
+
+     一阶不戴任何东西 —— 进化前后要有反差，才能看出「进化过了」。
+     ===================================================================== */
+  var EVO_TRAIT = {
+    s1:'tailFlame', s11:'tailFlame', s18:'tailFlame',
+    s2:'water', s19:'water', s20:'water', s21:'water',
+    s3:'leaf', s12:'leaf', s22:'leaf', s23:'leaf',
+    s4:'bolt', s25:'bolt', s26:'bolt',
+    s5:'halo', s27:'halo', s28:'halo',
+    s6:'shadow', s29:'shadow', s30:'shadow', s40:'shadow',
+    s7:'rock', s13:'rock', s14:'rock', s31:'rock', s32:'rock',
+    s8:'ice', s33:'ice',
+    s9:'wing', s15:'wing', s16:'wing', s34:'wing', s35:'wing', s37:'wing',
+    s10:'rune', s38:'rune', s39:'rune',
+    s17:'ember', s24:'petal', s36:'gale'
+  };
+  function evoTraitOf(sp){ return (sp && EVO_TRAIT[sp.id]) || 'ember'; }
+
+  // 注册一个装饰件 + 它的动画参数
+  BattleScene.prototype.evoAdd = function(box, parts, obj, anim, cfg){
+    box.add(obj);
+    var p = { o:obj, anim:anim || 'none' };
+    for (var k in (cfg || {})) if (k !== 'anim') p[k] = cfg[k];
+    parts.push(p);
+    return obj;
+  };
+
+  // 火焰：三层同心焰形，外暗内亮
+  function evoFlame(g, bx, by, w, h, cols, alpha){
+    function shape(ww, hh, c, a){
+      g.fillStyle(c, a);
+      g.fillPoints([
+        {x:bx-ww,      y:by},
+        {x:bx-ww*0.92, y:by-hh*0.34},
+        {x:bx-ww*0.42, y:by-hh*0.68},
+        {x:bx+ww*0.04, y:by-hh},
+        {x:bx+ww*0.46, y:by-hh*0.62},
+        {x:bx+ww*0.94, y:by-hh*0.26},
+        {x:bx+ww,      y:by}
+      ], true);
+    }
+    shape(w, h, cols[0], (alpha||1) * 0.62);
+    shape(w*0.66, h*0.76, cols[1], (alpha||1) * 0.82);
+    shape(w*0.34, h*0.48, cols[2], (alpha||1) * 0.95);
+  }
+
+  // 不规则石块轮廓（确定性，不用随机 —— 每次战斗重开形状要一致）
+  function evoRockPts(cx, cy, r, seed){
+    var pts = [], i, a, k;
+    for (i=0;i<7;i++){
+      a = Math.PI*2*i/7;
+      k = 0.62 + 0.38 * Math.abs(Math.sin(seed*3.7 + i*2.1));
+      pts.push({ x:cx + Math.cos(a)*r*k, y:cy + Math.sin(a)*r*k*0.82 });
+    }
+    return pts;
+  }
+
+  var EVO_DRAW = {
+    /* 光翼：只有飞行类用。二阶短翼、三阶满翼 + 翼尖亮点 */
+    wing: function(box, parts, col, st){
+      var L = st >= 2 ? 1 : 0.6;
+      var wing = this.add.graphics();
+      var sd, i;
+      function blade(sx, tx, ty, wb, wt, color, alpha){
+        var bx = sx*20*L, by = -112*L;
+        tx *= L; ty *= L;
+        var dx = tx-bx, dy = ty-by, len = Math.sqrt(dx*dx+dy*dy)||1;
+        var nx = -dy/len, ny = dx/len;
+        wing.fillStyle(color, alpha);
+        wing.fillPoints([
+          {x:bx+nx*wb*L, y:by+ny*wb*L},
+          {x:tx+nx*wt,   y:ty+ny*wt},
+          {x:tx-nx*wt,   y:ty-ny*wt},
+          {x:bx-nx*wb*L, y:by-ny*wb*L}
+        ], true);
+      }
+      for (sd=-1; sd<=1; sd+=2){
+        if (st >= 2){
+          wing.fillStyle(col.main, 0.22);
+          wing.fillPoints([
+            {x:sd*20,y:-112},{x:sd*200,y:-208},{x:sd*212,y:-150},
+            {x:sd*186,y:-96},{x:sd*70,y:-84},{x:sd*20,y:-96}
+          ], true);
+        }
+        blade(sd, sd*200, -208, 30, 4, col.main, 0.58);
+        blade(sd, sd*214, -152, 26, 4, col.hi, 0.66);
+        if (st >= 2){
+          blade(sd, sd*186, -98, 22, 3, col.main, 0.55);
+          blade(sd, sd*132, -66, 16, 3, col.hi, 0.48);
+          wing.fillStyle(col.top, 0.85);
+          wing.fillCircle(sd*200*L, -208*L, 4.2);
+          wing.fillCircle(sd*214*L, -152*L, 3.6);
+        }
+      }
+      this.evoAdd(box, parts, wing, 'flap', { amp: 0.055, spd: 2.2 });
+      for (i=0;i<(st>=2?3:1);i++){
+        var o = this.add.image(0, 0, this.dotTex()).setTint(i%2 ? col.top : col.hi).setScale(1.0);
+        this.evoAdd(box, parts, o, 'orbit',
+          { r: 116 + i*12, y0: -96 - i*18, spd: 1.05 + i*0.16, ph: i*1.9, ry: 22 });
+      }
+    },
+
+    /* 尾焰：火系兽类。焰尾在身后（立绘朝右，尾巴在左） */
+    tailFlame: function(box, parts, col, st){
+      var n = st >= 2 ? 3 : 1, i;
+      for (i=0;i<n;i++){
+        var g = this.add.graphics();
+        var bx = -66 - i*11, h = (st>=2 ? 98 : 66) * (1 - i*0.14), w = 21 - i*3;
+        evoFlame(g, bx, -46 - i*4, w, h, [col.main, col.hi, col.top], 0.9);
+        this.evoAdd(box, parts, g, 'sway', { x0:bx, amp:4 + i, spd:1.7 + i*0.45, ph:i*1.2 });
+      }
+      for (i=0;i<(st>=2?4:2);i++){
+        var e = this.add.image(0, 0, this.dotTex()).setTint(i%2 ? col.top : col.main).setScale(0.9);
+        this.evoAdd(box, parts, e, 'rise',
+          { x0: -52 + i*9, y0: -76, amp: 92, spd: 0.42 + i*0.07, ph: i*0.27 });
+      }
+    },
+
+    /* 熔火：熔岩蟹这类「体内有炉」的，不冒火苗而是飘火星 + 脚下热浪 */
+    ember: function(box, parts, col, st){
+      var i;
+      for (i=0;i<(st>=2?6:3);i++){
+        var o = this.add.image(0, 0, i%3 ? this.dotTex() : this.shardTex())
+          .setTint(i%2 ? col.top : col.main).setScale(i%3 ? 1.0 : 0.9);
+        this.evoAdd(box, parts, o, 'orbit',
+          { r: 112 + i*10, y0: -70 - i*14, spd: 1.12 + i*0.13, ph: i*1.7, ry: 20, spin: 1.6 });
+      }
+      for (i=0;i<(st>=2?3:2);i++){
+        var e = this.add.image(0, 0, this.dotTex()).setTint(col.hi).setScale(0.7);
+        this.evoAdd(box, parts, e, 'rise',
+          { x0: (i-1)*26, y0: -24, amp: 70, spd: 0.5 + i*0.08, ph: i*0.33 });
+      }
+      var heat = this.add.image(0, -2, this.glowTex()).setTint(col.main).setAlpha(0.20);
+      heat.setScale(1.5, 0.38);
+      this.evoAdd(box, parts, heat, 'pulse', { amp: 0.07, spd: 1.5, sx:1.5, sy:0.38 });
+    },
+
+    /* 冰晶：悬浮棱晶，慢慢自转 */
+    ice: function(box, parts, col, st){
+      var i;
+      for (i=0;i<(st>=2?5:3);i++){
+        var s = this.add.image(0, 0, this.shardTex()).setTint(i%2 ? col.top : col.hi);
+        s.setScale(st>=2 ? 2.1 : 1.6);
+        this.evoAdd(box, parts, s, 'orbit',
+          { r: 116 + i*12, y0: -112 - (i%3)*28, spd: 0.82 + i*0.12, ph: i*1.3, ry: 26, spin: 1.5 });
+      }
+      if (st >= 2){
+        var f = this.add.image(0, -2, this.glowTex()).setTint(col.top).setAlpha(0.18);
+        f.setScale(1.7, 0.42);
+        this.evoAdd(box, parts, f, 'pulse', { amp: 0.05, spd: 1.1, sx:1.7, sy:0.42 });
+      }
+    },
+
+    /* 岩块：碎石绕着身体浮，三阶多一块大的当「护甲」 */
+    rock: function(box, parts, col, st){
+      var i;
+      for (i=0;i<(st>=2?4:2);i++){
+        var g = this.add.graphics();
+        var cx = (i%2 ? 1 : -1) * (112 + i*12), cy = -64 - i*30, r = 19 - i*1.5;
+        g.fillStyle(col.main, 0.92);
+        g.fillPoints(evoRockPts(cx, cy, r, i+1), true);
+        g.fillStyle(col.hi, 0.85);
+        g.fillPoints(evoRockPts(cx - r*0.22, cy - r*0.24, r*0.52, i+3), true);
+        this.evoAdd(box, parts, g, 'bob', { y0:cy, amp:6 + i, spd:1.3 + i*0.26, ph:i*1.6 });
+      }
+      if (st >= 2){
+        var big = this.add.graphics();
+        big.fillStyle(col.main, 0.55);
+        big.fillPoints(evoRockPts(0, -132, 46, 9), true);
+        big.fillStyle(col.hi, 0.45);
+        big.fillPoints(evoRockPts(-14, -146, 24, 11), true);
+        this.evoAdd(box, parts, big, 'bob', { y0:-132, amp:4, spd:0.9, ph:0.6 });
+      }
+    },
+
+    /* 草叶：叶片绕身盘旋 */
+    leaf: function(box, parts, col, st){
+      for (var i=0;i<(st>=2?6:3);i++){
+        var l = this.add.ellipse(0, 0, 33, 13, i%2 ? col.top : col.hi, 0.95);
+        l.setRotation(i * 0.7);
+        this.evoAdd(box, parts, l, 'orbit',
+          { r: 118 + i*9, y0: -84 - i*16, spd: 0.95 + i*0.13, ph: i*1.1, ry: 26, spin: 1.3 });
+      }
+    },
+
+    /* 花瓣：花灵蝶这类，飘的是花瓣而不是叶子，颜色按属性走粉紫 */
+    petal: function(box, parts, col, st){
+      var i;
+      var PC = [0xffb8da, 0xffe3f1, 0xffffff];     // 花瓣用自己的粉白，不跟属性色
+      for (i=0;i<(st>=2?8:4);i++){
+        var p = this.add.ellipse(0, 0, 36, 19, i%2 ? PC[1] : PC[0], 0.95);
+        p.setRotation(i * 0.9);
+        this.evoAdd(box, parts, p, 'orbit',
+          { r: 126 + i*8, y0: -88 - (i%4)*24, spd: 0.88 + i*0.1, ph: i*1.4, ry: 28, spin: 1.1 });
+      }
+      var gl = this.add.image(0, -110, this.glowTex()).setTint(PC[0]).setAlpha(0.18);
+      gl.setScale(1.6);
+      this.evoAdd(box, parts, gl, 'pulse', { amp: 0.06, spd: 1.4, sx:1.6, sy:1.6 });
+    },
+
+    /* 水环：脚下水环 + 水珠上浮 */
+    water: function(box, parts, col, st){
+      var g = this.add.graphics();
+      g.fillStyle(col.main, 0.13);
+      g.fillEllipse(0, 0, 196, 54);
+      g.lineStyle(3.2, col.hi, 0.85);
+      g.strokeEllipse(0, 0, 196, 54);
+      if (st >= 2){ g.lineStyle(2, col.top, 0.55); g.strokeEllipse(0, 0, 244, 68); }
+      this.evoAdd(box, parts, g, 'pulse', { amp: 0.028, spd: 1.5, sx:1, sy:1 });
+      for (var i=0;i<(st>=2?5:3);i++){
+        var d = this.add.ellipse(0, 0, 9, 12, i%2 ? col.top : col.hi, 0.9);
+        this.evoAdd(box, parts, d, 'rise',
+          { x0: (i-2)*34, y0: -8, amp: 118 + i*6, spd: 0.34 + i*0.06, ph: i*0.22 });
+      }
+    },
+
+    /* 电弧：身体两侧劈啪的火花，闪得比呼吸快 */
+    bolt: function(box, parts, col, st){
+      var i, j;
+      for (i=0;i<(st>=2?2:1);i++){
+        var g = this.add.graphics();
+        var x0 = (i ? 1 : -1) * 124, y0 = -150;
+        var pts = [{x:x0, y:y0}, {x:x0+9, y:y0+18}, {x:x0-7, y:y0+34},
+                   {x:x0+7, y:y0+52}, {x:x0-5, y:y0+72}];
+        g.lineStyle(3.6, col.main, 0.95); g.strokePoints(pts, false);
+        g.lineStyle(1.6, 0xffffff, 0.9);  g.strokePoints(pts, false);
+        this.evoAdd(box, parts, g, 'flicker', { base:0.75, amp:0.45, spd: 9 + i*3, ph: i*2 });
+      }
+      for (j=0;j<(st>=2?4:2);j++){
+        var o = this.add.image(0, 0, this.dotTex()).setTint(j%2 ? col.top : col.hi);
+        o.setScale(0.85);
+        this.evoAdd(box, parts, o, 'orbit',
+          { r: 82 + j*10, y0: -98 - j*14, spd: 1.5 + j*0.2, ph: j*2.2, ry: 20 });
+      }
+    },
+
+    /* 光环：光系专属，头顶光轮 + 上升光点 */
+    halo: function(box, parts, col, st){
+      var g = this.add.graphics();
+      g.lineStyle(5, col.top, 0.92);
+      g.strokeEllipse(0, -238, 128, 32);
+      g.lineStyle(2, col.hi, 0.7);
+      g.strokeEllipse(0, -236, 96, 24);
+      if (st >= 2){
+        g.lineStyle(2.4, col.top, 0.5);
+        g.strokeEllipse(0, -256, 176, 44);
+      }
+      this.evoAdd(box, parts, g, 'pulse', { amp: 0.05, spd: 2.1, sx:1, sy:1 });
+      for (var i=0;i<(st>=2?5:3);i++){
+        var o = this.add.image(0, 0, this.dotTex()).setTint(i%2 ? col.top : col.hi);
+        o.setScale(0.75 + (i%2)*0.3);
+        this.evoAdd(box, parts, o, 'rise',
+          { x0: (i-1.5)*30, y0: -150, amp: 130, spd: 0.28 + i*0.05, ph: i*0.26 });
+      }
+    },
+
+    /* 暗影：脚下一滩暗雾 + 往上舔的紫火 */
+    shadow: function(box, parts, col, st){
+      var i;
+      for (i=0;i<(st>=2?4:2);i++){
+        var e = this.add.ellipse(0, 0, 132 - i*22, 36 - i*6, col.main, 0.34);
+        this.evoAdd(box, parts, e, 'orbit',
+          { r: 26 + i*15, y0: -4, spd: 0.55 + i*0.18, ph: i*2.1, ry: 7 });
+      }
+      for (i=0;i<(st>=2?4:2);i++){
+        var f = this.add.image(0, 0, this.dotTex()).setTint(i%2 ? col.hi : col.main).setScale(1.0);
+        this.evoAdd(box, parts, f, 'rise',
+          { x0: (i-1.5)*26, y0: -16, amp: 96, spd: 0.36 + i*0.06, ph: i*0.3 });
+      }
+    },
+
+    /* 符环：超能系，身上套两圈「术式环」+ 环上跑的小点 */
+    rune: function(box, parts, col, st){
+      var i;
+      for (i=0;i<(st>=2?3:2);i++){
+        var g = this.add.graphics();
+        g.lineStyle(2.6 - i*0.4, i%2 ? col.hi : col.main, 0.6 - i*0.08);
+        g.strokeEllipse(0, -74 - i*34, 200 + i*30, 54 + i*8);
+        this.evoAdd(box, parts, g, 'pulse', { amp: 0.03, spd: 1.8 + i*0.5, sx:1, sy:1 });
+      }
+      for (i=0;i<(st>=2?6:4);i++){
+        var o = this.add.image(0, 0, this.dotTex()).setTint(i%2 ? col.top : col.hi).setScale(0.8);
+        this.evoAdd(box, parts, o, 'orbit',
+          { r: 128 + i*9, y0: -74 - (i%3)*30, spd: 0.8 + i*0.1, ph: i*1.15, ry: 26 });
+      }
+    },
+
+    /* 旋风：风系，绕着身体转的三道气弧 */
+    gale: function(box, parts, col, st){
+      var i, k;
+      for (i=0;i<(st>=2?3:2);i++){
+        var g = this.add.graphics();
+        var pts = [];
+        for (k=0;k<=10;k++){
+          var t = k/10, a = Math.PI*1.25*t - Math.PI*0.15;
+          pts.push({ x: Math.cos(a)*(150 - i*18), y: -84 - Math.sin(a)*62 - i*20 });
+        }
+        g.lineStyle(5 - i, i%2 ? col.top : col.hi, 0.72);
+        g.strokePoints(pts, false);
+        this.evoAdd(box, parts, g, 'spin', { spd: 1.1 + i*0.5, ph: i*2 });
+      }
+      for (i=0;i<(st>=2?3:1);i++){
+        var o = this.add.ellipse(0, 0, 16, 6, col.top, 0.8);
+        this.evoAdd(box, parts, o, 'orbit',
+          { r: 84 + i*12, y0: -96 - i*22, spd: 1.9 + i*0.2, ph: i*1.5, ry: 18 });
+      }
+    }
+  };
+
+  BattleScene.prototype.evoColors = function(type){
+    var c = typeC(type);
+    if (!Array.isArray(c)) return { main:c, hi:c, top:c };
+    return { main:c[0], hi:(c[1]||c[0]), top:(c[2]||c[1]||c[0]) };
+  };
+
+  BattleScene.prototype.clearEvoAura = function(spr){
+    if (!spr) return;
+    if (spr._aura && spr._aura.container){
+      this.tweens.killTweensOf(spr._aura.container);
+      spr._aura.container.destroy();
+    }
+    spr._aura = null;
+  };
+
+  BattleScene.prototype.buildEvoAura = function(spr, sp, stage){
+    if (!spr || !sp) return;
+    this.clearEvoAura(spr);
+    stage = stage | 0;
+    if (!stage) return;                       // 一阶：什么都不戴
+
+    var col = this.evoColors(sp.type);
+    var box = this.add.container(spr.x, spr.y).setDepth(9);
+    var parts = [];
+
+    // 三阶多一层背光：让「最终形态」在剪影上就跟二阶不一样
+    if (stage >= 2){
+      var gl = this.add.image(0, -118, this.glowTex()).setTint(col.main).setAlpha(0.26);
+      gl.setScale(1.9);
+      if (blendAdd) blendAdd(gl);
+      this.evoAdd(box, parts, gl, 'pulse', { amp: 0.08, spd: 1.6, sx: 1.9, sy: 1.9 });
+    }
+
+    var draw = EVO_DRAW[evoTraitOf(sp)];
+    if (draw) draw.call(this, box, parts, col, stage);
+
+    box.setScale(spr.scaleX, spr.scaleY);
+    box.setPosition(spr.x, spr.y);
+    spr._aura = { container:box, stage:stage, parts:parts, t:Math.random()*6.28, trait:evoTraitOf(sp) };
+    this.tickAuras(16);
+  };
+
+  // 每帧跟随：容器贴住精灵，装饰件按各自的动画规则动
+  BattleScene.prototype.tickAuras = function(dt){
+    var list = [this.playerSpr, this.enemySpr];
+    for (var k=0;k<list.length;k++){
+      var spr = list[k];
+      if (!spr || !spr.active || !spr._aura) continue;
+      var a = spr._aura, box = a.container;
+      if (!box || !box.active) continue;
+      a.t += (dt || 16) / 1000;
+      box.setPosition(spr.x, spr.y);
+      box.setScale(spr.scaleX, spr.scaleY);
+      for (var i=0;i<a.parts.length;i++){
+        var p = a.parts[i], o = p.o;
+        if (!o || !o.active) continue;
+        var ph = a.t * (p.spd || 1) + (p.ph || 0);
+        switch (p.anim){
+          case 'orbit':
+            o.x = Math.cos(ph) * (p.r || 70);
+            o.y = (p.y0 || -90) + Math.sin(ph) * (p.ry || 20);
+            if (p.spin) o.rotation = (o.rotation || 0) + (dt/1000) * p.spin;
+            o.setAlpha(0.55 + 0.45 * Math.abs(Math.sin(ph * 1.25)));
+            break;
+          case 'bob':
+            o.y = (p.y0 || 0) + Math.sin(ph) * (p.amp || 6);
+            break;
+          case 'sway':
+            o.x = (p.x0 || 0) + Math.sin(ph) * (p.amp || 4);
+            break;
+          case 'rise':
+            var u = ((a.t * (p.spd || 0.4) + (p.ph || 0)) % 1 + 1) % 1;
+            o.y = (p.y0 || -40) - u * (p.amp || 90);
+            o.x = (p.x0 || 0) + Math.sin(u * 6.28) * 7;
+            o.setAlpha((1 - u) * 0.92);
+            break;
+          case 'flicker':
+            o.setAlpha((p.base || 0.8) + Math.sin(a.t * (p.spd || 8) + (p.ph || 0)) * (p.amp || 0.3));
+            break;
+          case 'pulse':
+            var s2 = 1 + Math.sin(ph) * (p.amp || 0.05);
+            o.setScale((p.sx === undefined ? 1 : p.sx) * s2, (p.sy === undefined ? 1 : p.sy) * s2);
+            break;
+          case 'flap':
+            o.setScale(1 + Math.sin(ph) * (p.amp || 0.05), 1);
+            break;
+          case 'spin':
+            o.rotation = (o.rotation || 0) + (dt/1000) * (p.spd || 1);
+            break;
+        }
+      }
+    }
+  };
+
+  BattleScene.prototype.update = function(time, delta){
+    this.tickAuras(delta);
   };
 
   // 台座：跟着立绘脚底走，竖屏横屏都不会飘
@@ -4019,8 +4949,141 @@
       onComplete:function(){ t.destroy(); } });
   };
 
+  /* =====================================================================
+     招式风格层（batch12）
+
+     旧版同一属性的三招（火花 / 喷射火焰 / 烈焰冲撞）播的是同一段特效，
+     玩家只有一个感觉：「火系就是炸一下」。
+     这一层把「投放方式」从「属性配色」里拆出来：
+       属性决定颜色与碎屑形态，风格决定招式怎么打到人身上。
+     orb=近身爆点  beam=射线  ram=冲撞  rain=天降  slash=斩击  wave=冲击波  burst=大爆发
+     两个维度组合，33 个招式各有各的样子，但代码量只多了一层 switch。
+     ===================================================================== */
+  var MOVE_FX = {
+    '撞击':'ram',      '猛撞':'ram',      '连环爪':'slash',   '全力一击':'burst', '回身闪击':'slash',
+    '火花':'orb',      '喷射火焰':'beam', '烈焰冲撞':'ram',
+    '水枪':'beam',     '冲浪':'wave',     '水炮':'beam',
+    '藤鞭':'slash',    '飞叶风暴':'wave', '阳光烈焰':'beam',
+    '电击':'orb',      '十万伏特':'burst', '打雷':'rain',
+    '冰砾':'orb',      '冰冻光束':'beam', '暴风雪':'rain',
+    '落石':'rain',     '岩崩':'rain',     '尖石攻击':'burst',
+    '突袭':'slash',    '咬碎':'slash',    '恶之波动':'wave',
+    '魔法闪光':'burst', '妖精之风':'wave', '月亮之力':'rain',
+    '念力':'orb',      '精神强念':'wave', '预知未来':'burst',
+    '起风':'wave',     '空气斩':'slash',  '暴风':'burst',
+    '龙息':'beam',     '龙爪':'slash',    '逆鳞':'ram'
+  };
+  function fxStyleOf(mv){ return (mv && MOVE_FX[mv.name]) || 'orb'; }
+
+  // 射线：从施法者一侧推进到命中点，先伸长再消隐。填充型 Graphics，没有描边线宽问题
+  BattleScene.prototype.fxBeam = function(x, y, main, hi, top, dir, len, life){
+    var g = this.add.graphics().setDepth(16);
+    g._p = 0; this.fx.push(g);
+    var self = this, sx = x - dir * len, t = life || 420;
+    this.tweens.add({ targets:g, _p:1, duration:t, ease:'Quad.easeOut',
+      onUpdate:function(){
+        var p = clamp(g._p, 0, 1);
+        var head = sx + dir * len * Math.min(1, p * 2.1);      // 前 48% 伸长，之后原地看着淡出
+        var taper = 1 - p * 0.5, fade = Math.pow(1 - p, 0.42);
+        g.clear();
+        g.fillStyle(main, 0.8 * fade);
+        g.fillPoints([{x:sx, y:y-7*taper},{x:head, y:y-30*taper},
+                      {x:head, y:y+30*taper},{x:sx, y:y+7*taper}], true);
+        g.fillStyle(top, 0.92 * fade);
+        g.fillPoints([{x:sx, y:y-3*taper},{x:head, y:y-11*taper},
+                      {x:head, y:y+11*taper},{x:sx, y:y+3*taper}], true);
+        g.fillStyle(0xffffff, 0.55 * fade);
+        g.fillCircle(head, y, 7 * taper);
+      },
+      onComplete:function(){ self.fxRelease(g); } });
+    for (var i=0;i<7;i++){
+      this.fxSpark(sx + dir*len*(0.15+i*0.1), y + (Math.random()*30-15), i%2?hi:main,
+                   300 + Math.random()*120, x + (Math.random()*30-15), y + (Math.random()*24-12), 0.55);
+    }
+  };
+
+  // 冲撞：贴地两道冲击波 + 横向速度残影 + 震屏
+  BattleScene.prototype.fxRam = function(x, y, main, hi, dir){
+    this.fxRing(x, y, hi, 12, 96, 380, 9);
+    this.fxRing(x, y + 12, main, 30, 124, 470, 4);
+    for (var i=0;i<5;i++){
+      this.fxSpark(x - dir*52, y + (i-2)*11, i%2?hi:main, 300,
+                   x + dir*64, y + (i-2)*16, 0.8);
+    }
+    this.cameras.main.shake(130, 0.006);
+  };
+
+  // 天降：碎片从画面上方砸下来，落点错开
+  BattleScene.prototype.fxRain = function(x, y, main, hi, top, count){
+    for (var i=0;i<count;i++){
+      var ox = x + (Math.random()*116-58);
+      var im = this.add.image(ox, y - 200 - Math.random()*80, this.shardTex()).setDepth(16);
+      im.setTint(i%3 ? hi : main).setRotation(0.5 + Math.random()*0.5).setScale(1.5 + Math.random()*0.7);
+      var self = this; this.fx.push(im);
+      var d = i*48;
+      this.tweens.add({ targets:im, x:ox + (Math.random()*18-9), y:y - 4 + Math.random()*16,
+        duration:230 + Math.random()*130, delay:d, ease:'Quad.easeIn' });
+      this.tweens.add({ targets:im, alpha:0, duration:110, delay:d + 210,
+        onComplete:function(){ self.fxRelease(im); } });
+    }
+    this.fxRing(x, y + 8, top, 10, 74, 460, 4);
+  };
+
+  // 斩击：两道交叉的刀光（纺锤形填充），末端炸出碎星
+  BattleScene.prototype.fxSlash = function(x, y, hi, top, scale){
+    var g = this.add.graphics().setDepth(16);
+    g.setPosition(x, y);
+    this.fx.push(g);
+    var L = 78 * (scale || 1), W = 11 * (scale || 1);
+    function blade(ang, w, color, alpha){
+      var ca = Math.cos(ang), sa = Math.sin(ang);
+      var px = -sa, py = ca;
+      g.fillStyle(color, alpha);
+      g.fillPoints([
+        {x:-ca*L, y:-sa*L},
+        {x:px*w,   y:py*w},
+        {x:ca*L,   y:sa*L},
+        {x:-px*w,  y:-py*w}
+      ], true);
+    }
+    blade(-0.72, W, hi, 0.92);
+    blade( 0.72, W, hi, 0.92);
+    blade(-0.72, W*0.38, top, 0.95);
+    blade( 0.72, W*0.38, top, 0.95);
+    g.setScale(0.62).setAlpha(0.2);
+    var self = this;
+    this.tweens.add({ targets:g, scale:1.05, alpha:1, duration:110, ease:'Cubic.easeOut' });
+    this.tweens.add({ targets:g, scale:1.22, alpha:0, duration:230, delay:110, ease:'Quad.easeIn',
+      onComplete:function(){ self.fxRelease(g); } });
+    for (var i=0;i<7;i++){
+      var a = -0.72 + (Math.random()-0.5)*0.5;
+      var sx2 = x + Math.cos(a)*(Math.random()*54-27), sy2 = y + Math.sin(a)*(Math.random()*54-27);
+      this.fxSpark(sx2, sy2, i%2?top:hi, 320,
+                   sx2 + Math.cos(a)*58, sy2 + Math.sin(a)*58, 0.7);
+    }
+  };
+
+  // 冲击波：贴地三层椭圆向外推（正圆会读成球形罩子）
+  BattleScene.prototype.fxWave = function(x, y, color, count){
+    for (var i=0;i<(count||3);i++){
+      var g = this.add.graphics().setPosition(x, y).setDepth(15);
+      g._p = 0; this.fx.push(g);
+      var self = this;
+      this.tweens.add({ targets:g, _p:1, duration:540, delay:i*80, ease:'Cubic.easeOut',
+        onUpdate:function(){
+          var p = clamp(g._p, 0, 1);
+          g.clear();
+          g.lineStyle(Math.max(1.4, 5 * (1-p)), color, 0.88 * Math.pow(1-p, 0.6));
+          var rx = 24 + 132*p;
+          if (g.strokeEllipse) g.strokeEllipse(0, 0, rx*2, rx*2*0.30);
+          else g.strokeCircle(0, 0, rx*0.8);
+        },
+        onComplete:function(){ self.fxRelease(g); } });
+    }
+  };
+
   // 按属性播放命中特效（12 属性各一套）
-  BattleScene.prototype.playFx = function(type, x, y, power){
+  BattleScene.prototype.playFx = function(type, x, y, power, style, dir){
     var c = typeC(type), p = clamp(power || 1, 0.5, 1.6);
     var main = Array.isArray(c) ? c[0] : c;
     var hi   = Array.isArray(c) ? (c[1] || c[0]) : c;
@@ -4030,9 +5093,33 @@
     // 共用底子：白闪 + 一层柔光 + 一道冲击环，保证任何属性都「打得有反应」
     // 白闪要克制：直径超过 45px 就会把属性色糊成一个白球，读不出是什么属性。
     // 柔光半径收到 1.0 左右、不透明度 0.6：再大就把精灵整只染色，读起来像滤镜不像打击。
-    this.fxCore(x, y, 150, 1.7 + p*0.5);
-    this.fxGlow(x, y, main, 0.5, 1.0 + p*0.25, 400, 0.6);
-    this.fxRing(x, y, hi, 8, 64 + 20*p, 400, 7);
+    var st = style || 'orb', dr = dir || 1;
+    var big = st === 'burst' ? 1.22 : st === 'ram' ? 1.12 : 1;
+
+    this.fxCore(x, y, 150, (1.7 + p*0.5) * big);
+    this.fxGlow(x, y, main, 0.5, (1.0 + p*0.25) * big, 400, 0.6);
+    // 冲击波自己就是环，再叠通用环会糊成同心圆
+    if (st !== 'wave') this.fxRing(x, y, hi, 8, (64 + 20*p) * big, 400, 7);
+
+    // ---- 投放方式 ----
+    if (st === 'beam'){
+      this.fxBeam(x, y, main, hi, top, dr, 300, 420);
+    } else if (st === 'ram'){
+      this.fxRam(x, y, main, hi, dr);
+    } else if (st === 'rain'){
+      this.fxRain(x, y, main, hi, top, 6 + Math.round(p*3));
+    } else if (st === 'slash'){
+      this.fxSlash(x, y, hi, top, 0.95 + p*0.25);
+    } else if (st === 'wave'){
+      this.fxWave(x, y, hi, 3);
+    } else if (st === 'burst'){
+      this.fxRing(x, y, top, 10, 118, 520, 5);
+      this.fxRing(x, y, hi, 26, 82, 430, 4);
+      for (i=0;i<10;i++){
+        a = (Math.PI*2/10)*i + 0.3;
+        this.fxSpark(x, y, i%2 ? top : hi, 420, x + Math.cos(a)*96, y + Math.sin(a)*96*0.85, 0.85);
+      }
+    }
 
     switch(type){
       case 'fire':
@@ -4269,7 +5356,8 @@
 
     if (!immune){
       AUDIO.typeHit(mv.type);
-      this.playFx(mv.type, dstSpr.x, dstSpr.y - dstSpr.displayHeight*0.32, power);
+      this.playFx(mv.type, dstSpr.x, dstSpr.y - dstSpr.displayHeight*0.32, power,
+                  fxStyleOf(mv), isPlayer ? 1 : -1);
       await sleep(140);
       this.hitStop(strong || r.crit ? 95 : 70, strong || r.crit ? 0.06 : 0.14);  // 克制/暴击顿得更重
       this.hurt(dstSpr);
@@ -4543,6 +5631,7 @@
     this.say('战斗胜利！羁绊提升了。');
     this.popNumber(this.playerSpr.x, this.playerSpr.y - this.playerSpr.displayHeight*0.8, 'WIN', '#4ade80', true);
     await sleep(700);
+    var endToast = '战斗胜利';
     if (B.isTrainer){
       var t = B.trainerRef, extra = '', world = this.inData && this.inData.world;
       if (t && t.gym){
@@ -4554,7 +5643,13 @@
           G.balls += 3;
           saveG();
           extra = '🏅 获得 '+g.badge+'（'+G.badges.length+'/'+GYMS.length+'）';
-          if (world) world._pendingTalk = [{ who:g.leader, text:g.win }];
+          // 胜利台词后面接一句馆主的收尾，把这一章收住
+          if (world){
+            world._pendingTalk = [{ who:g.leader, text:g.win }];
+            if (g.after) world._pendingTalk.push({ who:g.leader, text:g.after });
+          }
+          // 回到世界后播的提示里带上「下一站」，比只报一句「战斗胜利」有用
+          endToast = '🏅 '+g.badge+' 到手　·　'+chapterHook();
         } else {
           extra = '🏅 再次战胜 '+(g ? g.leader : t.name);
         }
@@ -4583,7 +5678,7 @@
       await sleep(700);
     }
     await sleep(400);
-    this.finish('战斗胜利');
+    this.finish(endToast);
   };
 
   BattleScene.prototype.loseBattle = async function(){
@@ -4661,6 +5756,7 @@
     this.input.keyboard.on('keydown-Q', function(){ self.goto('dex'); });
     this.input.keyboard.on('keydown-E', function(){ self.goto('team'); });
     this.input.keyboard.on('keydown-B', function(){ self.goto('bag'); });
+    this.input.keyboard.on('keydown-R', function(){ self.goto('badge'); });
     this._onResize = function(){ if (self.scene.isActive()) self.render(); };
     this.scale.on('resize', this._onResize);
     this.render();
@@ -5085,6 +6181,16 @@
     this.utext(info.x+info.w, y+lh*0.42, '羁绊 '+c.bond+'/'+SR.CFG.MAX_BOND, fz(12), '#9fb0dd', 1, 7);
     y += lh;
 
+    // 攻/防/速 + 进化倍率：进化到底给了什么，必须能在这里读出来
+    var st = buildStats(sp, findNature(c.nature), c.stage||0, c.lv||20);
+    var evoX = stageMul(c.stage||0, 1);
+    this.utext(info.x, y+lh*0.34,
+      '攻 '+st.atk+' · 防 '+st.def+' · 速 '+st.spd, fz(12), '#c9d6ff', 0, 7);
+    this.utext(info.x+info.w, y+lh*0.34,
+      (c.stage||0) >= 2 ? '进化 ×'+evoX.toFixed(2)+'（最终形态）' : '进化 ×'+evoX.toFixed(2),
+      fz(11), (c.stage||0) > 0 ? '#9ee6b8' : '#7d8bb5', 1, 7);
+    y += lh;
+
     // HP + 经验
     var hp = hpOf(c), mh = maxHpOf(c), ratio = mh ? hp/mh : 0;
     var barH = Math.max(7, Math.round(fz(9)));
@@ -5328,12 +6434,17 @@
     G.bag.stone--;
     var sp = spOf(c.id);
     var from = sp.stages[c.stage||0];
+    // 进化前后的真实数值：不给玩家看这两个数，进化就永远只是「换了张图」
+    var b4 = buildStats(sp, findNature(c.nature), c.stage||0, c.lv||20);
     c.stage = (c.stage||0) + 1;
     c.hp = maxHpOf(c);
+    var af = buildStats(sp, findNature(c.nature), c.stage, c.lv||20);
     dexGot(c.id, c.stage);
     saveG();
-    AUDIO.sfx('levelup');
-    this.flashNote('🦋 进化！'+from+' → '+sp.stages[c.stage]);
+    AUDIO.sfx('evolve');
+    this.flashNote('🦋 进化！'+from+' → '+sp.stages[c.stage]+
+      '\n攻 '+b4.atk+'→'+af.atk+' · 防 '+b4.def+'→'+af.def+
+      ' · 速 '+b4.spd+'→'+af.spd+' · HP '+b4.hp+'→'+af.hp);
     this.bagSel = null;
     this.render();
   };
