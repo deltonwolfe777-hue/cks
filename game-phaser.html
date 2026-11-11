@@ -208,10 +208,50 @@
     #pad{width:118px;height:118px}
     #pad i{width:50px;height:50px;margin:-25px 0 0 -25px}
   }
+  /* 加载面板（batch13）
+     资源包 1.75MB，弱网下首帧要等十几秒。原来只有一行「加载中…」，
+     玩家不知道是在下载、卡死了、还是需要操作 —— 这三种感受差别很大。
+     进度条走的是「假进度」（script 标签拿不到下载进度），但它的作用不是精确，
+     是让人知道「还在动」。真加载完会直接淡出，绝不会卡在 92%。 */
+  #boot{position:fixed;inset:0;z-index:90;display:flex;align-items:center;justify-content:center;
+        background:radial-gradient(circle at 50% 42%,#151f3c,#070a14 78%);
+        transition:opacity .45s ease}
+  #boot.done{opacity:0;pointer-events:none}
+  #boot .bIn{text-align:center;width:min(300px,76vw)}
+  #boot .bName{font-size:23px;letter-spacing:9px;color:#eaf0ff;
+               text-shadow:0 2px 16px rgba(120,160,255,.55)}
+  #boot .bSub{font-size:9.5px;letter-spacing:3px;color:#7c8bb5;margin:7px 0 22px}
+  #boot .bBar{height:5px;border-radius:3px;background:rgba(120,145,200,.22);overflow:hidden}
+  #boot .bBar i{display:block;height:100%;width:4%;border-radius:3px;
+                background:linear-gradient(90deg,#5a86d6,#9ad0ff,#ffd166);
+                animation:bootFill 11s cubic-bezier(.15,.7,.25,1) forwards}
+  @keyframes bootFill{0%{width:4%}30%{width:46%}62%{width:72%}100%{width:91%}}
+  #boot .bTip{margin-top:12px;font-size:11px;color:#8fa0cc;letter-spacing:.5px;
+              min-height:16px;transition:opacity .3s}
 </style>
 </head>
 <body>
 <div id="game"></div>
+<div id="boot"><div class="bIn">
+  <div class="bName">灵 契 大 陆</div>
+  <div class="bSub">SPIRIREALM</div>
+  <div class="bBar"><i></i></div>
+  <div class="bTip" id="bootTip">正在载入精灵图鉴…</div>
+</div></div>
+<script>
+/* 加载文案轮播。必须放在 phaser-assets.js 之前：那个文件 1.75MB，
+   下载期间它后面的内联脚本一律不执行，放晚了这段轮播就白等一场。 */
+(function(){
+  var tips = ['正在载入精灵图鉴…', '正在生成大陆地形…', '正在唤醒道馆馆主…', '就快好了…'];
+  var el = document.getElementById('bootTip'), i = 0;
+  window.__bootTip = setInterval(function(){
+    if (!el) return;
+    i = (i + 1) % tips.length;
+    el.style.opacity = 0;
+    setTimeout(function(){ el.textContent = tips[i]; el.style.opacity = 1; }, 280);
+  }, 2600);
+})();
+</script>
 <div id="hud">加载中…</div>
 <div id="hint">按住屏幕任意位置朝一个方向拖 → 走路（不按不动） · 双击屏幕切全屏 · 撞上馆主挑战道馆 · 集齐 8 枚徽章挑战冠军 · 左上角是功能键 · 方向键/WASD · Q/E/B/R 开图鉴/队伍/背包/徽章 · N 开关路线指引</div>
 <div id="toast"></div>
@@ -424,6 +464,34 @@
   var SP_BY_ID = {}; SR.SPIRITS.forEach(function(s){ SP_BY_ID[s.id]=s; });
   function spOf(id){ return SP_BY_ID[id]; }
   function mult(a,d){ var row=SR.TYPE_CHART[a]; return (row && row[d]!==undefined) ? row[d] : 1; }
+
+  /* 属性画像：哪些属性打它疼、哪些打它不疼。
+     双属性按标准规则连乘（火+飞遇岩石 ×4，火+水遇水互相抵消回 ×1），
+     不懂这套规则的玩家也能从「×4 / ×0.25」直接读出该带谁来打。
+     图鉴此前只列属性名，等于告诉玩家「它是草系」却不说「该用什么打」，
+     克制表做了这么久一直没露过面。 */
+  function typeProfile(sp){
+    if (!sp) return { weak:[], resist:[], immune:[] };
+    var types = sp.types || [sp.type];
+    var weak = [], resist = [], immune = [], t, i, m, row;
+    for (t in SR.TYPE_CHART){
+      if (t === 'none') continue;                       // 通用招不吃克制
+      m = 1;
+      for (i=0;i<types.length;i++){
+        row = SR.TYPE_CHART[t];
+        m *= (row && row[types[i]] !== undefined) ? row[types[i]] : 1;
+      }
+      if (m === 0) immune.push(t);
+      else if (m > 1) weak.push({ t:t, m:m });
+      else if (m < 1) resist.push({ t:t, m:m });
+    }
+    weak.sort(function(a,b){ return b.m - a.m; });
+    resist.sort(function(a,b){ return a.m - b.m; });
+    return { weak:weak, resist:resist, immune:immune };
+  }
+  function typeName(t){ return (SR.TYPES && SR.TYPES[t]) ? SR.TYPES[t].name : t; }
+  // ×4 / ×2 / ×0.25 —— 整数倍率不显示小数尾巴，读起来更干脆
+  function mulTxt(m){ return m === Math.floor(m) ? String(m) : String(Math.round(m*100)/100); }
   function findNature(n){ for (var i=0;i<SR.NATURES.length;i++) if (SR.NATURES[i].name===n) return SR.NATURES[i]; return SR.NATURES[0]; }
   function randNature(){ return pick(SR.NATURES); }
   /* 进化成长（batch12）
@@ -587,7 +655,76 @@
   function buildFighter(sp, stage, nature, lv, damp){
     var L = lv||20, stats = buildStats(sp,nature,stage,L,damp);
     return { species:sp, stage:stage, nature:nature, lv:L, name:sp.stages[stage],
-             stats:stats, hp:stats.hp, maxHp:stats.hp, moves:movesFor(sp,L) };
+             stats:stats, hp:stats.hp, maxHp:stats.hp, moves:movesFor(sp,L),
+             status:null };   // 状态异常：null 或 { kind, turns }
+  }
+
+  /* =====================================================================
+     状态异常（batch13）
+     在此之前，招式只有「伤害 + 特效」两层：火花和喷射火焰除了画面不同，
+     打起来完全一样。玩家自然觉得「同属性招式还是重复」。
+     这一层把差异化推到机制上：同一个属性里，威力越低越容易挂异常状态，
+     于是「火花」（40 威力 / 10% 灼烧）和「烈焰冲撞」（高威力 / 25% 灼烧）
+     变成两种打法，而不是两种颜色。
+     - 中毒：每回合末掉 1/8 最大 HP，不自然解除
+     - 灼烧：每回合末掉 1/16，攻击 ×0.75
+     - 麻痹：速度 ×0.5，25% 概率整回合无法行动
+     - 睡眠：1~3 回合无法行动，醒来即解除
+     - 冰冻：无法行动，每次轮到自己有 25% 解冻，挨火系招式必解
+     规则刻意做「可读」而不是「精确」：玩家看一眼面板上的两个字，就知道
+     这回合该换人、该吃药，还是该硬打。
+     ===================================================================== */
+  var ST_DEF = {
+    poison:   { key:'poison',   name:'中毒', color:'#c084fc', tick:1/8,  atkMul:1,   spdMul:1,   actLock:0   },
+    burn:     { key:'burn',     name:'灼烧', color:'#fb923c', tick:1/16, atkMul:0.75, spdMul:1,   actLock:0   },
+    paralyze: { key:'paralyze', name:'麻痹', color:'#facc15', tick:0,    atkMul:1,   spdMul:0.5, actLock:0.25 },
+    sleep:    { key:'sleep',    name:'睡眠', color:'#94a3b8', tick:0,    atkMul:1,   spdMul:1,   actLock:1   },
+    freeze:   { key:'freeze',   name:'冰冻', color:'#7dd3fc', tick:0,    atkMul:1,   spdMul:1,   actLock:1   }
+  };
+  // 招式 → [状态, 附加概率]。威力越高概率越高，同一属性内形成梯度。
+  // 通用的五招（撞击/猛撞/连环爪/全力一击/回身闪击）不挂状态 —— 它们是保底输出。
+  var MOVE_STATUS = {
+    '火花':      ['burn',     0.10],
+    '喷射火焰':  ['burn',     0.20],
+    '烈焰冲撞':  ['burn',     0.25],
+    '水枪':      ['freeze',   0.05],
+    '冲浪':      ['freeze',   0.10],
+    '水炮':      ['freeze',   0.15],
+    '藤鞭':      ['poison',   0.12],
+    '飞叶风暴':  ['poison',   0.22],
+    '阳光烈焰':  ['poison',   0.18],
+    '电击':      ['paralyze', 0.12],
+    '十万伏特':  ['paralyze', 0.22],
+    '打雷':      ['paralyze', 0.30],
+    '冰砾':      ['freeze',   0.12],
+    '冰冻光束':  ['freeze',   0.22],
+    '暴风雪':    ['freeze',   0.28],
+    '突袭':      ['sleep',    0.08],
+    '咬碎':      ['sleep',    0.12],
+    '恶之波动':  ['sleep',    0.15],
+    '魔法闪光':  ['sleep',    0.12],
+    '妖精之风':  ['sleep',    0.16],
+    '月亮之力':  ['sleep',    0.20],
+    '念力':      ['sleep',    0.12],
+    '精神强念':  ['sleep',    0.16],
+    '预知未来':  ['sleep',    0.12],
+    '落石':      ['paralyze', 0.08],
+    '岩崩':      ['paralyze', 0.12],
+    '尖石攻击':  ['paralyze', 0.15],
+    '起风':      ['paralyze', 0.06],
+    '空气斩':    ['paralyze', 0.12],
+    '暴风':      ['paralyze', 0.16],
+    '龙息':      ['paralyze', 0.14],
+    '龙爪':      ['burn',     0.10],
+    '逆鳞':      ['burn',     0.14]
+  };
+  function statusDef(kind){ return kind ? (ST_DEF[kind] || null) : null; }
+  function statusAtkMul(f){ var d = f && statusDef(f.status && f.status.kind); return d ? d.atkMul : 1; }
+  function statusSpdMul(f){ var d = f && statusDef(f.status && f.status.kind); return d ? d.spdMul : 1; }
+  function statusLabel(f){
+    var d = statusDef(f && f.status && f.status.kind);
+    if (!d) return '';
+    return d.name;
   }
   function maxHpOf(inst){
     var s = spOf(inst.id); if(!s) return 1;
@@ -639,7 +776,9 @@
   }
   function calcDamage(atk, def, move){
     var lvl = 50;
-    var base = Math.floor(((2*lvl/5+2)*move.power*(atk.stats.atk/def.stats.def))/50)+2;
+    // 灼烧会削攻击（×0.75）：这是灼烧和中毒的分工 —— 中毒磨血，灼烧削输出
+    var atkStat = atk.stats.atk * statusAtkMul(atk);
+    var base = Math.floor(((2*lvl/5+2)*move.power*(atkStat/def.stats.def))/50)+2;
     var stab = (move.type===atk.species.type) ? 1.5 : 1;
     var tm = mult(move.type, def.species.type);
     var boost = 1;
@@ -706,7 +845,9 @@
       if (r.got[i]){ topGot=i; g++; }
       if (r.see[i]){ topSee=i; s++; }
     }
-    return { topGot:topGot, topSee:topSee, gotCount:g, seeCount:s };
+    // got / see 一定要一起返回：列表页画三阶小点、详情页写形态串都按数组下标取，
+    // 只给统计值会让 d.got[q] 变成 undefined[q]，整个图鉴静默抛错、渲染中断
+    return { topGot:topGot, topSee:topSee, gotCount:g, seeCount:s, got:r.got, see:r.see };
   }
   function dexTotals(){
     var got=0, seen=0;
@@ -1000,6 +1141,16 @@
     });
   }
   function artKey(sp, stage){ return sp.id+'_'+stage; }
+
+  /* 收起加载面板。只在世界场景建好后调用 —— 提前收会露出空白 canvas，
+     比多等两秒更让人怀疑是不是坏了。 */
+  function hideBoot(){
+    var el = document.getElementById('boot');
+    if (!el) return;
+    if (window.__bootTip) { clearInterval(window.__bootTip); window.__bootTip = null; }
+    el.classList.add('done');
+    setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 620);
+  }
 
   // ===== 属性配色 =====
   var TYPEC = {
@@ -2890,10 +3041,22 @@
 
     // 开场地名条
     var ws = this;
-    // 全新存档：用 toast 指一下路，不弹对话打断操作
-    if (!G.flags.metElder && !G.badges.length){
-      this.time.delayedCall(2000, function(){
-        ws.showToast('任务：去灵契中心附近找长老 岑');
+    /* 全新存档：用一段开场把「你是谁、要做什么」讲清楚。
+       原来只弹一句「去找长老 岑」的 toast，玩家一进游戏既不知道自己在哪，
+       也不知道为什么要走 —— 前五分钟全靠猜。老存档（已有徽章 / 见过长老 /
+       已经播过开场）不重播，回来的人不该被按着再听一遍。 */
+    if (!G.flags.metElder && !G.badges.length && !G.flags.opening){
+      G.flags.opening = 1; saveG();
+      this.time.delayedCall(1500, function(){
+        if (DLG.open) return;
+        say([
+          { who:'旁白',    text:'灵契大陆。人和精灵之间的羁绊，会凝成看得见的印记。' },
+          { who:'长老 岑', text:'你手里那只，从小跟你一起长大。它认你，你也认它——这就叫灵契。' },
+          { who:'长老 岑', text:'大陆上有八座道馆，八位馆主，八枚徽章。集齐了，你才有资格站到冠军面前。' },
+          { who:'长老 岑', text:'路不好走。风会告诉你方向，脚下的路会告诉你怎么走。别让人等太久。' }
+        ], function(){
+          ws.showToast('拖动屏幕走路 · 撞上馆主开战 · 左上角是背包 / 图鉴');
+        }, ws);
       });
     }
     this.time.delayedCall(600, function(){
@@ -3106,6 +3269,9 @@
         setTimeout(af, 420);
       }
     });
+
+    // 世界已经跑起来了：地图烘焙完、玩家落位、导航建好 —— 这时才允许收起加载面板
+    hideBoot();
   };
 
   WorldScene.prototype.blocked = function(x,y){
@@ -3652,23 +3818,42 @@
           { who:'旅人 弦', text:'我？我就走到走不动为止。路上什么都能碰见。' } ], null, this);
   };
 
+  /* 影这条线原来只有一句「我看看你配不配知道那件事」，然后打败他就改口说
+     「冠军也在等一个人」—— 那件事从头到尾没揭晓，等于把伏笔挖了不填。
+     现在补成完整的三段：门槛 → 揭底 → 通关后的重逢。
+     他的身份是「集齐过八枚、但输了的那一任挑战者」：
+     输的原因不是等级不够，是他从没信过自己的精灵 —— 正好回扣长老开场那句
+     「它认你，你也认它，这就叫灵契」。 */
   WorldScene.prototype.talkShade = function(){
     var self = this;
+    if (G.cleared){
+      say([
+        { who:'影', text:'……你真赢了。' },
+        { who:'影', text:'我本来准备好听你说「看吧，我早就说过」。' },
+        { who:'影', text:'结果我一句也接不上。' },
+        { who:'影', text:'下次再打。这次我不留手，你也别留。' }
+      ], null, this);
+      return;
+    }
     if (G.flags.shadeBeat){
-      say([ { who:'影', text:'……你赢了。别得意，曜比难缠十倍。' },
-            { who:'影', text:'我在这儿等你通关。到时候再打一次。' } ], null, this);
+      say([ { who:'影', text:'那件事我已经告诉你了。剩下的路你自己走。' },
+            { who:'影', text:'我在冠军那儿等你。到时候再打一次。' } ], null, this);
       return;
     }
     if (G.badges.length < 4){
       say([
         { who:'影', text:'四枚徽章，一枚都不能少。' },
-        { who:'影', text:'现在你有 '+G.badges.length+' 枚。回去吧。' }
+        { who:'影', text:'不是我在拦你。是我得先看清楚——' },
+        { who:'影', text:'你到底是带着它们走，还是被它们带着走。' },
+        { who:'影', text:'现在你有 '+G.badges.length+' 枚。还不够看。' }
       ], null, this);
       return;
     }
     say([
       { who:'影', text:'四枚了。' },
-      { who:'影', text:'……行。那我看看你配不配知道那件事。' }
+      { who:'影', text:'我当年拿到第四枚的时候，有个人也在这儿等我。' },
+      { who:'影', text:'他没教我招式，只问了我一句话。' },
+      { who:'影', text:'……行。先打。打完了，我把那件事告诉你。' }
     ], function(){ self.startShadowBattle(); }, this);
   };
 
@@ -4615,6 +4800,14 @@
     for (var i=0;i<this.ui.length;i++){ if (this.ui[i] && this.ui[i].destroy) this.ui[i].destroy(); }
     this.ui = [];
     this.menuStart = null;
+    // 状态牌走独立数组，不能混进 this.ui —— 见 syncStatusFx 里的说明
+    if (this.stFx){
+      for (var k=0;k<this.stFx.length;k++){ if (this.stFx[k] && this.stFx[k].destroy) this.stFx[k].destroy(); }
+    }
+    this.stFx = [];
+    // 状态牌引用必须同步清空，否则 syncStatusFx 会拿着已 destroy 的对象继续 setText
+    this.pStFx = null;
+    this.eStFx = null;
   };
   BattleScene.prototype.track = function(o){ this.ui.push(o); return o; };
   BattleScene.prototype.fz = function(pt){
@@ -4636,7 +4829,9 @@
       fontFamily:FONT, fontSize:size+'px', color:color||'#e8eeff',
       stroke:'#0b1026', strokeThickness:Math.max(2, Math.round(size*0.18))
     }).setDepth(depth||21);
-    t.setOrigin(origin===undefined?0:origin, origin===undefined?0:0.5);
+    // y 一律按「中心」算：同一个面板里名字/状态/Lv 混着排版，若名字走顶部基准
+    // 就会比旁边那两行低半行，再往下挪一像素就被血条压住（视觉回归里抓到的就是这个）
+    t.setOrigin(origin===undefined?0:origin, 0.5);
     return this.track(t);
   };
 
@@ -4658,9 +4853,12 @@
         menu:{ x:w*0.03, y:h*0.812, w:w*0.94, h:h*0.176 }
       };
     } else if (M === 'C'){
+      // 面板必须跟自己的精灵站在同一边：layoutSprites 里我方在 w*0.24、敌方在 w*0.75。
+      // 原来两个面板并排写反了（敌左我右），打起来会出现「左上面板写敌军名、
+      // 左边站的却是自家精灵」，一眼看不出谁是谁。
       G = {
-        e:{ x:w*0.02, y:h*0.025, w:w*0.34, h:h*0.155 },
-        p:{ x:w*0.40, y:h*0.025, w:w*0.34, h:h*0.155 },
+        e:{ x:w*0.60, y:h*0.025, w:w*0.33, h:h*0.155 },
+        p:{ x:w*0.02, y:h*0.025, w:w*0.34, h:h*0.155 },
         m:{ x:w*0.02, y:h*0.720, w:w*0.50, h:h*0.245 },
         menu:{ x:w*0.56, y:h*0.500, w:w*0.42, h:h*0.470 }
       };
@@ -4679,6 +4877,7 @@
     this.panel(eX,eY,eW,eH,20);
     var tierTag = B.tier === 'boss' ? ' 👑' : B.tier === 'rare' ? ' ✨' : '';
     this.eNameT = this.label(eX+eW*0.05, eY+eH*0.26, '', fz(15), '#ffffff', 22);
+    this.eStT   = this.label(eX+eW*0.72, eY+eH*0.26, '', fz(12), '#ffffff', 22, 1);
     this.eLvT   = this.label(eX+eW*0.95, eY+eH*0.26, '', fz(13), '#c9d6ff', 22, 1);
     this.eBarG  = this.track(this.add.graphics().setDepth(22));
     this.eHpT    = this.label(eX+eW*0.95, eY+eH*0.80, '', fz(11), '#9fb0dd', 22, 1);
@@ -4690,6 +4889,7 @@
     this.pPanel = { x:pX, y:pY, w:pW, h:pH };
     this.panel(pX,pY,pW,pH,20);
     this.pNameT = this.label(pX+pW*0.05, pY+pH*0.26, '', fz(15), '#ffffff', 22);
+    this.pStT   = this.label(pX+pW*0.72, pY+pH*0.26, '', fz(12), '#ffffff', 22, 1);
     this.pLvT   = this.label(pX+pW*0.95, pY+pH*0.26, '', fz(13), '#c9d6ff', 22, 1);
     this.pBarG  = this.track(this.add.graphics().setDepth(22));
     this.pHpT    = this.label(pX+pW*0.95, pY+pH*0.80, '', fz(11), '#9fb0dd', 22, 1);
@@ -4721,8 +4921,14 @@
     this.eLvT.setText('Lv.'+B.enemy.lv);
     this.pNameT.setText(B.player.name);
     this.pLvT.setText('Lv.'+B.player.lv);
+    // 状态异常：面板上留两个字，颜色跟状态下标一致（紫=毒 / 橙=烧 / 黄=麻 / 灰=睡 / 蓝=冻）
+    var es = statusDef(B.enemy.status && B.enemy.status.kind);
+    if (this.eStT) this.eStT.setText(es ? es.name : '').setColor(es ? es.color : '#ffffff');
+    var ps = statusDef(B.player.status && B.player.status.kind);
+    if (this.pStT) this.pStT.setText(ps ? ps.name : '').setColor(ps ? ps.color : '#ffffff');
     this.animateBar('e', this.eBarG, this.ePanel, B.enemy.hp, B.enemy.maxHp, this.eHpT, instant);
     this.animateBar('p', this.pBarG, this.pPanel, B.player.hp, B.player.maxHp, this.pHpT, instant);
+    this.syncStatusFx();
   };
 
   BattleScene.prototype.barGeom = function(p){
@@ -5410,21 +5616,150 @@
   };
 
   // ---------- 战斗流程 ----------
+
+  /* 行动判定。返回 false 表示这回合动不了（原因已经播报过）。
+     睡眠和冰冻分开播报，是因为玩家对「睡着的精灵」和「被冻住的精灵」
+     期待完全不同的应对：前者等着就行，后者该换人。播报混在一起就废掉了这个判断。 */
+  BattleScene.prototype.canAct = async function(f, spr){
+    var st = f.status;
+    if (!st) return true;
+    var d = statusDef(st.kind);
+    if (!d){ f.status = null; return true; }
+
+    if (st.kind === 'sleep'){
+      st.turns = (st.turns || 0) - 1;
+      if (st.turns <= 0){
+        f.status = null;
+        this.say(f.name + ' 醒了。');
+        this.refreshBars(); this.syncStatusFx();
+        await sleep(420);
+        return true;
+      }
+      this.say(f.name + ' 睡得正沉…');
+      this.refreshBars(); this.syncStatusFx();
+      await sleep(540);
+      return false;
+    }
+
+    if (st.kind === 'freeze'){
+      if (Math.random() < 0.25){
+        f.status = null;
+        this.say(f.name + ' 身上的冰化了！');
+        this.refreshBars(); this.syncStatusFx();
+        await sleep(420);
+        return true;
+      }
+      this.say(f.name + ' 被冻住了，动不了！');
+      this.refreshBars(); this.syncStatusFx();
+      await sleep(540);
+      return false;
+    }
+
+    if (st.kind === 'paralyze' && Math.random() < d.actLock){
+      this.say(f.name + ' 麻痹了，动不了！');
+      if (spr) this.popNumber(spr.x, spr.y - spr.displayHeight*0.60, '麻痹', d.color, false);
+      AUDIO.sfx('shake');
+      await sleep(540);
+      return false;
+    }
+    return true;
+  };
+
+  BattleScene.prototype.applyStatus = function(f, spr, kind){
+    var d = statusDef(kind);
+    if (!d || !f || f.hp <= 0 || f.status) return;
+    f.status = { kind:kind, turns:(kind === 'sleep' ? 1 + Math.floor(Math.random()*3) : 0) };
+    if (spr) this.popNumber(spr.x, spr.y - spr.displayHeight*0.72, d.name, d.color, true);
+    this.refreshBars();
+    this.syncStatusFx();
+    AUDIO.sfx('shake');
+  };
+
+  /* 精灵头顶的状态标记。面板上那两个字的字太小，正常视距下看不清，
+     所以在立绘上方再挂一个彩色小牌；状态解除就摘掉。 */
+  BattleScene.prototype.syncStatusFx = function(){
+    var B = this.B; if (!B) return;
+    var pairs = [
+      { f:B.player, spr:this.playerSpr, tag:'pStFx', panel:this.pPanel },
+      { f:B.enemy,  spr:this.enemySpr,  tag:'eStFx', panel:this.ePanel }
+    ];
+    for (var i=0;i<pairs.length;i++){
+      var p = pairs[i], d = statusDef(p.f.status && p.f.status.kind);
+      var cur = this[p.tag];
+      if (!d){
+        if (cur){ cur.destroy(); this[p.tag] = null; }
+        continue;
+      }
+      if (!cur){
+        cur = this[p.tag] = this.add.text(0, 0, '', {
+          fontFamily: FONT, fontSize: this.fz(12)+'px', color:d.color,
+          stroke:'#0b1026', strokeThickness:this.fz(3)
+        }).setOrigin(0.5).setDepth(30);
+        /* 状态牌不能进 this.ui：buildUI 先记下 menuStart 再 refreshBars，
+           牌子会被 track 到「菜单区」里，下一次 renderMenu 就把 ui[menuStart..]
+           整段销毁 —— 牌没了、this.pStFx 却还指着它，再 setColor 会
+           在已销毁的 Text 上找 canvas，报 drawImage of null。
+           独立数组才能让它跟着「整屏重建」走，而不是跟着「切菜单」走。 */
+        if (!this.stFx) this.stFx = [];
+        this.stFx.push(cur);
+      }
+      cur.setText(d.name);
+      cur.setColor(d.color);
+      cur.setVisible(true);
+      // 竖屏时我方面板正压在精灵头顶，牌子照「头顶往上顶」算就会落进血条里被切掉半截。
+      // 撞到面板就往下让到面板下沿 —— 宁可贴着精灵，也不能压血条。
+      var py = p.spr.y - p.spr.displayHeight - this.fz(14);
+      if (p.panel) py = Math.max(py, p.panel.y + p.panel.h + this.fz(12));
+      cur.setPosition(p.spr.x, py);
+    }
+  };
   BattleScene.prototype.bMove = async function(idx){
     var B = this.B;
     if (!B || B.over || B.busy) return;
     B.busy = true;
     var pm = B.player.moves[idx];
     var em = pick(B.enemy.moves);
-    var first = B.player.stats.spd >= B.enemy.stats.spd;
+    // 麻痹会把速度砍半，可能直接翻掉出手顺序 —— 这是麻痹最容易被感知的价值
+    var pSpd = B.player.stats.spd * statusSpdMul(B.player);
+    var eSpd = B.enemy.stats.spd * statusSpdMul(B.enemy);
+    var first = pSpd >= eSpd;
     var seq = first ? [['p',pm],['e',em]] : [['e',em],['p',pm]];
     for (var i=0;i<seq.length;i++){
       if (!this.B || this.B.over || this.B.force) break;
       if (seq[i][0]==='p') await this.execMove(this.B.player, this.B.enemy, seq[i][1], true);
       else await this.execMove(this.B.enemy, this.B.player, seq[i][1], false);
     }
+    // 回合末结算：中毒/灼烧掉血。放在双方都行动完之后，而不是各自行动后，
+    // 这样「先手把对手打倒」不会再多算一次毒伤。
+    if (this.B && !this.B.over && !this.B.force) await this.endTurnStatus();
     if (this.B && !this.B.over && !this.B.force){
       this.B.busy = false; this.B.menuState='root'; this.renderMenu();
+    }
+  };
+
+  /* 回合末状态结算。持续伤害走 dotDamage，不受普通伤害 52% 上限约束
+     —— 那个上限是为了防止一击秒杀，毒伤本来就该是细水长流。 */
+  BattleScene.prototype.endTurnStatus = async function(){
+    var B = this.B;
+    if (!B || B.over) return;
+    var pairs = [
+      { f:B.player, spr:this.playerSpr, isPlayer:true  },
+      { f:B.enemy,  spr:this.enemySpr,  isPlayer:false }
+    ];
+    for (var i=0;i<pairs.length;i++){
+      if (!this.B || this.B.over) return;
+      var p = pairs[i], f = p.f, d = statusDef(f.status && f.status.kind);
+      if (!d) continue;
+      if (d.tick > 0 && f.hp > 0){
+        var dot = Math.max(1, Math.round(f.maxHp * d.tick));
+        f.hp = Math.max(0, f.hp - dot);
+        this.popNumber(p.spr.x, p.spr.y - p.spr.displayHeight*0.55, '-'+dot, d.color, false);
+        this.say(f.name + ' 受到「' + d.name + '」的伤害 ' + dot + ' 点');
+        this.tweenBars(); this.refreshBars();
+        AUDIO.sfx('bump');
+        await sleep(560);
+        if (f.hp <= 0){ await this.onFaint(p.isPlayer ? 'player' : 'enemy'); return; }
+      }
     }
   };
 
@@ -5432,6 +5767,10 @@
     var B = this.B; if (!B || B.over) return;
     var srcSpr = isPlayer ? this.playerSpr : this.enemySpr;
     var dstSpr = isPlayer ? this.enemySpr : this.playerSpr;
+
+    // 动不了就到此为止：睡眠/冰冻/麻痹在自己回合先判定，
+    // 判定之后才开始前摇 —— 顺序反了会先冲出去再躺下，很滑稽
+    if (!(await this.canAct(atk, srcSpr))) return;
 
     // 施法前摇：先在施法者身上聚一层属性色光、头顶飘出招式名，再冲出去。
     // 没有这两下，命中特效会被读成「画面闪了一下」，看不出是哪个招式。
@@ -5483,7 +5822,30 @@
     this.say(msg);
 
     await sleep(immune?460:520);
-    if (def.hp <= 0) await this.onFaint(isPlayer ? 'enemy' : 'player');
+    if (def.hp <= 0){ await this.onFaint(isPlayer ? 'enemy' : 'player'); return; }
+
+    /* ---- 状态附加 ----
+       冰冻遇火必解：这是不需要解释的直觉规则，玩家看到火打冰会期待它化开。
+       其余状态按招式表掷骰，已经带着状态的目标不再叠加（省得互相顶掉，
+       也省得玩家觉得「怎么又中了」）。 */
+    if (mv.type === 'fire' && def.status && def.status.kind === 'freeze'){
+      def.status = null;
+      this.popNumber(dstSpr.x, dstSpr.y - dstSpr.displayHeight*0.72, '解冻', '#fdba74', false);
+      this.say(def.name + ' 身上的冰被火焰化开了！');
+      this.refreshBars(); this.syncStatusFx();
+      await sleep(460);
+      return;
+    }
+    if (!immune && !def.status){
+      var stq = MOVE_STATUS[mv.name];
+      if (stq && Math.random() < stq[1]){
+        var sd = statusDef(stq[0]);
+        this.applyStatus(def, dstSpr, stq[0]);
+        // 播报放在 say 之后，玩家先读伤害再读状态，因果顺序才对
+        this.say(def.name + ' 陷入了「' + sd.name + '」状态！');
+        await sleep(560);
+      }
+    }
   };
 
   BattleScene.prototype.tweenBars = function(){ /* HP 立即重绘，保留位供后续缓动扩展 */ };
@@ -5629,6 +5991,7 @@
       setTimeout(async function(){
         if (!self.B) return;
         await self.execMove(self.B.enemy, self.B.player, pick(self.B.enemy.moves), false);
+        if (self.B && !self.B.over) await self.endTurnStatus();
         if (self.B && !self.B.over){ self.B.busy=false; self.B.menuState='root'; self.renderMenu(); }
       }, 620);
     }
@@ -5694,6 +6057,7 @@
       await sleep(820);
       if (!this.B || this.B.over) return;
       await this.execMove(this.B.enemy, this.B.player, pick(this.B.enemy.moves), false);
+      if (this.B && !this.B.over) await this.endTurnStatus();
       if (this.B && !this.B.over){ this.B.busy=false; this.renderMenu(); }
     }
   };
@@ -5714,6 +6078,7 @@
       await sleep(620);
       if (!this.B || this.B.over) return;
       await this.execMove(this.B.enemy, this.B.player, pick(this.B.enemy.moves), false);
+      if (this.B && !this.B.over) await this.endTurnStatus();
       if (this.B && !this.B.over){ this.B.busy=false; this.renderMenu(); }
     }
   };
@@ -5754,9 +6119,14 @@
         if (!G.flags.shadeBeat){
           G.flags.shadeBeat = 1; saveG();
           extra = '🌑 战胜 影';
+          // 打赢才揭底：把「那件事」补上，别让伏笔永远悬着
           if (world) world._pendingTalk = [
-            { who:'影', text:'……好。你比我算的硬。' },
-            { who:'影', text:'那告诉你吧：冠军 曜 也在等一个人。他等的可能就是你。' }
+            { who:'影', text:'……够硬。那就坐下听我说。' },
+            { who:'影', text:'那件事是——徽章不是凭证，是容器。' },
+            { who:'影', text:'八枚装的不是荣誉，是你和它们一起攒下的东西。' },
+            { who:'影', text:'我集齐过八枚，也站到过曜面前。然后我输了。' },
+            { who:'影', text:'因为我从来没信过它们。它们也就没信过我。' },
+            { who:'影', text:'你现在信。这就是你和我的区别。去见曜吧，我在那儿等你。' }
           ];
         } else {
           extra = '🌑 再次战胜 影';
@@ -5765,7 +6135,14 @@
         G.cleared = true; saveG();
         extra = '👑 击败冠军 曜';
         if (world){
-          world._pendingTalk = [{ who:'冠军 曜', text:CHAMPION.win }];
+          // 通关是整条主线的落点，只留一句「结束了」太轻，给一段真正的收尾
+          world._pendingTalk = [
+            { who:'冠军 曜', text:CHAMPION.win },
+            { who:'冠军 曜', text:'十年前我坐上来的时候，以为这位置是终点。' },
+            { who:'冠军 曜', text:'后来才明白，是留下来看别人能走到哪儿。' },
+            { who:'冠军 曜', text:'你走得比我远。' },
+            { who:'冠军 曜', text:'去吧。大陆交给你了——别学我，别什么都一个人扛。' }
+          ];
           world._afterTalk = function(){ showEnding(); };   // 台词读完再弹通关结算
         }
       } else {
@@ -6085,17 +6462,49 @@
     // 名称 / 属性
     var y = info.y;
     var lh = Math.max(16, Math.round(fz(20)));
-    var nm = this.label(info.x, y+lh*0.5, isGot ? sp.stages[d.topGot] : sp.name, fz(20), '#eaf0ff', 6);
-    y += lh*1.15;
+    /* label() 的 y 是「顶部」，utext() 的 y 是「中心」—— 两套约定。
+       这里名字走 label，所以必须传 y 本身；原先传的是 y+0.5lh（按中心算），
+       名字整体下沉半个字高，正好被右边同样标称中心的属性徽章压住。 */
+    var nm = this.label(info.x, y, isGot ? sp.stages[d.topGot] : sp.name, fz(20), '#eaf0ff', 6);
     var types = sp.types || [sp.type];
-    var bx = info.x;
+    var bx = info.x + nm.width + fz(10);
     for (var i=0;i<types.length;i++){
-      var r = this.badge(bx, y+lh*0.42, (SR.TYPES[types[i]]?SR.TYPES[types[i]].name:'—'), types[i], 8);
+      var r = this.badge(bx, y+lh*0.5, (SR.TYPES[types[i]]?SR.TYPES[types[i]].name:'—'), types[i], 8);
       bx += (r.t.width + fz(16)) + fz(6);
     }
-    y += lh;
-    if (!isGot) this.utext(info.x, y+lh*0.4, '尚未收服 · 显示为见过的形态', fz(11), '#7c88ad', 0);
-    y += isGot ? lh*0.2 : lh*0.9;
+    y += lh*1.34;
+    if (!isGot){
+      this.utext(info.x, y+lh*0.36, '尚未收服 · 显示为见过的形态', fz(11), '#7c88ad', 0);
+      y += lh*0.84;
+    }
+
+    /* 弱点 / 抗性 —— 克制表第一次直接露给玩家。
+       没开图鉴的人靠试错也能玩，但知道「岩石打火飞 ×4」之后，
+       组队就从「带等级高的」变成「带对的」。 */
+    var prof = typeProfile(sp);
+    function fxName(o){ return typeName(o.t) + '×' + mulTxt(o.m); }
+    var wList = prof.weak.map(fxName), rList = prof.resist.map(fxName);
+    if (tall){
+      // 竖屏 info 区很紧，压成一行；宁可少列两个也不把下面的描述挤出去
+      var one = '弱 ' + (wList.length ? wList.slice(0,4).join(' ') : '无') +
+                '  ·  抗 ' + (rList.length ? rList.slice(0,3).join(' ') : '无');
+      var pl = this.utext(info.x, 0, one, fz(11), '#c9b4ff', 0, 6);
+      pl.setWordWrapWidth(info.w, true);
+      pl.setY(y + pl.height*0.5);
+      y += pl.height + this.gap*0.5;
+    } else {
+      var l1 = this.utext(info.x, 0, '弱点  ' + (wList.length ? wList.join(' ') : '无'),
+                          fz(11.5), '#ffb3b3', 0, 6);
+      l1.setWordWrapWidth(info.w, true); l1.setY(y + l1.height*0.5); y += l1.height + fz(3);
+      var l2 = this.utext(info.x, 0, '抵抗  ' + (rList.length ? rList.join(' ') : '无'),
+                          fz(11.5), '#9ee6b8', 0, 6);
+      l2.setWordWrapWidth(info.w, true); l2.setY(y + l2.height*0.5); y += l2.height + fz(3);
+    }
+    if (prof.immune.length){
+      var l3 = this.utext(info.x, 0, '免疫  ' + prof.immune.map(typeName).join(' '),
+                          fz(11), '#9fb0dd', 0, 6);
+      l3.setWordWrapWidth(info.w, true); l3.setY(y + l3.height*0.5); y += l3.height + fz(2);
+    }
 
     // 三阶进度
     var stageLine = '';
@@ -6131,7 +6540,7 @@
       bg.fillStyle(0x6b8cff, 1); bg.fillRoundedRect(rx, by, Math.max(barH, cellW*ratio), barH, barH/2);
       this.track(bg);
     }
-    y += lh*2.6;
+    y += lh*3.0;   // 数值柱画到 2.27lh + barH，留 0.7 行余量，栖息地才不会压在柱子上
 
     // 栖息地（从群系遇敌池反查，说明在哪能找到）
     var homes = [];
@@ -6510,7 +6919,109 @@
   };
 
   // 道具效果：糖果 +2 羁绊；进化石在羁绊够时进化（规则同原版 evolveInst）
-  UIScene.prototype.useItem = function(idx, kind){
+  /* 进化过场（batch13）
+     原来进化只弹一条 toast：字还没看完，图已经换好了 —— 玩家根本没「看见」变化发生。
+     赛尔号那种爽感靠的其实是过程：旧形态被光包住、光收束成一点、再炸开成新形态。
+     这里补的就是这段过程。全程约 2.4 秒，点屏幕可跳过。
+     所有对象不走 track()，因为渲染页面会把 this.ui 整体清掉；这里自己管生死。 */
+  UIScene.prototype.playEvolve = function(sp, fromStage, toStage, b4, af){
+    var self = this, w = this.scale.width, h = this.scale.height;
+    var objs = [], finished = false;
+    function reg(o){ objs.push(o); return o; }
+    function finish(){
+      if (finished) return;
+      finished = true;
+      for (var i=0;i<objs.length;i++){
+        var o = objs[i];
+        if (o){ self.tweens.killTweensOf(o); if (o.destroy) o.destroy(); }
+      }
+      objs.length = 0;
+      self.bagSel = null;
+      // 进化完直接落到队伍页：玩家刚看完「变强」，下一步自然是想看看它现在什么样。
+      // 停在道具列表里会让人以为没生效。
+      self.goto('team');
+    }
+
+    var cx = w/2, cy = h*0.38;
+    var base = Math.min(w, h);
+    var size = base * 0.50;
+
+    // 遮罩兼跳过按钮：点哪里都算跳过。压得够深，否则底下的背包列表会透上来抢视线
+    var veil = reg(this.add.rectangle(cx, h/2, w, h, 0x070b16, 0).setDepth(60).setInteractive());
+    veil.on('pointerdown', finish);
+    this.tweens.add({ targets:veil, fillAlpha:0.95, duration:180 });
+
+    var oldKey = sp.id+'_'+fromStage, newKey = sp.id+'_'+toStage;
+    var img = reg(this.add.image(cx, cy, oldKey).setDepth(62).setScale(size/256*0.94));
+    // 旧形态先轻轻呼吸一下，让玩家看清「它原来长这样」
+    this.tweens.add({
+      targets:img, scaleX:img.scaleX*1.05, scaleY:img.scaleY*1.05,
+      duration:520, yoyo:true, repeat:1, ease:'Sine.easeInOut'
+    });
+
+    /* 背光用「空心环」而不是实心圆：实心白圆在深色遮罩上会变成一块灰斑，
+       看着像屏幕上脏了一块。空心环加金色描边才像能量在聚。 */
+    var ring = reg(this.add.circle(cx, cy - size*0.08, size*0.52, 0x000000, 0).setDepth(61));
+    ring.setStrokeStyle(Math.max(2, base*0.007), 0xffe9a8, 0.9);
+    ring.setAlpha(0);
+    this.tweens.add({ targets:ring, alpha:0.85, scaleX:1.30, scaleY:1.30,
+                      duration:620, ease:'Sine.easeOut' });
+
+    var nameT = reg(this.add.text(cx, cy + size*0.66, sp.stages[fromStage], {
+      fontFamily:FONT, fontSize:Math.round(base*0.052)+'px', color:'#eaf0ff'
+    }).setOrigin(0.5).setDepth(63).setAlpha(0));
+    this.tweens.add({ targets:nameT, alpha:1, duration:300 });
+
+    // 白光炸开的那一刻换形态 —— 一闪一换，视觉上就是「变成」而不是「替换」
+    this.time.delayedCall(660, function(){
+      if (finished) return;
+      var flash = reg(self.add.rectangle(cx, h/2, w, h, 0xffffff, 0).setDepth(64));
+      self.tweens.add({
+        targets:flash, fillAlpha:0.95, duration:110, yoyo:true,
+        onYoyo:function(){
+          if (finished) return;
+          if (self.textures.exists(newKey)) img.setTexture(newKey);
+          var s = size/256;
+          img.setScale(s*0.72);
+          self.tweens.add({
+            targets:img, scaleX:s*1.10, scaleY:s*1.10, duration:260, ease:'Back.easeOut',
+            onComplete:function(){
+              if (finished) return;
+              self.tweens.add({ targets:img, scaleX:s, scaleY:s, duration:170 });
+            }
+          });
+          nameT.setText(sp.stages[toStage]);
+          nameT.setColor('#ffe08a');
+          // 一收一放：换形态的瞬间再炸出一圈 —— 这一下才是「变化发生」的实感
+          var burst = reg(self.add.circle(cx, cy - size*0.08, size*0.26, 0x000000, 0).setDepth(61));
+          burst.setStrokeStyle(Math.max(2, base*0.008), 0xffd166, 0.95);
+          self.tweens.add({ targets:burst, scaleX:2.6, scaleY:2.6, alpha:0,
+                            duration:540, ease:'Quad.easeOut' });
+        },
+        onComplete:function(){ if (flash && flash.destroy) flash.destroy(); }
+      });
+    });
+
+    // 数值浮现：进化的「实打实变强」要看得见数字，否则还是换皮
+    this.time.delayedCall(1080, function(){
+      if (finished) return;
+      var lines = [
+        '攻击  ' + b4.atk + ' → ' + af.atk,
+        '防御  ' + b4.def + ' → ' + af.def,
+        '速度  ' + b4.spd + ' → ' + af.spd,
+        '生命  ' + b4.hp  + ' → ' + af.hp
+      ];
+      var st = reg(self.add.text(cx, cy + size*0.80, lines.join('\n'), {
+        fontFamily:FONT, fontSize:Math.round(base*0.027)+'px',
+        color:'#c9d6ff', align:'center', lineSpacing:Math.round(base*0.010)
+      }).setOrigin(0.5, 0).setDepth(63).setAlpha(0));
+      self.tweens.add({ targets:st, alpha:1, duration:320 });
+    });
+
+    this.time.delayedCall(2500, finish);
+  };
+
+  UIScene.prototype.useItem = async function(idx, kind){
     var c = G.party[idx];
     if (!c) return;
     if (kind === 'candy'){
@@ -6530,20 +7041,19 @@
     if (c.bond < need){ this.flashNote('羁绊不足，需要 '+need+'（当前 '+c.bond+'）'); return; }
     G.bag.stone--;
     var sp = spOf(c.id);
-    var from = sp.stages[c.stage||0];
+    var fromStage = c.stage||0;
     // 进化前后的真实数值：不给玩家看这两个数，进化就永远只是「换了张图」
-    var b4 = buildStats(sp, findNature(c.nature), c.stage||0, c.lv||20);
-    c.stage = (c.stage||0) + 1;
+    var b4 = buildStats(sp, findNature(c.nature), fromStage, c.lv||20);
+    c.stage = fromStage + 1;
     c.hp = maxHpOf(c);
     var af = buildStats(sp, findNature(c.nature), c.stage, c.lv||20);
     dexGot(c.id, c.stage);
     saveG();
     AUDIO.sfx('evolve');
-    this.flashNote('🦋 进化！'+from+' → '+sp.stages[c.stage]+
-      '\n攻 '+b4.atk+'→'+af.atk+' · 防 '+b4.def+'→'+af.def+
-      ' · 速 '+b4.spd+'→'+af.spd+' · HP '+b4.hp+'→'+af.hp);
-    this.bagSel = null;
-    this.render();
+    // 新形态立绘可能还没进纹理池（玩家第一次进化到这里），先加载再放过场，
+    // 否则白光一闪之后换出来的是一张空白
+    await loadTex(this, sp.id+'_'+c.stage);
+    this.playEvolve(sp, fromStage, c.stage, b4, af);
   };
 
   UIScene.prototype.flashNote = function(msg){
