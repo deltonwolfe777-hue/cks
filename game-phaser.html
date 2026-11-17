@@ -117,6 +117,22 @@
   #dlgWho{font-size:12.5px;font-weight:700;color:#ffd98a;letter-spacing:1.5px;margin-bottom:7px}
   #dlgTxt{font-size:15px;line-height:1.66;color:#eaf0ff;min-height:1.66em}
   #dlgNext{margin-top:9px;text-align:right;font-size:11.5px;color:#7f95c8;letter-spacing:1px}
+  /* 选择框（选初始伙伴 / 剧情抉择）：和对话框同一套语言，按钮组铺满底部 */
+  #choice{position:fixed;z-index:46;display:none;left:50%;transform:translateX(-50%);
+          bottom:calc(18px + env(safe-area-inset-bottom,0px));
+          width:min(560px,calc(100vw - 28px));
+          background:rgba(8,12,28,.97);border:2px solid #5b6fa8;border-radius:15px;
+          padding:15px 16px 13px;box-shadow:0 14px 46px rgba(0,0,0,.68)}
+  #choice.on{display:block}
+  #chTitle{font-size:12.5px;font-weight:700;color:#ffd98a;letter-spacing:1.5px;margin-bottom:6px}
+  #chSub{font-size:12.5px;color:#a8b8dd;line-height:1.62;margin-bottom:12px}
+  #chBtns{display:flex;gap:9px}
+  #chBtns button{flex:1;padding:11px 6px;border-radius:11px;border:1.5px solid #6b83c4;
+    background:linear-gradient(180deg,#25325c,#18213c);color:#e8efff;font:inherit;font-size:14px;
+    cursor:pointer;font-weight:600;letter-spacing:.5px}
+  #chBtns button:active{transform:translateY(1px)}
+  #chBtns button.alt{border-color:#41506f;background:linear-gradient(180deg,#1c2338,#141a2c);
+    color:#a8b6d8;font-weight:500}
   /* 对话中收起摇杆与菜单：避免边读字边误触走位 */
   body.talk #pad{opacity:0!important}
   body.talk #menuBar{opacity:.22;pointer-events:none}
@@ -253,12 +269,13 @@
 })();
 </script>
 <div id="hud">加载中…</div>
-<div id="hint">按住屏幕任意位置朝一个方向拖 → 走路（不按不动） · 双击屏幕切全屏 · 撞上馆主挑战道馆 · 集齐 8 枚徽章挑战冠军 · 左上角是功能键 · 方向键/WASD · Q/E/B/R 开图鉴/队伍/背包/徽章 · N 开关路线指引</div>
+<div id="hint">七张地图 · 拖动屏幕走路 · 踩到路口木牌切换地图 · 撞上馆主挑战道馆 · 撞上灰袍人是影蚀会主线 · 集齐 8 枚徽章并解决影蚀会后挑战冠军 · 左上角是功能键 · WASD · Q/E/B/R 图鉴/队伍/背包/徽章 · N 路线指引</div>
 <div id="toast"></div>
 <div id="zone"></div>
 <div id="clock"></div>
 <div id="quest"><b>任务</b><span id="questTxt"></span><em id="questNum"></em></div>
 <div id="dlg"><div id="dlgWho"></div><div id="dlgTxt"></div><div id="dlgNext">点击继续 ▸</div></div>
+<div id="choice"><div id="chTitle"></div><div id="chSub"></div><div id="chBtns"></div></div>
 <div id="ending"><div id="endBox">
   <h2>通 关</h2>
   <div class="sub">灵契大陆 · 新的冠军</div>
@@ -288,7 +305,7 @@
 <div id="pad"><u data-t="u"></u><u data-t="d"></u><u data-t="l"></u><u data-t="r"></u><i></i></div>
 
 <script src="phaser.min.js"></script>
-<script src="phaser-assets.js"></script>
+<script src="phaser-assets.js?v=20261114d"></script>
 <script>
 (function () {
   var errEl = document.getElementById('err');
@@ -300,14 +317,16 @@
   var FONT = '"PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,sans-serif';
 
   // ===== 基础常量（与 src/data/tiles.js 一致）=====
-  // batch12：地图 48×34 → 64×46（+80% 面积）。群系半径同步放大、彼此拉开距离，
-  // 中间留出成片的荒野过渡带，走起来才有「大陆」而不是「八个格子」的感觉。
-  var TILE = 32, MAP_W = 64, MAP_H = 46;
+  // batch14 多地图：MAP_W / MAP_H / HUB 改为「当前区域」的运行时变量，
+  // 每次进入新区域由 genRegion() 重设。所有按全局量读图的函数
+  // （bakeMap / placeLandmarks / computeReachable / bfsPath / blocked）都不用改签名。
+  var TILE = 32;
+  var MAP_W = 26, MAP_H = 20;
   var T = SR.T;
   var TNAME = ['草地','高草','道路','树木','水面','岩石','雪地','沙地','熔岩','遗迹'];
   var WALK = [true,true,true,false,false,false,true,true,false,true];
   var ENC = SR.ENC_CHANCE;
-  var HUB = { x:32, y:23 };
+  var HUB = { x:12, y:9 };   // 当前区域枢纽坐标，genRegion() 每次重设
 
   // 遇敌池：40 只精灵必须全部至少出现在一个池里。
   // batch5 时有 6 只（s5/s26/s27/s28/s31/s37）不在任何池 —— 图鉴永远收不齐。
@@ -333,14 +352,14 @@
   var BIOME_BY_KEY = {}; BIOMES.forEach(function(b){ BIOME_BY_KEY[b.key]=b; });
 
   /* =====================================================================
-     主线骨架：八大道馆 · 徽章 · 冠军（batch 9）
+     主线骨架（batch14 多地图版）：七张区域地图 · 八座道馆 · 影蚀会 · 冠军
 
-     - 八个群系各一座道馆，馆主站在该群系地标旁（摆放见 placeGyms）
-     - **不设硬锁**：玩家想去哪个道馆就去哪个，等级差本身形成劝退。
-       用户要求「保留一定自由探索」，所以除了冠军（需 8 徽章）之外没有门槛。
-     - 队伍每只写死 [物种id, 阶, 等级]，不走全局等级公式 ——
-       公式会把后两馆压成同一水平，难度曲线立不住。
-     - 阶：0=一阶 1=二阶 2=三阶，影响形象与属性倍率（stageScale）
+     - 七张图按主线顺序串成一条旅行路线：灵契镇 → 微风原野 → 碧波湖区 →
+       流沙荒漠 → 灰烬火山 → 霜白雪原 → 影蚀回廊（支线回灵契镇挑战冠军）。
+     - 区域间走「门口」切换：走到边界路牌上即触发淡出淡入 + 地名条。
+     - 不设硬锁（除影蚀回廊需要剧情钥匙）：等级差本身形成劝退，
+       保留原有的自由探索手感。
+     - 队伍每只写死 [物种id, 阶, 等级]，等级按区域曲线整体上调。
      ===================================================================== */
   var GYMS = [
     { key:'plains',  badge:'萌芽徽章', icon:'leaf',    color:0x6BD36B,
@@ -348,7 +367,7 @@
       cloth:'#6BBF59', cloth2:'#3E8E41', hair:'#6B4A2B',
       intro:'草会记住每一次风的方向。让我看看你听得懂多少。',
       win:'…你的节奏比风还快。这枚萌芽徽章，你配得上。',
-      after:'草原的风是软的，所以这儿的人学不会狠。等见着别的馆主，你就知道风也有硬的时候。',
+      after:'草原的风是软的，所以这儿的人学不会狠。往东走出原野，湖边的风就硬多了。',
       team:[['s3',0,10],['s23',0,11]] },
 
     { key:'forest',  badge:'苔痕徽章', icon:'moss',    color:0x4FA87A,
@@ -356,60 +375,70 @@
       cloth:'#2E8B6B', cloth2:'#1C5E47', hair:'#3A2A1A',
       intro:'林子里每片叶子都在说话，你听见了吗？',
       win:'森林把你的脚步声记下来了。苔痕徽章归你。',
-      after:'树活着的时候不说话，死了才有人听。别急着长大——先学会站着。',
+      after:'穿过去就是湖区。最近湖边不太平——有人影在栈桥那边转悠，你替我留意点。',
       team:[['s12',1,13],['s22',1,13],['s24',1,14]] },
-
-    { key:'desert',  badge:'砂砾徽章', icon:'sand',    color:0xD8A84A,
-      leader:'沙盗 漠', title:'流沙之手', el:'岩',
-      cloth:'#D9A441', cloth2:'#A8762A', hair:'#3A2A1A',
-      intro:'沙子从不站队，它只站在赢的人脚边。',
-      win:'啧，你踩过的沙子比我稳。砂砾徽章，拿去。',
-      after:'沙子底下埋着很多人的骄傲。你的还立着，收好，别埋进去。',
-      team:[['s7',1,16],['s32',1,17]] },
-
-    { key:'ruins',   badge:'夜辉徽章', icon:'moon',    color:0x8A78D8,
-      leader:'守夜人 冥', title:'无灯之夜', el:'暗',
-      cloth:'#46506B', cloth2:'#2E3550', hair:'#15131F',
-      intro:'这地方没人来。你来了，说明你带着光。',
-      win:'夜没有吞掉你。夜辉徽章，收好。',
-      after:'夜不害人，害人的是怕黑的人。你身上有光，别在更亮的地方弄丢。',
-      team:[['s29',1,19],['s30',1,19],['s10',2,21]] },
 
     { key:'lake',    badge:'潮汐徽章', icon:'drop',    color:0x4D9BDE,
       leader:'湖畔钓手 澜', title:'静水之心', el:'水',
       cloth:'#3E9BD6', cloth2:'#2A6DA0', hair:'#2A2A3A',
       intro:'钓鱼和战斗一样，急的人先输。',
       win:'你的心比湖面还静。潮汐徽章，给你了。',
-      after:'水最有耐心。你要赢的从来不是我，是水底下那个更急的自己。',
-      team:[['s2',1,22],['s21',1,22],['s20',2,24]] },
+      after:'往南穿过湖区就是荒漠。沙子底下埋着比徽章老得多的东西——影蚀会盯上的就是那些。',
+      team:[['s2',1,18],['s21',1,19],['s20',2,21]] },
 
-    { key:'ridge',   badge:'龙脊徽章', icon:'wing',    color:0x8A6BE8,
-      leader:'龙骑士 玦', title:'逆风者', el:'龙',
-      cloth:'#8A5CD6', cloth2:'#5A2FA0', hair:'#2A2A3A',
-      intro:'山道上的风能把人吹下去。站稳了再说。',
-      win:'你在我头顶飞过去了。龙脊徽章，是你的荣誉。',
-      after:'山道上的风只认站得稳的人。站稳了，你就比风高。',
-      team:[['s14',1,25],['s15',1,25],['s40',2,27]] },
+    { key:'desert',  badge:'砂砾徽章', icon:'sand',    color:0xD8A84A,
+      leader:'沙盗 漠', title:'流沙之手', el:'岩',
+      cloth:'#D9A441', cloth2:'#A8762A', hair:'#3A2A1A',
+      intro:'沙子从不站队，它只站在赢的人脚边。',
+      win:'啧，你踩过的沙子比我稳。砂砾徽章，拿去。',
+      after:'遗迹里那位守夜人见多识广。拿上你的两枚徽章去见她，她会告诉你影蚀会在挖什么。',
+      team:[['s7',1,22],['s32',1,23]] },
+
+    { key:'ruins',   badge:'夜辉徽章', icon:'moon',    color:0x8A78D8,
+      leader:'守夜人 冥', title:'无灯之夜', el:'暗',
+      cloth:'#46506B', cloth2:'#2E3550', hair:'#15131F',
+      intro:'这地方没人来。你来了，说明你带着光。',
+      win:'夜没有吞掉你。夜辉徽章，收好。',
+      after:'火山口那扇石门后面，就是影蚀会的老巢。别急着进去——先去雪山把最后两枚徽章收了。',
+      team:[['s29',1,24],['s30',2,24],['s10',2,26]] },
 
     { key:'volcano', badge:'炽焰徽章', icon:'flame',   color:0xE2603A,
       leader:'熔岩使 炎', title:'余烬行者', el:'火',
       cloth:'#E2603A', cloth2:'#A8351C', hair:'#2A1A14',
       intro:'这里每一步都在烧。你还要往前走吗？',
       win:'好！你的血是滚的！炽焰徽章拿稳了。',
-      after:'火不是烧给别人看的，烧的是你心里那点不肯熄的东西。别让它灭。',
+      after:'往北是雪原，山顶的寒冷能浇熄火山的脾气。最后两枚徽章在那儿。',
       team:[['s17',2,28],['s11',2,28],['s16',2,30]] },
 
     { key:'snow',    badge:'霜晶徽章', icon:'crystal', color:0x7FD3E8,
       leader:'冰晶使 霜', title:'极寒咏者', el:'冰',
       cloth:'#7FD3E8', cloth2:'#4FA8C4', hair:'#D9E8F0',
-      intro:'最后一座馆。冷会让人看清自己剩下多少决心。',
+      intro:'倒数第二座馆。冷会让人看清自己剩下多少决心。',
       win:'冰化了。你带走了这里最硬的一块——霜晶徽章。',
-      after:'冰把声音都冻住了，所以我话少。你听见的这句，是真的。',
-      team:[['s34',2,32],['s8',2,32],['s33',2,34]] }
+      after:'龙脊山道在雪山南边。玦的龙很快，但你的伙伴更快。',
+      team:[['s34',2,32],['s8',2,32],['s33',2,34]] },
+
+    { key:'ridge',   badge:'龙脊徽章', icon:'wing',    color:0x8A6BE8,
+      leader:'龙骑士 玦', title:'逆风者', el:'龙',
+      cloth:'#8A5CD6', cloth2:'#5A2FA0', hair:'#2A2A3A',
+      intro:'山道上的风能把人吹下去。站稳了再说。',
+      win:'你在我头顶飞过去了。龙脊徽章，是你的荣誉。',
+      after:'八枚了。回灵契镇之前，先把火山口那扇门后面的事了结——冠军不会跟背着债的人握手。',
+      team:[['s14',2,35],['s15',2,35],['s40',2,37]] }
   ];
   var GYM_BY_KEY = {}; GYMS.forEach(function(g){ GYM_BY_KEY[g.key] = g; });
 
   // 道馆沿用「撞上去就开战」的旧交互，所以仍以 TRAINER_DEFS 的形状喂给放置与渲染
+  // 同一群系 key 可能被两张图复用（遗忘遗迹 / 影蚀回廊都叫 ruins）。
+  // 道馆只归「第一张」包含该群系的图，否则遗迹的守夜人会在回廊里也站一个。
+  function gymRegionOf(key){
+    for (var i=0;i<REGIONS.length;i++){
+      var R = REGIONS[i];
+      for (var j=0;j<(R.biomes||[]).length;j++) if (R.biomes[j].key === key) return R.key;
+    }
+    return null;
+  }
+
   var TRAINER_DEFS = GYMS.map(function(g){
     return { key:g.key, name:g.leader, cloth:g.cloth, cloth2:g.cloth2, hair:g.hair,
              pool:[], stage:0, gym:true };
@@ -421,34 +450,268 @@
     cloth:'#F0D060', cloth2:'#A88018', hair:'#F8F0D8',
     intro:'八枚徽章都在你身上了。这枚冠军之证，只能从我这拿走。',
     win:'……结束了。灵契大陆，现在由你来守。',
-    team:[['s5',2,34],['s9',2,35],['s15',2,37],['s40',2,39]]
+    team:[['s5',2,38],['s9',2,38],['s15',2,39],['s40',2,40]]
   };
 
   /* =====================================================================
-     剧情 NPC：把八个道馆串成一条线
-     - 长老 岑：发任务 / 汇总进度 / 指引冠军
-     - 学徒 小满：起点向导，教你基础（草原，第一馆旁边）
-     - 旅人 弦：到处跑的老手，每隔几枚徽章出现一次，送道具
-     - 影：神秘对手，第 4 枚徽章后主动挑战你
-     - 冠军 曜：8 徽章后开战
-     - at 是「大致坐标」，实际用 snapWalkable 找最近的可走空格，
-       避免正好压在 batch7 的地标或商道上
+     区域地图（batch14）
+
+     一张 64×46 的大陆拆成七张独立小图，各自有自己的种子、尺寸、群系与门口。
+     每张图仍然是「群系圆 + 荒野 + 路网」的生成方式（genRegion），
+     所以旧的手感、可达性检查、地标摆放逻辑全部沿用，只是坐标系换成了本区域的。
+
+     字段说明：
+     - W/H          本图格数（比 64×46 小，走完一张 2–4 分钟，不会走空）
+     - hub          本图枢纽坐标（出生点、精灵中心、可达性 BFS 的种子）
+     - lv0          野生精灵基准等级，决定这张图的难度带
+     - biomes       本图的群系圆：[{key,cx,cy,r}]，key 取自全局 BIOMES
+     - links        群系之间额外拉的路（[i,j] 是 biomes 下标）
+     - gates        门口：走上去即切换区域；lock 返回 false 时只弹提示
+     - track        天气/音乐取哪套群系配置
+     ===================================================================== */
+  function patch(key, cx, cy, r){
+    var b = BIOME_BY_KEY[key];
+    return { key:key, name:b.name, sub:b.sub, cx:cx, cy:cy, r:r,
+             pools:b.pools, rare:b.rare,
+             sky:b.sky, ground:b.ground, hill:b.hill };
+  }
+
+  var REGIONS = [
+    { key:'town', name:'灵契镇', sub:'旅程的起点 · 中央枢纽', kind:'town',
+      W:26, H:20, seed:20261114, hub:[12,9], lv0:0, track:'plains',
+      gates:[
+        { x:23, y:9,  to:'meadow', spawn:[4,17],  label:'微风原野' },
+        { x:2,  y:9,  to:'frost',  spawn:[4,10],  label:'霜白雪原',
+          lock:function(){ return G.badges.length >= 6; },
+          lockMsg:'龙脊的山风太大——集齐六枚徽章，才有资格从这条路翻回镇上。' }
+      ] },
+
+    { key:'meadow', name:'微风原野', sub:'风车草原 · 低语森林', kind:'wild',
+      W:48, H:36, seed:20261115, hub:[9,17], lv0:6, track:'plains',
+      biomes:[ patch('plains',22,10,9), patch('forest',36,27,10) ],
+      links:[[0,1]],
+      gates:[
+        { x:2,  y:17, to:'town',   spawn:[21,9], label:'灵契镇' },
+        { x:45, y:8,  to:'lake',   spawn:[4,25], label:'碧波湖区' }
+      ] },
+
+    { key:'lake', name:'碧波湖区', sub:'大湖与栈桥 · 潮汐的心跳', kind:'wild',
+      W:44, H:34, seed:20261116, hub:[7,25], lv0:14, track:'lake',
+      biomes:[ patch('lake',27,14,11) ],
+      gates:[
+        { x:2,  y:25, to:'meadow', spawn:[43,8], label:'微风原野' },
+        { x:36, y:31, to:'dunes',  spawn:[36,4],  label:'流沙荒漠' }
+      ] },
+
+    { key:'dunes', name:'流沙荒漠', sub:'风蚀石柱 · 遗忘遗迹', kind:'wild',
+      W:52, H:38, seed:20261117, hub:[10,30], lv0:20, track:'desert',
+      biomes:[ patch('desert',18,25,9), patch('ruins',40,11,9) ],
+      links:[[0,1]],
+      gates:[
+        { x:36, y:2,  to:'lake',   spawn:[36,29], label:'碧波湖区' },
+        { x:49, y:30, to:'ember', spawn:[4,27],  label:'灰烬火山' }
+      ] },
+
+    { key:'ember', name:'灰烬火山', sub:'熔岩之环 · 影蚀会的门', kind:'wild',
+      W:44, H:34, seed:20261118, hub:[9,27], lv0:27, track:'volcano',
+      biomes:[ patch('volcano',27,13,11) ],
+      gates:[
+        { x:2,  y:27, to:'dunes',  spawn:[47,30], label:'流沙荒漠' },
+        { x:36, y:2,  to:'frost',  spawn:[36,33], label:'霜白雪原' },
+        { x:41, y:16, to:'hollow', spawn:[17,23], label:'影蚀回廊',
+          lock:function(){ return !!G.flags.hollowOpen; },
+          lockMsg:'回廊之门上锁着三道印记——影蚀会三位干部各持一把钥匙。' }
+      ] },
+
+    { key:'frost', name:'霜白雪原', sub:'极寒高原 · 龙脊山道', kind:'wild',
+      W:52, H:38, seed:20261119, hub:[44,10], lv0:31, track:'snow',
+      biomes:[ patch('snow',18,11,9), patch('ridge',32,28,10) ],
+      links:[[0,1]],
+      gates:[
+        { x:36, y:35, to:'ember', spawn:[36,4],  label:'灰烬火山' },
+        { x:2,  y:10, to:'town',  spawn:[4,9],   label:'灵契镇' }
+      ] },
+
+    { key:'hollow', name:'影蚀回廊', sub:'虚空之座 · 影蚀会本部', kind:'lair', dark:true,
+      W:36, H:28, seed:20261120, hub:[17,22], lv0:38, track:'ruins',
+      biomes:[ patch('ruins',17,10,9) ],
+      gates:[
+        { x:17, y:25, to:'ember', spawn:[41,18], label:'灰烬火山' }
+      ] }
+  ];
+  var REGION_BY_KEY = {}; REGIONS.forEach(function(r){ REGION_BY_KEY[r.key] = r; });
+  var CUR_REGION = REGION_BY_KEY.town;
+  // 区域连通图：指引要跨图时，先算出「下一跳」是哪个区域
+  function regionHops(from, to){
+    if (from === to) return null;
+    var prev = {}, q = [from], seen = {};
+    seen[from] = 1;
+    while (q.length){
+      var cur = q.shift(), R = REGION_BY_KEY[cur];
+      if (!R) continue;
+      for (var i=0;i<R.gates.length;i++){
+        var nx = R.gates[i].to;
+        if (seen[nx] || !REGION_BY_KEY[nx]) continue;
+        seen[nx] = 1; prev[nx] = cur;
+        if (nx === to){
+          var step = to;
+          while (prev[step] && prev[step] !== from) step = prev[step];
+          return step;
+        }
+        q.push(nx);
+      }
+    }
+    return null;
+  }
+
+  /* =====================================================================
+     反派组织：影蚀会（batch14）
+
+     设计参考宝可梦的敌对组织：一套制服、一个理念、三位干部、一位首领。
+     理念：「羁绊是锁，锁要拆掉」—— 他们相信人和精灵的契约在消耗精灵，
+     所以要把灵契之力抽干、凝成「蚀月」，让精灵回到没有人的时代。
+     这条线和主角的成长是对照：主角一路靠羁绊变强，他们一路否定羁绊。
+
+     四件「灵契秘宝」是主线的推进器：
+     潮汐之泪（湖）→ 夜辉石（遗迹）→ 炎心核（火山）→ 霜晶核（雪山），
+     四件集齐，回廊才会打开，首领才会现身。
+     ===================================================================== */
+  var VILLAINS = {
+    grunt1: { key:'grunt1', name:'影蚀会众 · 灰鸦', flag:'grunt1',
+      cloth:'#5A5470', cloth2:'#2C2842', hair:'#1A1826', acc:'hood',
+      team:[['s26',0,12],['s30',0,12]],
+      need:function(){ return G.badges.indexOf('plains') >= 0 || G.badges.length > 0; },
+      block:['喂，小鬼，别往这边看。','影蚀会在办事，等你拿到一枚徽章再来多管闲事。'],
+      pre:['……你跟着我干什么？','哦，你是那个刚拿了萌芽徽章的新人。',
+           '正好，拿你试试手。让你看看没有羁绊的精灵，是怎么被榨干的。'],
+      win:['啧……你这只，居然自己会躲。','听着，这片大陆上的秘宝，我们会一件一件拿走。',
+           '潮汐之泪在湖底，夜辉石在遗迹，炎心核在火山，霜晶核在雪山。',
+           '四件齐了，灵契就会断。到时候你手里那些「伙伴」，会全部变回野兽。'],
+      idle:['影蚀会不跟废物说话。'] },
+
+    grunt2: { key:'grunt2', name:'影蚀会众 · 灰鸦', flag:'grunt2',
+      cloth:'#5A5470', cloth2:'#2C2842', hair:'#1A1826', acc:'hood',
+      team:[['s29',0,15],['s26',1,16],['s30',1,16]],
+      need:function(){ return G.badges.length >= 2; },
+      block:['栈桥封了。影蚀会在取东西。','两枚徽章都没有，你也配问？'],
+      pre:['又来？这次我可带了三只。','潮汐之泪就在湖底那个匣子里。你猜我怎么把它捞上来的？',
+           '——用不听话的精灵当鱼饵。它们不听话，就不用管它们疼不疼。'],
+      win:['……你到底是哪来的怪物。','东西你拿去吧。反正，还有三件。',
+           '对了，干部「砂」已经在遗迹等你了。他最讨厌别人抢他的战利品。'],
+      idle:['潮汐之泪没了……砂大人会扒了我的皮。'] },
+
+    admin1: { key:'admin1', name:'影蚀会干部 · 砂', title:'流沙之手', flag:'admin1',
+      cloth:'#C9A06A', cloth2:'#6B4A24', hair:'#2A1E14', acc:'hood',
+      team:[['s31',1,20],['s7',2,21],['s32',1,21]],
+      need:function(){ return G.badges.length >= 3; },
+      block:['这儿不是给游客看的地方。','三枚徽章之前，我懒得动手。'],
+      pre:['我就是砂。','遗迹里的夜辉石我挖了三个月。你知道那石头是干什么的吗？',
+           '它记着人和精灵签下的第一份契约。烧了它，契约就从头算——从没有人开始算。',
+           '你手上三枚徽章，就是三份契约。把你也烧了，正好。'],
+      win:['……石头归你了。','但你别高兴。我这种人在影蚀会，只是最外面的一层。',
+           '「烬」在火山，他比我疯。「寒」在雪山，她比我冷。',
+           '而坐在最里面的那位……不叫名字，我们只叫他「蚀」。'],
+      idle:['遗迹的风比我的话多。'] },
+
+    admin2: { key:'admin2', name:'影蚀会干部 · 烬', title:'余烬行者', flag:'admin2',
+      cloth:'#B4462C', cloth2:'#6A1E10', hair:'#1A120E', acc:'hood',
+      team:[['s13',1,25],['s17',2,26],['s33',1,26]],
+      need:function(){ return G.badges.length >= 5; },
+      block:['火山不欢迎活人。','五枚徽章——不够，连灰都算不上。'],
+      pre:['炎心核在我胸口烧了三年。','你知道火最像什么吗？像羁绊——烧起来的时候，谁都以为它不会灭。',
+           '可火从来不是靠「相信」烧的。靠的是柴。柴烧完，火就灭。',
+           '人也一样。你的伙伴迟早会发现，你就是那根柴。'],
+      win:['……哈。','有意思。你的火烧得比我久。',
+           '拿走吧，炎心核。反正第四件在寒手里。',
+           '去雪山找她。她不会像我这样站着跟你说话——她会让你先冻掉一只手指，再开口。'],
+      idle:['余烬还有温度。别踩。'] },
+
+    admin3: { key:'admin3', name:'影蚀会干部 · 寒', title:'霜之咏者', flag:'admin3',
+      cloth:'#9FC8DE', cloth2:'#3E6E8C', hair:'#E8F4FA', acc:'hood',
+      team:[['s8',2,30],['s34',2,30],['s35',1,31]],
+      need:function(){ return G.badges.length >= 6; },
+      block:['雪原上没有多余的话。','六枚徽章。你走得比我预想的快。'],
+      pre:['我叫寒。','我原来也是训练家。我的伙伴在雪崩里把我推了出来，然后冻成了冰。',
+           '它到死都相信我。这就是你们说的羁绊。',
+           '——我看着那块冰看了十年。我明白了：它相信我，所以它死了。',
+           '所以我要把这条线拆掉。让以后没有精灵再为谁去死。'],
+      win:['……霜晶核。拿去。','你说它会希望我这么做吗。','别回答。我不想听答案。',
+           '回廊的门我开了。蚀在里面。他比我更早明白这件事，也比我更狠。',
+           '去吧。你走进那扇门的时候，就没人能替你挡了。'],
+      idle:['雪落下来的时候，别出声。'] },
+
+    boss: { key:'boss', name:'影蚀会首领 · 蚀', title:'拆锁的人', flag:'bossBeat',
+      cloth:'#2E2A40', cloth2:'#12101E', hair:'#0A0812', acc:'crown',
+      team:[['s6',2,34],['s37',2,34],['s38',1,35],['s29',2,35]],
+      need:function(){ return !!G.flags.hollowOpen; },
+      block:['门还没开。你来得太早。'],
+      pre:['你来了。','四件秘宝都在我脚下。它们在我手里的样子，和在你手里不一样——',
+           '在你手里，它们是「证据」，证明人和精灵可以一起活。',
+           '在我手里，它们只是四块石头。因为我不信它们。',
+           '我不信，它们就不灵。这十年我验证了无数次。',
+           '现在我给你最后一次机会：放下那只精灵，走过来，看看没有羁绊的世界有多安静。'],
+      win:['……原来如此。','不是秘宝不灵。是我从来没有真的握过谁的手。',
+           '你赢了。石头还你。',
+           '但我说的那些话，没有一句是假的。羁绊确实会让人疼。',
+           '只是你选了疼着也要连着。我选了不疼，也就没连上。',
+           '去吧。虚空之座下面还有东西——我唤醒它的时候，以为它能替我回答这个问题。'],
+      idle:['门开着。路你自己走。'] },
+
+    void: { key:'void', name:'虚空之主', title:'被唤醒的古老者', flag:'voidBeat',
+      cloth:'#3A2A5E', cloth2:'#1A1030', hair:'#0A0614', acc:'crown',
+      team:[['s38',2,42]],
+      need:function(){ return !!G.flags.bossBeat; },
+      block:['虚空的座，还没轮到你来坐。'],
+      pre:['……谁在敲我的门。','石头。四块石头。还有一条很细的线。',
+           '很久以前，人和精灵之间没有线。我一个人在这里睡了很久。',
+           '你们把线叫做羁绊。我把它叫做「绳子」。',
+           '绳子会断。断的时候，两头都会疼。',
+           '让我看看——你这条绳子，能撑住我几下。'],
+      win:['……撑住了。','奇怪。绳子的另一头，没有在拉你，也没有在放你。',
+           '它就那么连着。',
+           '……我睡了。这次，别叫醒我。',
+           '石头留在你那儿吧。反正你比我会拿。'],
+      idle:['虚空很安静。别吵。'] }
+  };
+  var VILLAIN_BY_KEY = VILLAINS;
+
+  /* =====================================================================
+     剧情 NPC（batch14 多地图版）
+     - 每个 NPC 绑定 region + 本图内的粗略坐标 at，实际落点由 snapWalkable 吸附
+     - role 决定对话入口；反派统一 role:'villain'，再按 vk 找 VILLAINS
+     - 长老 / 冠军只站在灵契镇，避免在别的图里「人不在却接了任务」
      ===================================================================== */
   var STORY_NPCS = [
-    // 长老与冠军必须站在枢纽（灵契镇）里。
-    // 早前把长老放在 HUB.y+4，那格被群系边界划进了流沙荒漠，
-    // 结果长老站在沙地里、冠军站在山道上 —— 群系边界带噪声，手算圆半径靠不住，
-    // 所以这两位一律贴到 HUB 三格以内，并用 check_places.mjs 断言落点在 town。
     { key:'elder', name:'长老 岑',   role:'elder', acc:'beard',
-      cloth:'#C8A860', cloth2:'#8A6A2A', hair:'#E8E4D8', at:[HUB.x-2, HUB.y+1] },
-    { key:'mira',  name:'学徒 小满', role:'mira',  acc:'twintail',
-      cloth:'#E8A0B8', cloth2:'#B06080', hair:'#3A2A1A', at:[BIOMES[0].cx+2, BIOMES[0].cy+3] },
-    { key:'chord', name:'旅人 弦',   role:'chord', acc:'hat',
-      cloth:'#6BA8D8', cloth2:'#2A5580', hair:'#2A2030', at:[BIOMES[2].cx-3, BIOMES[2].cy+3] },
-    { key:'shade', name:'影',        role:'shade', acc:'hood',
-      cloth:'#3A3550', cloth2:'#1A1830', hair:'#101020', at:[BIOMES[6].cx+2, BIOMES[6].cy+2] },
+      cloth:'#C8A860', cloth2:'#8A6A2A', hair:'#E8E4D8', region:'town', at:[15,11] },
     { key:'lumen', name:'冠军 曜',   role:'lumen', acc:'crown',
-      cloth:'#F0D060', cloth2:'#A88018', hair:'#F8F0D8', at:[HUB.x+2, HUB.y+3] }
+      cloth:'#F0D060', cloth2:'#A88018', hair:'#F8F0D8', region:'town', at:[16,13] },
+
+    { key:'mira',  name:'学徒 小满', role:'mira',  acc:'twintail',
+      cloth:'#E8A0B8', cloth2:'#B06080', hair:'#3A2A1A', region:'meadow', at:[24,13] },
+    { key:'grunt1', name:'影蚀会众 · 灰鸦', role:'villain', vk:'grunt1', acc:'hood',
+      cloth:'#5A5470', cloth2:'#2C2842', hair:'#1A1826', region:'meadow', at:[35,24] },
+
+    { key:'chord', name:'旅人 弦',   role:'chord', acc:'hat',
+      cloth:'#6BA8D8', cloth2:'#2A5580', hair:'#2A2030', region:'lake', at:[23,24] },
+    { key:'grunt2', name:'影蚀会众 · 灰鸦', role:'villain', vk:'grunt2', acc:'hood',
+      cloth:'#5A5470', cloth2:'#2C2842', hair:'#1A1826', region:'lake', at:[29,22] },
+
+    { key:'shade', name:'影',        role:'shade', acc:'hood',
+      cloth:'#3A3550', cloth2:'#1A1830', hair:'#101020', region:'dunes', at:[43,13] },
+    { key:'admin1', name:'影蚀会干部 · 砂', role:'villain', vk:'admin1', acc:'hood',
+      cloth:'#C9A06A', cloth2:'#6B4A24', hair:'#2A1E14', region:'dunes', at:[38,15] },
+
+    { key:'admin2', name:'影蚀会干部 · 烬', role:'villain', vk:'admin2', acc:'hood',
+      cloth:'#B4462C', cloth2:'#6A1E10', hair:'#1A120E', region:'ember', at:[24,19] },
+
+    { key:'admin3', name:'影蚀会干部 · 寒', role:'villain', vk:'admin3', acc:'hood',
+      cloth:'#9FC8DE', cloth2:'#3E6E8C', hair:'#E8F4FA', region:'frost', at:[20,13] },
+
+    { key:'boss', name:'影蚀会首领 · 蚀', role:'villain', vk:'boss', acc:'crown',
+      cloth:'#2E2A40', cloth2:'#12101E', hair:'#0A0812', region:'hollow', at:[17,13] },
+    { key:'void', name:'虚空之主', role:'villain', vk:'void', acc:'crown',
+      cloth:'#3A2A5E', cloth2:'#1A1030', hair:'#0A0614', region:'hollow', at:[17,6] }
   ];
   var NPC_BY_KEY = {}; STORY_NPCS.forEach(function(n){ NPC_BY_KEY[n.key] = n; });
   // 所有需要立绘的人物（馆主 + 剧情 NPC）
@@ -800,9 +1063,10 @@
   // 旧版（DOM 版）的 sr_game_v2 / sr_coll_v2 只读不写，见 migrateLegacySave()。
   var SAVE_KEY = 'sr_phaser_test_v2';
   var G = {
-    party: [ { id:'s1', stage:0, lv:12, exp:0, hp:null, nature:'固执', bond:2, count:1 },
-             { id:'s2', stage:0, lv:11, exp:0, hp:null, nature:'坦率', bond:1, count:1 } ],
-    balls: 1000,
+    // batch14：新档不再预送两只精灵。开局在灵契镇的木桌上三选一，
+    // 这三只是火/水/草三系的经典三角，也是玩家对这个世界的第一印象。
+    party: [],
+    balls: 0,
     ballTopUp: false,
     activeIdx: 0,
     defeated: [],
@@ -812,7 +1076,9 @@
     flags: {},
     // 冠军战胜利
     cleared: false,
-    pos: { x:HUB.x, y:HUB.y+2 },
+    // 当前所在区域（batch14）+ 本区域内的坐标
+    region: 'town',
+    pos: { x:12, y:11 },
     // 图鉴：id -> { see:[0,0,0], got:[0,0,0] }  每个阶独立记录「见过 / 收服」
     dex: {},
     // 背包：精灵球单独用 G.balls（战斗内直接消耗），其余道具走 bag
@@ -861,15 +1127,16 @@
   function loadG(){
     try{
       var s = JSON.parse(localStorage.getItem(SAVE_KEY));
-      if (s && Array.isArray(s.party) && s.party.length){
+      // batch14：队伍可以为空（新档还没选初始伙伴），所以这里不再要求 party.length>0。
+      // 只要求「存档结构正确」，进度字段才有资格覆盖默认值。
+      if (s && Array.isArray(s.party)){
         G.party = s.party.filter(function(p){ return p && spOf(p.id); });
-        if (!G.party.length) throw 0;
-        G.balls = (typeof s.balls==='number') ? s.balls : 1000;
-        // 一次性补足到 1000：老存档起步只有 5 颗，直接改默认值对已存档无效
-        // 用 ballTopUp 标记只补一次，之后照常消耗，不会每读档又回满
-        if (!s.ballTopUp){ G.balls = Math.max(G.balls, 1000); G.ballTopUp = true; }
-        else { G.ballTopUp = true; }
-        G.activeIdx = clamp(s.activeIdx||0, 0, G.party.length-1);
+        G.balls = (typeof s.balls==='number') ? s.balls : 5;
+        // 一次性补足：老存档起步只有 5 颗，直接改默认值对已存档无效。
+        // 用 ballTopUp 标记只补一次，之后照常消耗，不会每读档又回满。
+        // batch14 起新档走「长老给球」，不再白送 1000 颗。
+        if (s.ballTopUp) G.ballTopUp = true;
+        G.activeIdx = clamp(s.activeIdx||0, 0, Math.max(0, G.party.length-1));
         G.defeated = Array.isArray(s.defeated) ? s.defeated : [];
         // 徽章：只认当前 GYMS 里存在的 key，防止旧数据带进无效条目
         G.badges = Array.isArray(s.badges)
@@ -881,7 +1148,12 @@
         });
         G.cleared = !!s.cleared;
         G.flags = (s.flags && typeof s.flags === 'object' && !Array.isArray(s.flags)) ? s.flags : {};
-        if (s.pos && Number.isInteger(s.pos.x) && Number.isInteger(s.pos.y)) G.pos = s.pos;
+        // 老存档没有 region 字段：一律送回灵契镇，坐标也重置（旧的大陆坐标在新图上没意义）
+        G.region = (typeof s.region === 'string' && REGION_BY_KEY[s.region]) ? s.region : 'town';
+        if (s.region && REGION_BY_KEY[s.region] &&
+            s.pos && Number.isInteger(s.pos.x) && Number.isInteger(s.pos.y)) G.pos = s.pos;
+        // 旧存档（batch13 及以前）没有「选初始伙伴」这一步：队伍非空就视为已选过
+        if (!G.flags.starterChosen && G.party.length) G.flags.starterChosen = 1;
         // 向后兼容：batch5 之前没有 dex / bag 字段
         G.dex = (s.dex && typeof s.dex === 'object' && !Array.isArray(s.dex)) ? s.dex : {};
         G.bag = (s.bag && typeof s.bag === 'object')
@@ -897,7 +1169,7 @@
       localStorage.setItem(SAVE_KEY, JSON.stringify({
         party:G.party, balls:G.balls, ballTopUp:true, activeIdx:G.activeIdx, defeated:G.defeated,
         badges:G.badges, flags:G.flags, cleared:G.cleared,
-        pos:G.pos, dex:G.dex, bag:G.bag
+        region:G.region, pos:G.pos, dex:G.dex, bag:G.bag
       }));
     }catch(e){}
   }
@@ -954,46 +1226,62 @@
   migrateLegacySave();   // 老玩家第一次打开新版时，把旧版存档搬过来（无新存档才执行）
   loadG();
 
-  // ===== 地图生成（与 index.html 同种子，逐格一致）=====
+  // ===== 地图生成（batch14：按区域生成）=====
   function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
-  function buildWorld(){
-    var rng = mulberry32(20261104), grid = [], biomeMap = [];
-    for (var y=0;y<MAP_H;y++){ grid.push(new Array(MAP_W).fill(T.GRASS)); biomeMap.push(new Array(MAP_W).fill(null)); }
-    for (var y=0;y<MAP_H;y++) for (var x=0;x<MAP_W;x++){ if (x<2||y<2||x>=MAP_W-2||y>=MAP_H-2) grid[y][x]=T.TREE; }
-    for (var y=2;y<MAP_H-2;y++) for (var x=2;x<MAP_W-2;x++){
-      var best=null, bd=1e9;
-      for (var i=0;i<BIOMES.length;i++){ var b=BIOMES[i], d=Math.hypot(x-b.cx,y-b.cy); if(d<bd){bd=d;best=b;} }
-      if(!best) continue;
-      if(bd>best.r){ biomeMap[y][x]=null; continue; }
-      biomeMap[y][x]=best;
-      var rel=bd/best.r, r=rng();
-      switch(best.key){
-        case 'plains': grid[y][x]= r<.72?T.TALL:T.GRASS; break;
-        case 'forest': grid[y][x]= (rel>.72||r<.38)?T.TREE:T.TALL; break;
-        case 'lake':   grid[y][x]= rel<.55?T.WATER : rel<.78?T.SAND : T.TALL; break;
-        case 'volcano':grid[y][x]= rel<.34?T.LAVA : rel<.6?T.ROCK : (r<.28?T.ROCK:T.TALL); break;
-        case 'snow':   grid[y][x]= rel<.85?T.SNOW:T.TALL; break;
-        case 'desert': grid[y][x]= r<.18?T.TALL:T.SAND; break;
-        case 'ruins':  grid[y][x]= r<.2?T.ROCK:T.RUIN; break;
-        case 'ridge':  grid[y][x]= r<.4?T.ROCK : (r<.62?T.TALL:T.PATH); break;
+
+  /* 一张区域地图 = 群系圆 + 荒野过渡 + 枢纽广场 + 路网 + 门口。
+     和旧的单图生成是同一套规则，只是坐标系换成本区域的 W/H，
+     群系圆由 REGIONS[i].biomes 给出（图与图之间不再共享同一张网格）。 */
+  function genRegion(R){
+    CUR_REGION = R;
+    MAP_W = R.W; MAP_H = R.H; HUB.x = R.hub[0]; HUB.y = R.hub[1];
+    var rng = mulberry32(R.seed), grid = [], biomeMap = [], x, y;
+
+    for (y=0;y<MAP_H;y++){ grid.push(new Array(MAP_W).fill(T.GRASS)); biomeMap.push(new Array(MAP_W).fill(null)); }
+    for (y=0;y<MAP_H;y++) for (x=0;x<MAP_W;x++){ if (x<2||y<2||x>=MAP_W-2||y>=MAP_H-2) grid[y][x]=T.TREE; }
+
+    // 群系圆：每个区域 1–2 个，半径按图的大小收紧（这样一张图 2–4 分钟能走完）
+    (R.biomes || []).forEach(function(b){
+      for (var yy=2; yy<MAP_H-2; yy++) for (var xx=2; xx<MAP_W-2; xx++){
+        var d = Math.hypot(xx-b.cx, yy-b.cy);
+        if (d > b.r) continue;
+        var rel = d/b.r, r = rng();
+        biomeMap[yy][xx] = b;
+        switch (b.key){
+          case 'plains': grid[yy][xx]= r<.72?T.TALL:T.GRASS; break;
+          case 'forest': grid[yy][xx]= (rel>.72||r<.38)?T.TREE:T.TALL; break;
+          case 'lake':   grid[yy][xx]= rel<.55?T.WATER : rel<.78?T.SAND : T.TALL; break;
+          case 'volcano':grid[yy][xx]= rel<.34?T.LAVA : rel<.6?T.ROCK : (r<.28?T.ROCK:T.TALL); break;
+          case 'snow':   grid[yy][xx]= rel<.85?T.SNOW:T.TALL; break;
+          case 'desert': grid[yy][xx]= r<.18?T.TALL:T.SAND; break;
+          case 'ruins':  grid[yy][xx]= r<.2?T.ROCK:T.RUIN; break;
+          case 'ridge':  grid[yy][xx]= r<.4?T.ROCK : (r<.62?T.TALL:T.PATH); break;
+        }
+      }
+    });
+
+    /* 荒野过渡带：群系之外的地貌。只用确定哈希，不消耗 rng 流，
+       每个区域的群系内部结果与种子一一对应，不会因为改荒野而变样。 */
+    for (y=2;y<MAP_H-2;y++) for (x=2;x<MAP_W-2;x++){
+      if (biomeMap[y][x]) continue;
+      var wv = h2(x,y,71);
+      if (R.kind === 'lair'){
+        if (wv < 0.30) grid[y][x] = T.ROCK;
+        else if (wv < 0.62) grid[y][x] = T.RUIN;
+        else grid[y][x] = T.GRASS;
+      } else if (R.kind === 'town'){
+        if (wv < 0.055) grid[y][x] = T.TREE;
+        else if (wv < 0.17) grid[y][x] = T.TALL;
+        else grid[y][x] = T.GRASS;
+      } else {
+        if (wv < 0.14) grid[y][x] = T.TREE;
+        else if (wv < 0.56) grid[y][x] = T.TALL;
+        else grid[y][x] = T.GRASS;
       }
     }
 
-    /* 荒野过渡带（batch12）
-       八个群系之外原本是整片纯草地，地图放大后成了大片「空」。这里补一层
-       稀疏树丛 + 高草，让群系之间也有地貌。关键取舍：
-       - 只用确定哈希，不消耗 rng 流，群系内部的生成结果与旧版逐格一致；
-       - 树最多 14%，且主干道随后会被整条 carveTo 抹平 → 路网永远连通，
-         不会出现「树墙把某个道馆封死」。 */
-    for (var y=2;y<MAP_H-2;y++) for (var x=2;x<MAP_W-2;x++){
-      if (biomeMap[y][x]) continue;
-      var wv = h2(x,y,71);
-      if (wv < 0.14) grid[y][x] = T.TREE;
-      else if (wv < 0.56) grid[y][x] = T.TALL;
-      else grid[y][x] = T.GRASS;
-    }
-
-    for (var y=HUB.y-4;y<=HUB.y+4;y++) for (var x=HUB.x-4;x<=HUB.x+4;x++){
+    // 枢纽广场：7×7 石砖地，同时清掉群系归属（否则广场会被念成隔壁群系的名字）
+    for (y=HUB.y-3;y<=HUB.y+3;y++) for (x=HUB.x-3;x<=HUB.x+3;x++){
       if (x<2||y<2||x>=MAP_W-2||y>=MAP_H-2) continue;
       grid[y][x]=T.PATH; biomeMap[y][x]=null;
     }
@@ -1002,10 +1290,6 @@
       while(x!==tx){ x+=Math.sign(tx-x); if(x>=2&&x<MAP_W-2&&y>=2&&y<MAP_H-2){ grid[y][x]=T.PATH; biomeMap[y][x]=null; } }
       while(y!==ty){ y+=Math.sign(ty-y); if(x>=2&&x<MAP_W-2&&y>=2&&y<MAP_H-2){ grid[y][x]=T.PATH; biomeMap[y][x]=null; } }
     }
-    for (var j=0;j<BIOMES.length;j++) carveTo(HUB.x, HUB.y, BIOMES[j].cx, BIOMES[j].cy);
-    /* 环线：只靠「中心到八方」的星形路网，走起来每次都要回广场，地图越大越枯燥。
-       再拉五条群系之间的连接路，形成可以绕圈的闭环。
-       用阶梯对角线而不是 L 形折线 —— L 形全部拐直角，放大后一眼看出是网格。 */
     function carveLine(ax, ay, bx, by){
       var cx=ax, cy=ay, dx=Math.abs(bx-ax), dy=Math.abs(by-ay);
       var sx = bx>ax?1:-1, sy = by>ay?1:-1, err = dx-dy;
@@ -1017,19 +1301,32 @@
         if (e2 < dx){ err += dx; cy += sy; }
       }
     }
-    var LINKS = [['plains','ruins'],['ruins','forest'],['volcano','ridge'],['ridge','snow'],['lake','volcano'],
-                 ['snow','desert'],['forest','desert']];
-    for (var li=0; li<LINKS.length; li++){
-      var A = BIOME_BY_KEY[LINKS[li][0]], B = BIOME_BY_KEY[LINKS[li][1]];
-      carveLine(A.cx, A.cy, B.cx, B.cy);
-    }
+    (R.biomes || []).forEach(function(b){ carveTo(HUB.x, HUB.y, b.cx, b.cy); });
+    (R.links || []).forEach(function(p){
+      var A = R.biomes[p[0]], B = R.biomes[p[1]];
+      if (A && B) carveLine(A.cx, A.cy, B.cx, B.cy);
+    });
+    // 门口：先通一条路到门口，再把门槛格和出生格都铺平，
+    // 保证「走得到、回得来、出生不会卡在树里」
+    R.gates.forEach(function(g){
+      carveTo(HUB.x, HUB.y, g.x, g.y);
+      if (g.x>=2&&g.y>=2&&g.x<MAP_W-2&&g.y<MAP_H-2){ grid[g.y][g.x]=T.PATH; biomeMap[g.y][g.x]=null; }
+      if (g.spawn){
+        var sx=g.spawn[0], sy=g.spawn[1];
+        if (sx>=2&&sy>=2&&sx<MAP_W-2&&sy<MAP_H-2 && !WALK[grid[sy][sx]]){ grid[sy][sx]=T.PATH; biomeMap[sy][sx]=null; }
+      }
+    });
     return { grid:grid, biomeMap:biomeMap };
   }
+  var buildWorld = genRegion;   // 兼容旧调用名
+
   function biomeAt(x,y,biomeMap){
     if (x>=0&&y>=0&&x<MAP_W&&y<MAP_H && biomeMap[y][x]) return biomeMap[y][x];
+    var list = CUR_REGION.biomes || [];
+    if (!list.length) return TOWN_ZONE;      // 单区图（镇 / 回廊）：不按群系兜底
     var best=null, bd=1e9;
-    for (var i=0;i<BIOMES.length;i++){ var b=BIOMES[i], d=Math.hypot(x-b.cx,y-b.cy); if(d<bd){bd=d;best=b;} }
-    return best;
+    for (var i=0;i<list.length;i++){ var b=list[i], d=Math.hypot(x-b.cx,y-b.cy); if(d<bd){bd=d;best=b;} }
+    return best || TOWN_ZONE;
   }
 
   /* =====================================================================
@@ -1045,11 +1342,16 @@
      ===================================================================== */
   var HUB_R = 4;                                   // 9×9 的镇域，实测不侵占任何群系
   var TOWN_ZONE = { key:'town', name:'灵契镇', sub:'中央枢纽 · 十字商道' };
+  var LAIR_ZONE = { key:'hollow', name:'影蚀回廊', sub:'虚空之座 · 无光之地' };
   function inHub(x,y){
     return Math.abs(x-HUB.x) <= HUB_R && Math.abs(y-HUB.y) <= HUB_R;
   }
   function zoneOf(x,y,biomeMap){
-    if (inHub(x,y)) return TOWN_ZONE;
+    // batch14：镇域只在灵契镇这张图里算镇域。
+    // 别的区域也有广场，但把它们的广场叫「灵契镇」会让地名条说谎。
+    if (CUR_REGION.kind === 'town') return TOWN_ZONE;
+    if (CUR_REGION.kind === 'lair') return LAIR_ZONE;
+    if (inHub(x,y)) return biomeAt(x,y,biomeMap) || TOWN_ZONE;
     return biomeAt(x,y,biomeMap) || TOWN_ZONE;
   }
 
@@ -1086,15 +1388,21 @@
     }
     return {x:HUB.x,y:HUB.y};
   }
-  function buildEntities(grid, reachable, lm){
-    var occupied = new Set(), ent = { trainers:[], items:[], heal:null, npcs:[] };
+  function buildEntities(grid, reachable, lm, R){
+    R = R || CUR_REGION;
+    var occupied = new Set(), ent = { trainers:[], items:[], heal:null, npcs:[], starters:[], gates:[] };
+    // 每个区域都有休息点（营地），不然跨图之后没地方回血，只能回镇
     var hp = snapWalkable(grid, reachable, occupied, HUB.x-1, HUB.y-1);
     occupied.add(kOf(hp.x,hp.y)); ent.heal = {x:hp.x,y:hp.y};
-    // 馆主站在自己地标的正下方：玩家一进群系就能看到「建筑 + 门口的人」，
-    // 不需要额外找。找不到对应地标时退回原逻辑（群系中心右下方）
+
+    // 馆主：只放「这张图里真的有对应群系」的馆
+    // 站在自己地标正下方：进图就能看到「建筑 + 门口的人」
     TRAINER_DEFS.forEach(function(def){
-      var b = BIOME_BY_KEY[def.key];
-      var mark = null, i;
+      var b = null, i;
+      if (!R.biomes) return;
+      for (i=0;i<R.biomes.length;i++) if (R.biomes[i].key === def.key) b = R.biomes[i];
+      if (!b || gymRegionOf(def.key) !== R.key) return;
+      var mark = null;
       for (i=0; i<(lm||[]).length; i++) if (lm[i].kind === MARK_FOR[def.key]) mark = lm[i];
       var ax = b.cx+2, ay = b.cy+2;
       if (mark){
@@ -1106,14 +1414,34 @@
       ent.trainers.push({ key:def.key, name:def.name, cloth:def.cloth, cloth2:def.cloth2,
                           hair:def.hair, x:p.x, y:p.y });
     });
-    // 剧情 NPC：按 at 的大致坐标就近吸附到可走空格
+
+    // 剧情 NPC：只放本图的，按 at 就近吸附
     STORY_NPCS.forEach(function(def){
+      if (def.region && def.region !== R.key) return;
       var p = snapWalkable(grid, reachable, occupied, def.at[0], def.at[1]);
       occupied.add(kOf(p.x,p.y));
-      ent.npcs.push({ key:def.key, name:def.name, role:def.role, x:p.x, y:p.y });
+      ent.npcs.push({ key:def.key, name:def.name, role:def.role, vk:def.vk, x:p.x, y:p.y });
     });
+
+    // 初始伙伴：灵契镇广场北侧木桌上的三颗球（选完之后不再生成）
+    if (R.kind === 'town' && !G.flags.starterChosen){
+      ['s1','s2','s3'].forEach(function(sid, i){
+        var p = snapWalkable(grid, reachable, occupied, HUB.x - 1 + i, HUB.y - 2);
+        occupied.add(kOf(p.x,p.y));
+        ent.starters.push({ id:sid, x:p.x, y:p.y, spr:null });
+      });
+    }
+
+    // 门口：门槛本身是可走的，走上去触发切图
+    (R.gates || []).forEach(function(g){
+      ent.gates.push({ x:g.x, y:g.y, to:g.to, spawn:g.spawn, label:g.label,
+                       lock:g.lock, lockMsg:g.lockMsg, spr:null });
+      occupied.add(kOf(g.x,g.y));
+    });
+
+    // 道具：每个群系两个点位 + 广场附近两个
     var spots=[];
-    BIOMES.forEach(function(b){ spots.push([b.cx-2,b.cy-2]); spots.push([b.cx+2,b.cy-3]); });
+    (R.biomes || []).forEach(function(b){ spots.push([b.cx-2,b.cy-2]); spots.push([b.cx+2,b.cy-3]); });
     spots.push([HUB.x+3,HUB.y+2]); spots.push([HUB.x-3,HUB.y+3]);
     var kinds=['balls','candy','stone'];
     ent.items=[];
@@ -1347,7 +1675,8 @@
   var BIO_TRACK = {
     town:'town',
     plains:'plains', forest:'forest', lake:'lake', volcano:'volcano',
-    snow:'snow', desert:'desert', ruins:'ruins', ridge:'ridge'
+    snow:'snow', desert:'desert', ruins:'ruins', ridge:'ridge',
+    hollow:'ruins'   // 影蚀回廊：借遗迹的曲子，气氛本来就该是一样的空
   };
 
   // 设置面板（音乐/音效独立音量 + 静音），只绑定一次
@@ -1434,22 +1763,96 @@
         每段剧情只关心「这件事发生过没有」，读档写档只需一个对象。
      ===================================================================== */
 
-  /* ---------------- 任务 ---------------- */
+  /* ---------------- 任务（batch14：章节制） ----------------
+     老版本的任务条只会算「下一枚徽章」，反派剧情完全挂不上。
+     现在整条主线是九章：选伙伴 → 长老 → 原野 → 森林 → 湖区夺宝 → 遗迹 → 火山 →
+     雪山 → 回廊决战 → 冠军。chapterNow() 返回「第一个还没满足的条件」，
+     任务条和路线指引共用它，所以两者永远指向同一个地方。
+     ============================================================ */
+  function chapterNow(){
+    var f = G.flags, B = G.badges;
+    function has(k){ return B.indexOf(k) >= 0; }
+    function gymT(key, hint){
+      var g = GYM_BY_KEY[key];
+      return { kind:'gym', key:key, region:gymRegionOf(key) || 'meadow',
+               name:g.leader, hint:hint, color:g.color };
+    }
+    function npcT(key, region, name, hint, color){
+      return { kind:'npc', key:key, region:region, name:name, hint:hint, color:color };
+    }
+    var V = 0x9b6dff, GOLD = 0xffd98a;
+
+    if (G.cleared){
+      var dt = dexTotals();
+      return { idx:10, name:'灵契守护者', target:null,
+               hint:'自由探索 · 收服全部精灵（图鉴 '+dt.got+'/'+dt.total+'）' };
+    }
+    if (!f.starterChosen)
+      return { idx:1, name:'最初的伙伴',
+               target:{ kind:'starter', region:'town', name:'最初的伙伴',
+                        hint:'灵契镇 · 广场北侧木桌三选一', color:GOLD } };
+    if (!f.metElder)
+      return { idx:1, name:'最初的伙伴',
+               target:npcT('elder','town','长老 岑','灵契镇广场 · 把伙伴介绍给长老',GOLD) };
+
+    if (!has('plains'))
+      return { idx:2, name:'萌芽之风', target:gymT('plains','微风原野 · 风车下') };
+    if (!f.grunt1)
+      return { idx:2, name:'萌芽之风',
+               target:npcT('grunt1','meadow','影蚀会众 灰鸦','低语森林 · 神木祠旁 · 有人影在翻东西',V) };
+    if (!has('forest'))
+      return { idx:3, name:'林间低语', target:gymT('forest','低语森林 · 神木祠') };
+
+    if (!f.grunt2)
+      return { idx:4, name:'湖底的泪',
+               target:npcT('grunt2','lake','影蚀会众 灰鸦','碧波湖区 · 栈桥 · 潮汐之泪被捞走了',V) };
+    if (!has('lake'))
+      return { idx:4, name:'湖底的泪', target:gymT('lake','碧波湖区 · 栈桥旁') };
+
+    if (!f.admin1)
+      return { idx:5, name:'沙下的石头',
+               target:npcT('admin1','dunes','影蚀会干部 砂','遗忘遗迹 · 拱门 · 干部砂守在那',V) };
+    if (!has('desert'))
+      return { idx:5, name:'沙下的石头', target:gymT('desert','流沙荒漠 · 断柱') };
+    if (!has('ruins'))
+      return { idx:5, name:'沙下的石头', target:gymT('ruins','遗忘遗迹 · 拱门') };
+
+    if (!f.admin2)
+      return { idx:6, name:'余烬',
+               target:npcT('admin2','ember','影蚀会干部 烬','灰烬火山 · 熔岩环 · 干部烬在等你',V) };
+    if (!has('volcano'))
+      return { idx:6, name:'余烬', target:gymT('volcano','灰烬火山 · 方尖碑') };
+
+    if (!f.admin3)
+      return { idx:7, name:'霜与冰',
+               target:npcT('admin3','frost','影蚀会干部 寒','霜白雪原 · 木屋 · 最后一把钥匙',V) };
+    if (!has('snow'))
+      return { idx:7, name:'霜与冰', target:gymT('snow','霜白雪原 · 雪屋') };
+    if (!has('ridge'))
+      return { idx:7, name:'霜与冰', target:gymT('ridge','龙脊山道 · 石堆') };
+
+    if (!f.bossBeat)
+      return { idx:8, name:'回廊尽头',
+               target:npcT('boss','hollow','影蚀会首领 蚀','影蚀回廊 · 虚空之座',V) };
+    if (!f.voidBeat)
+      return { idx:9, name:'虚空之主',
+               target:npcT('void','hollow','虚空之主','影蚀回廊 · 最深处 · 被唤醒的古老者',V) };
+
+    return { idx:9, name:'灵契之巅',
+             target:npcT('lumen','town','冠军 曜','灵契镇广场 · 东侧 · 冠军在等你',GOLD) };
+  }
+
   function nextGym(){
     for (var i=0;i<GYMS.length;i++) if (G.badges.indexOf(GYMS[i].key) < 0) return GYMS[i];
     return null;
   }
   function questNow(){
-    if (G.cleared)
-      return { title:'旅程仍在继续', hint:'已通关 · 自由探索、收服全部精灵', num:'通关' };
-    if (G.badges.length >= GYMS.length)
-      return { title:'最终的挑战', hint:'回灵契广场东侧，挑战冠军 曜', num:'8/8' };
-    if (!G.flags.metElder)
-      return { title:'初入灵契', hint:'去灵契中心附近，找长老 岑 说话', num:'0/8' };
-    var g = nextGym();
-    return { title:'第 '+(G.badges.length+1)+' 枚徽章 · '+g.badge,
-             hint:BIOME_BY_KEY[g.key].name+' · 挑战 '+g.leader,
-             num:G.badges.length+'/'+GYMS.length };
+    var ch = chapterNow();
+    if (G.cleared) return { title:'终章之后', hint:ch.hint, num:'通关' };
+    var t = ch.target;
+    return { title:'第 '+ch.idx+' 章 · '+ch.name,
+             hint:t ? t.hint : ch.hint,
+             num:ch.idx+'/9' };
   }
   function refreshQuest(){
     var q = questNow();
@@ -1458,15 +1861,11 @@
     if (n) n.textContent = q.num;
   }
 
-  // 拿完徽章后的「下一站」提示。地图扩到 64×46 之后，只报一句「战斗胜利」
-  // 会让玩家站在原地不知道往哪走 —— 这里直接把下一馆的群系和馆主写出来，
-  // 和路线指引指向的是同一个目标（都走 nextGym，不会互相打架）。
+  // 战斗胜利后的一句「下一站」：直接复用章节目标，不再单独维护一套文案
   function chapterHook(){
-    if (G.cleared) return '旅程继续 · 自由探索';
-    if (G.badges.length >= GYMS.length) return '最后的对手：冠军 曜（灵契广场东侧）';
-    var n = nextGym();
-    if (!n) return '';
-    return '下一站：' + BIOME_BY_KEY[n.key].name + ' · ' + n.leader;
+    var ch = chapterNow();
+    if (!ch.target) return '旅程继续 · 自由探索';
+    return '下一站：' + ch.target.hint;
   }
   // 「草原少年 阿澈」→「阿澈」：台词里连称号一起念太生硬
   function shortName(s){ return String(s || '').split(/[\s　]+/).pop(); }
@@ -1496,16 +1895,25 @@
   try { NAV_ON = localStorage.getItem(NAV_KEY) !== '0'; } catch(e){}
 
   // 当前指引目标：通关后取消，前置剧情期指向长老，八徽章后指向冠军
+  /* 当前指引目标（batch14：跨图）
+     目标在别的区域时，指向「通往目标区域的下一跳门口」——玩家跟着箭头走到路牌，
+     踩上去就换图，换完图箭头自动指向地图内的下一条路。 */
   function navTargetInfo(){
-    if (G.cleared) return null;
-    if (G.badges.length >= GYMS.length)
-      return { kind:'npc', key:'lumen', name:'冠军 曜', hint:'灵契广场东侧 · 冠军战', color:0xFFD98A };
-    if (!G.flags.metElder)
-      return { kind:'npc', key:'elder', name:'长老 岑', hint:'灵契中心附近 · 接主线', color:0xFFD98A };
-    var g = nextGym();
-    if (!g) return null;
-    return { kind:'gym', key:g.key, name:g.leader,
-             hint:BIOME_BY_KEY[g.key].name + ' · ' + g.badge, color:g.color };
+    var ch = chapterNow();
+    var t = ch.target;
+    if (!t) return null;
+    if (t.region && t.region !== G.region){
+      var hop = regionHops(G.region, t.region);
+      if (hop){
+        var R = REGION_BY_KEY[G.region], g = null, i;
+        for (i=0;i<R.gates.length;i++) if (R.gates[i].to === hop) g = R.gates[i];
+        if (g) return { kind:'gate', gx:g.x, gy:g.y,
+                        name:'→ ' + REGION_BY_KEY[hop].name,
+                        hint:t.hint, color:0x8fb8ff };
+      }
+      return null;
+    }
+    return { kind:t.kind, key:t.key, name:t.name, hint:t.hint, color:t.color };
   }
 
   /* 网格 BFS 最短路。只走 WALK 格；返回含首尾的格序列，不可达返回 null。
@@ -1602,6 +2010,50 @@
         ev.preventDefault(); advanceTalk();
       }
     });
+  }
+
+  /* ---------------- 选择框（batch14） ----------------
+     宝可梦式的「三选一」不能只靠对话推进：玩家需要一个能按键的界面。
+     复用对话的视觉与锁定逻辑（body.talk + world.talking），只是把
+     「点任意处继续」换成「点某个按钮做出选择」。 */
+  var CHOICE = { open:false, world:null };
+  function buildChoice(opt, cb, world){
+    var box = document.getElementById('choice');
+    if (!box) { if (cb) cb(opt.options[0].value, 0); return; }
+    document.getElementById('chTitle').textContent = opt.title || '选择';
+    document.getElementById('chSub').textContent = opt.sub || '';
+    var wrap = document.getElementById('chBtns');
+    wrap.innerHTML = '';
+    opt.options.forEach(function(o, i){
+      var b = document.createElement('button');
+      b.textContent = o.label;
+      if (o.alt) b.className = 'alt';
+      b.addEventListener('pointerup', function(ev){
+        ev.preventDefault(); ev.stopPropagation();
+        closeChoice();
+        AUDIO.sfx('click');
+        if (cb) cb(o.value, i);
+      });
+      wrap.appendChild(b);
+    });
+    CHOICE.open = true; CHOICE.world = world || null;
+    box.classList.add('on');
+    document.body.classList.add('talk');
+    if (world){
+      world.talking = true;
+      if (world.setPad) world.setPad(false);
+    }
+  }
+  function closeChoice(){
+    var box = document.getElementById('choice');
+    if (box) box.classList.remove('on');
+    var w = CHOICE.world;
+    CHOICE.open = false; CHOICE.world = null;
+    if (!DLG.open) document.body.classList.remove('talk');
+    if (w){
+      w.talking = false;
+      if (w.setPad && !DLG.open) w.setPad(true);
+    }
   }
 
   /* ---------------- 通关结算 ---------------- */
@@ -1715,7 +2167,7 @@
   }
 
   // ---- 单格瓦片绘制（原点已在格左上角）----
-  function paintTile(ctx, kind, p, v, gx, gy){
+  function paintTile(ctx, kind, p, v, gx, gy, nb){
     var T=TILE, i, b=baseOf(kind,p);
     ctx.fillStyle=css(b[0]); ctx.fillRect(0,0,T,T);
 
@@ -1766,32 +2218,65 @@
       }
     }
     else if (kind===5){
-      // 岩石：一块大多边形 + 左上高光边 + 右下暗面
-      ctx.fillStyle=css(b[1]); ctx.fillRect(0,0,T,T);
-      var rw=25+v*1.6, rh=22+v*1.6, rx=(T-rw)/2, ry=(T-rh)/2;
-      ctx.fillStyle=css(b[0]);
+      /* 岩石：不再「整格深色底 + 每格一个多边形 + 亮边」，那样成片就是一格一格的方块。
+         现在石头与草地共用同一层地面底（bakeMap 里先垫了邻格地面色），
+         只在格内画一块不规则巨石，且相邻石头之间不收口、不描边 —— 连成一片山石。
+         高光走中性白光而不是石头亮阶，避免草地群系里泛出绿边。 */
+      var JT = function(n){ return h2(gx,gy,n) - 0.5; };
+      var nL = nb && nb.l, nR = nb && nb.r, nU = nb && nb.u, nD = nb && nb.d;
+      var x0 = nL ? -2 : 3, x1 = nR ? T+2 : T-3;
+      var y0 = nU ? -2 : 3, y1 = nD ? T+2 : T-3;
+      var bw = x1-x0, bh = y1-y0;
+      // 石头根部的落地投影，让它坐在草地上而不是浮着
+      if (!nD){
+        ctx.fillStyle='rgba(6,10,20,0.18)';
+        ctx.beginPath();
+        ctx.ellipse(x0+bw*0.52, y1-bh*0.05, bw*0.42, bh*0.13, 0, 0, 6.2832);
+        ctx.fill();
+      }
+      // 主体：七边形，顶点按坐标抖动，同一片石群里没有两块长得一样
+      var vx = [
+        [0.12+JT(1)*0.11, 0.32+JT(2)*0.13],
+        [0.35+JT(3)*0.11, 0.05+JT(4)*0.09],
+        [0.71+JT(5)*0.11, 0.07+JT(6)*0.09],
+        [0.95+JT(7)*0.07, 0.35+JT(8)*0.12],
+        [0.85+JT(9)*0.09, 0.83+JT(10)*0.12],
+        [0.43+JT(11)*0.12, 0.94+JT(12)*0.08],
+        [0.06+JT(13)*0.07, 0.63+JT(14)*0.12]
+      ];
+      var toX = function(k){ return x0 + bw*vx[k][0]; };
+      var toY = function(k){ return y0 + bh*vx[k][1]; };
+      // 上亮下暗的渐变顶光，让石头有体积而不是一块纯色
+      var sg = ctx.createLinearGradient(x0, y0, x0+bw*0.25, y1);
+      sg.addColorStop(0, css(b[1]));
+      sg.addColorStop(0.5, css(b[0]));
+      sg.addColorStop(1, css(b[0], 0.92));
+      ctx.fillStyle=sg;
       ctx.beginPath();
-      ctx.moveTo(rx+rw*0.10, ry+rh*0.34);
-      ctx.lineTo(rx+rw*0.36, ry+rh*0.02);
-      ctx.lineTo(rx+rw*0.74, ry+rh*0.06);
-      ctx.lineTo(rx+rw*0.98, ry+rh*0.40);
-      ctx.lineTo(rx+rw*0.82, ry+rh*0.86);
-      ctx.lineTo(rx+rw*0.30, ry+rh*0.96);
-      ctx.lineTo(rx+rw*0.02, ry+rh*0.60);
+      ctx.moveTo(toX(0), toY(0));
+      for (i=1;i<7;i++) ctx.lineTo(toX(i), toY(i));
       ctx.closePath(); ctx.fill();
-      ctx.strokeStyle=css(b[2],0.7); ctx.lineWidth=2;
-      ctx.beginPath();
-      ctx.moveTo(rx+rw*0.36, ry+rh*0.02);
-      ctx.lineTo(rx+rw*0.74, ry+rh*0.06);
-      ctx.lineTo(rx+rw*0.98, ry+rh*0.40);
-      ctx.stroke();
-      ctx.fillStyle=css(b[1],0.65);
-      ctx.beginPath();
-      ctx.moveTo(rx+rw*0.82, ry+rh*0.86);
-      ctx.lineTo(rx+rw*0.30, ry+rh*0.96);
-      ctx.lineTo(rx+rw*0.02, ry+rh*0.60);
-      ctx.lineTo(rx+rw*0.34, ry+rh*0.70);
-      ctx.closePath(); ctx.fill();
+      // 顶棱受光：只在露天的上沿画，且用中性白，不沾群系色
+      ctx.lineWidth=1.3; ctx.lineCap='round';
+      if (!nU){
+        ctx.strokeStyle='rgba(255,255,255,0.16)';
+        ctx.beginPath(); ctx.moveTo(toX(1), toY(1)); ctx.lineTo(toX(2), toY(2)); ctx.stroke();
+      }
+      if (!nL){
+        ctx.strokeStyle='rgba(255,255,255,0.09)';
+        ctx.beginPath(); ctx.moveTo(toX(0), toY(0)); ctx.lineTo(toX(6), toY(6)); ctx.stroke();
+      }
+      // 右下暗面压住体积
+      if (!nD){
+        ctx.strokeStyle='rgba(0,0,0,0.20)';
+        ctx.beginPath(); ctx.moveTo(toX(4), toY(4)); ctx.lineTo(toX(5), toY(5)); ctx.stroke();
+      }
+      // 石面碎屑：两粒极淡的，只为打破纯色，不能抢视线
+      for (i=0;i<2;i++){
+        var sx=x0+bw*(0.24+h2(gx,gy,i*7+31)*0.48), sy=y0+bh*(0.30+h2(gx,gy,i*11+37)*0.40);
+        ctx.fillStyle='rgba(255,255,255,'+(0.05+h2(gx,gy,i+41)*0.04).toFixed(3)+')';
+        ctx.beginPath(); ctx.arc(sx,sy,0.9+h2(gx,gy,i+43)*0.9,0,6.2832); ctx.fill();
+      }
     }
     else if (kind===6){
       // 雪地：白底 + 淡蓝阴影丘
@@ -1936,8 +2421,44 @@
       var core = isHubCore(x,y);
       p = palAt(x, y, biomeMap, core);   // 荒野用自己的草地色，不再就近认领群系
       v = Math.floor(h2(x,y,3)*3);
+      if (k === T.ROCK && !core) continue;   // 岩石走 1.2 / 1.3 单独处理
       ctx.save(); ctx.translate(x*TILE,y*TILE);
       paintTile(ctx, core ? 9 : k, p, v, x, y);
+      ctx.restore();
+    }
+
+    // 1.2) 岩石格先垫一层「最近的地面色」：
+    //      原来石头整格铺深色底，成片时就是一个个深色方块硬贴在草地上。
+    var RDX=[0,1,0,-1], RDY=[-1,0,1,0];
+    for (y=0;y<MAP_H;y++) for (x=0;x<MAP_W;x++){
+      if (grid[y][x] !== T.ROCK) continue;
+      var under = null;
+      for (var du=0; du<4; du++){
+        var ax=x+RDX[du], ay=y+RDY[du];
+        if (ax<0||ay<0||ax>=MAP_W||ay>=MAP_H) continue;
+        var ak=grid[ay][ax];
+        if (!GROUNDY[ak] || ak===T.ROCK) continue;
+        under = baseOf(ak, palAt(ax, ay, biomeMap, isHubCore(ax,ay)))[0];
+        break;
+      }
+      if (!under) under = palAt(x, y, biomeMap, isHubCore(x,y)).rock[1];
+      ctx.fillStyle = css(under, 0.90);
+      ctx.fillRect(x*TILE, y*TILE, TILE, TILE);
+    }
+
+    // 1.3) 岩石本体：相邻石头连片（内部不收口），只有朝外的边才有受光/暗面
+    for (y=0;y<MAP_H;y++) for (x=0;x<MAP_W;x++){
+      if (grid[y][x] !== T.ROCK) continue;
+      p = palAt(x, y, biomeMap, isHubCore(x,y));
+      v = Math.floor(h2(x,y,3)*3);
+      var rb = {
+        u: y>0 && grid[y-1][x]===T.ROCK,
+        d: y<MAP_H-1 && grid[y+1][x]===T.ROCK,
+        l: x>0 && grid[y][x-1]===T.ROCK,
+        r: x<MAP_W-1 && grid[y][x+1]===T.ROCK
+      };
+      ctx.save(); ctx.translate(x*TILE,y*TILE);
+      paintTile(ctx, T.ROCK, p, v, x, y, rb);
       ctx.restore();
     }
 
@@ -2729,7 +3250,8 @@
      每放一座都会重算一次可达性，只有「切断地图」的候选才被拒绝。
      这样开阔草原（本来没有障碍物）也能立起风车，而不会把玩家封死在某一块里。
      三条硬约束：不压商道（PATH）、不压枢纽中心与出生点、不与已有地标重叠。 */
-  function placeLandmarks(grid){
+  function placeLandmarks(grid, R){
+    R = R || CUR_REGION;
     var out = [], used = {};
 
     function cellsOf(x, y, w, h){
@@ -2792,13 +3314,16 @@
     }
     // 注意：南北向商道在 x=HUB.x-3 上，建筑压上去会把主路"盖住"（走过去会被楼挡住）。
     // 所以优先放在广场东北角，让出纵向商道。
-    tryHub('center',   [[HUB.x+1,HUB.y-4],[HUB.x-3,HUB.y-4],[HUB.x+1,HUB.y+1],[HUB.x-3,HUB.y+1]]);
-    tryHub('fountain', [[HUB.x+2,HUB.y+1],[HUB.x-4,HUB.y+1],[HUB.x+2,HUB.y-3],[HUB.x-4,HUB.y-3]]);
-    tryHub('banner',   [[HUB.x-4,HUB.y+1],[HUB.x+4,HUB.y+1],[HUB.x-3,HUB.y+1],[HUB.x+1,HUB.y+1],
-                        [HUB.x+4,HUB.y-3],[HUB.x-5,HUB.y-3],[HUB.x-5,HUB.y],[HUB.x+4,HUB.y]]);
+    // batch14：只有灵契镇有「灵契中心 + 喷泉 + 旗杆」这套镇级地标，别的区域只有一个营地。
+    if (R.kind === 'town'){
+      tryHub('center',   [[HUB.x+1,HUB.y-4],[HUB.x-3,HUB.y-4],[HUB.x+1,HUB.y+1],[HUB.x-3,HUB.y+1]]);
+      tryHub('fountain', [[HUB.x+2,HUB.y+1],[HUB.x-4,HUB.y+1],[HUB.x+2,HUB.y-3],[HUB.x-4,HUB.y-3]]);
+      tryHub('banner',   [[HUB.x-4,HUB.y+1],[HUB.x+4,HUB.y+1],[HUB.x-3,HUB.y+1],[HUB.x+1,HUB.y+1],
+                          [HUB.x+4,HUB.y-3],[HUB.x-5,HUB.y-3],[HUB.x-5,HUB.y],[HUB.x+4,HUB.y]]);
+    }
 
-    // 2) 8 群系：各自取「最靠中心且最省地」的候选
-    BIOMES.forEach(function(b){
+    // 2) 本图的群系：各自取「最靠中心且最省地」的候选
+    (R.biomes || []).forEach(function(b){
       var kind = MARK_FOR[b.key];
       if (!kind) return;
       var w = MARK_FP[kind][0], h = MARK_FP[kind][1];
@@ -2877,6 +3402,46 @@
     l.generateTexture('a_leaf', 10, 8); l.destroy();
   }
 
+  // 区域门口：木牌 + 指向箭头。插在路中间当路标，走上去即切图
+  function drawGate(scene){
+    var g = scene.add.graphics();
+    // 立杆
+    g.fillStyle(0x6b4a2b, 1); g.fillRect(20, 12, 5, 40);
+    g.fillStyle(0x8a6438, 1); g.fillRect(21, 12, 2, 40);
+    // 牌面（木纹三板）
+    g.fillStyle(0x8a6438, 1); g.fillRoundedRect(4, 4, 40, 22, 3);
+    g.fillStyle(0xa87f4c, 1); g.fillRoundedRect(6, 6, 36, 18, 2);
+    g.fillStyle(0x8a6438, 0.55); g.fillRect(6, 13, 36, 1.4);
+    // 箭头（指向上方，表示「出图」）
+    g.fillStyle(0xf6ecd6, 1);
+    g.fillTriangle(23, 9, 30, 17, 16, 17);
+    g.fillRect(21.2, 15, 3.6, 5);
+    // 牌底阴影
+    g.fillStyle(0x1a1420, 0.28); g.fillEllipse(22, 53, 34, 8);
+    g.generateTexture('gate', 48, 56);
+    g.destroy();
+  }
+
+  // 初始伙伴的精灵球：三系各一色，球身上半按属性染色
+  function drawStarterBall(scene, id, color){
+    var g = scene.add.graphics(), C = 16;
+    // 落地影子
+    g.fillStyle(0x1a1420, 0.26); g.fillEllipse(C, C+12, 20, 7);
+    // 下半
+    g.fillStyle(0xf2f4f8, 1); g.fillCircle(C, C, 11.4);
+    g.fillStyle(0xd8dde8, 1); g.beginPath(); g.arc(C, C, 11.4, 0.15, Math.PI-0.15, false); g.fillPath();
+    // 上半
+    g.fillStyle(color, 1); g.beginPath(); g.arc(C, C, 11.4, Math.PI, Math.PI*2, false); g.fillPath();
+    g.fillStyle(0xffffff, 0.35); g.fillEllipse(C-3.4, C-5.4, 7.4, 4.4);
+    // 中缝 + 按钮
+    g.fillStyle(0x2a2432, 1); g.fillRect(C-11.4, C-1.4, 22.8, 2.8);
+    g.fillStyle(0x2a2432, 1); g.fillCircle(C, C, 4.2);
+    g.fillStyle(0xf2f4f8, 1); g.fillCircle(C, C, 3.0);
+    g.fillStyle(color, 1); g.fillCircle(C, C, 1.5);
+    g.generateTexture('stb_'+id, 32, 32);
+    g.destroy();
+  }
+
   WorldScene.prototype.preload = function(){
     // 人物：4 向 × 4 帧
     var dirs=['down','up','left','right'], d, f;
@@ -2884,6 +3449,11 @@
     ALL_NPC_DEFS.forEach(function(def){ drawNPC(this, def); }, this);
     // 树：8 群系 × 2 变体
     for (var i=0;i<BIOMES.length;i++){ drawTree(this, BIOMES[i].key, 0); drawTree(this, BIOMES[i].key, 1); }
+    /* 镇 / 回廊这类单区图没有野外群系，biomeAt 会兜底成 TOWN_ZONE（key='town'），
+       放树时就取 tree_town_0/1。之前只按 BIOMES 生成，这两张图上的树全退化成
+       __MISSING 的黑底绿叉（灵契镇一共 184 棵）。drawTree 内部本来就按
+       TREE_COL[bioKey] || TREE_COL.plains 兜底配色，这里补生成即可，画风与草地对齐。 */
+    drawTree(this, 'town', 0); drawTree(this, 'town', 1);
     drawItems(this); drawHeal(this); drawBadges(this);
     // 地标：灵契中心（枢纽）+ 8 群系各一座（按群系配色生成，键名带群系）
     paintMark(this, 'center', 'plains');
@@ -2891,6 +3461,10 @@
     paintMark(this, 'banner', 'plains');
     for (var bi=0; bi<BIOMES.length; bi++) paintMark(this, MARK_FOR[BIOMES[bi].key], BIOMES[bi].key);
     drawBlade(this);
+    drawGate(this);
+    drawStarterBall(this, 's1', 0xff7a3c);
+    drawStarterBall(this, 's2', 0x4d96ff);
+    drawStarterBall(this, 's3', 0x5fd068);
     // 水面流动高光
     var wg=this.add.graphics();
     wg.fillStyle(0xffffff,1); wg.fillRoundedRect(0,0,14,3.4,1.7);
@@ -2903,18 +3477,82 @@
     nd.generateTexture('navDrop', 26, 26); nd.destroy();
   };
 
-  WorldScene.prototype.create = function(){
-    var world = buildWorld();
-    this.grid = world.grid; this.biomeMap = world.biomeMap;
+  /* =====================================================================
+     区域装载 / 卸载（batch14）
 
-    // 地标先于烘焙放置：地标占的格不上装饰、不长树（碰撞不变，见 placeLandmarks 注释）
-    this.lm = placeLandmarks(this.grid);
+     一张地图 = 一格网格 + 一批 sprite。切图时不能重开场景（战斗/UI/存档都挂在
+     这个 scene 上），所以做法是「清掉本区域建出来的东西，再建新的」：
+     - 所有本区域的 image / 文字 / 特效都登记进 this.rSprites / this.rTweens，
+       卸载时逐个 destroy / remove，避免残留 sprite 跟着相机乱跑
+     - 玩家、相机边界、导航全部重建：坐标换了一套，旧的引用一律作废
+     - 持久层（输入、摇杆、昼夜蒙版、天气池、导航图形）只建一次，不进 rSprites
+     ===================================================================== */
+  WorldScene.prototype.addR = function(o){
+    if (o) this.rSprites.push(o);
+    return o;
+  };
+  WorldScene.prototype.tweenR = function(cfg){
+    var tw = this.tweens.add(cfg);
+    this.rTweens.push(tw);
+    return tw;
+  };
+  WorldScene.prototype.teardownRegion = function(){
+    var i;
+    for (i=0;i<(this.rTweens||[]).length;i++){
+      var tw = this.rTweens[i];
+      if (tw){ try { this.tweens.remove(tw); } catch(e){} }
+    }
+    this.rTweens = [];
+    for (i=0;i<(this.rSprites||[]).length;i++){
+      var s = this.rSprites[i];
+      if (s && s.destroy){ try { s.destroy(); } catch(e){} }
+    }
+    this.rSprites = [];
+    if (this.player && this.player.destroy){ this.player.destroy(); this.player = null; }
+    if (this.mapBakeImg){ /* 由 rSprites 统一销毁 */ }
+    if (this.amb) this.amb.clear();
+    var cam = this.cameras.main;
+    if (cam) cam.stopFollow();
+    this.trees = []; this.marks = []; this.glows = []; this.blades = [];
+    this.trainerMap = {}; this.npcMap = {}; this.itemMap = {};
+    this.starterMap = {}; this.gateMap = {};
+    this.npcSprites = [];
+    this.navPath = null; this.navPts = null; this.navAt = null; this.navTotal = 0;
+    if (this.navG) this.navG.clear();
+    if (this.navMark) this.navMark.setVisible(false);
+    if (this.navMarkGlow) this.navMarkGlow.setVisible(false);
+    for (i=0; i<(this.navPulses||[]).length; i++) this.navPulses[i].setVisible(false);
+  };
+
+  /* 区域地图有大有小：镇 26×20（832×640）在竖屏 761 高下铺不满，相机会在底部露出
+     底色空带，看着像「地图走到头了」。这里按「刚好盖住视口」放大，大图仍保持 1 倍，
+     保证任何屏幕比例下都不露底。上限 1.6 是防桌面宽屏把小镇放到失真。
+     换区域与窗口尺寸变化都要重算，所以单独立一个方法，由 loadRegion / resize 调用。 */
+  WorldScene.prototype.applyCamZoom = function(){
+    var cam = this.cameras && this.cameras.main;
+    if (!cam || !MAP_W || !MAP_H) return;
+    var mw = MAP_W*TILE, mh = MAP_H*TILE;
+    var vw = this.scale.width, vh = this.scale.height;
+    if (!mw || !mh) return;
+    var z = Math.max(1, Math.min(1.6, Math.max(vw/mw, vh/mh)));
+    z = Math.round(z*100)/100;
+    if (Math.abs((cam.zoom || 1) - z) > 0.004) cam.setZoom(z);
+  };
+
+  WorldScene.prototype.loadRegion = function(key, spawn){
+    var self = this;
+    var R = REGION_BY_KEY[key] || REGION_BY_KEY.town;
+    this.teardownRegion();
+
+    var world = genRegion(R);
+    this.grid = world.grid; this.biomeMap = world.biomeMap;
+    this.lm = placeLandmarks(this.grid, R);
     var lmMask = markMask(this.lm);
 
-    // 地表：整图烘焙成单张纹理（1632 格 → 1 个 draw call）
+    // 地表：整图烘焙成单张纹理（一格一 draw call 的代价付不起）
     if (this.textures.exists('mapbake')) this.textures.remove('mapbake');
     this.textures.addCanvas('mapbake', bakeMap(this.grid, this.biomeMap, lmMask));
-    this.add.image(0,0,'mapbake').setOrigin(0,0).setDepth(0);
+    this.mapBakeImg = this.addR(this.add.image(0,0,'mapbake').setOrigin(0,0).setDepth(0));
 
     // 树与水面高光：从瓦片层抽成独立物件，实现遮挡与流动
     this.trees=[];
@@ -2925,17 +3563,16 @@
       if (lmMask[ty][tx]) continue;      // 地标脚下的树由建筑代替
       if (c===T.TREE){
         tv = Math.floor(h2(tx,ty,7)*2);
-        var tr = this.add.image(tx*TILE+TILE/2, ty*TILE+TILE*0.86, 'tree_'+(bio?bio.key:'plains')+'_'+tv);
-        // depth 用树根所在行，玩家走到树北侧会被冠盖住、走到南侧则挡住树
+        var tr = this.addR(this.add.image(tx*TILE+TILE/2, ty*TILE+TILE*0.86, 'tree_'+(bio?bio.key:'plains')+'_'+tv));
         tr.setOrigin(0.5,0.925).setDepth(ty*TILE+22);
         this.trees.push(tr);
       } else if (c===T.WATER){
-        sp = this.add.image(tx*TILE+7+h2(tx,ty,5)*9, ty*TILE+9+h2(tx,ty,9)*13, 'wsh');
+        sp = this.addR(this.add.image(tx*TILE+7+h2(tx,ty,5)*9, ty*TILE+9+h2(tx,ty,9)*13, 'wsh'));
         pb = palOf(bio);
         sp.setTint(rgbInt(pb.water[2]));
         sp.setAlpha(0.22).setDepth(1);
         delaySeed = Math.floor(h2(tx,ty,13)*1200);
-        this.tweens.add({
+        this.tweenR({
           targets:sp, x:sp.x+3.5, alpha:{ from:0.12, to:0.58 },
           duration:1300+Math.floor(h2(tx,ty,11)*900), yoyo:true, repeat:-1, delay:delaySeed
         });
@@ -2943,125 +3580,191 @@
     }
 
     var reachable = computeReachable(this.grid);
-    this.ent = buildEntities(this.grid, reachable, this.lm);
+    this.ent = buildEntities(this.grid, reachable, this.lm, R);
 
-    // 深度按 y 排序：物件、人物、树在同一坐标系里比较，走到树后会被冠盖住
+    // 营地（休息点）
     if (this.ent.heal){
-      this.add.image(this.ent.heal.x*TILE+TILE/2, this.ent.heal.y*TILE+TILE/2, 'heal')
+      this.addR(this.add.image(this.ent.heal.x*TILE+TILE/2, this.ent.heal.y*TILE+TILE/2, 'heal'))
         .setDepth(this.ent.heal.y*TILE+8);
     }
+    // 馆主
     this.trainerMap = {};
-    var self = this;
     this.ent.trainers.forEach(function(t){
-      // 已获徽章的馆主换成「战胜后」的样子：不再闪红光，站着当路人
-      var spr = self.add.image(t.x*TILE+TILE/2, t.y*TILE+TILE/2, 'npc_'+t.key).setDepth(t.y*TILE+18);
+      var spr = self.addR(self.add.image(t.x*TILE+TILE/2, t.y*TILE+TILE/2, 'npc_'+t.key).setDepth(t.y*TILE+18));
       if (G.badges.indexOf(t.key) >= 0) spr.setAlpha(0.92);
       self.trainerMap[kOf(t.x,t.y)] = t;
     });
     // 剧情 NPC
     this.npcMap = {};
+    this.npcSprites = [];
     this.ent.npcs.forEach(function(n){
-      var spr = self.add.image(n.x*TILE+TILE/2, n.y*TILE+TILE/2, 'npc_'+n.key).setDepth(n.y*TILE+18);
+      var spr = self.addR(self.add.image(n.x*TILE+TILE/2, n.y*TILE+TILE/2, 'npc_'+n.key).setDepth(n.y*TILE+18));
       self.npcMap[kOf(n.x,n.y)] = n;
-      self.npcSprites = self.npcSprites || [];
       self.npcSprites.push({ n:n, spr:spr });
     });
+    // 道具
     this.itemMap = {};
     this.ent.items.forEach(function(it){
-      it.spr = self.add.image(it.x*TILE+TILE/2, it.y*TILE+TILE/2, 'it_'+it.kind).setDepth(it.y*TILE+10);
+      it.spr = self.addR(self.add.image(it.x*TILE+TILE/2, it.y*TILE+TILE/2, 'it_'+it.kind).setDepth(it.y*TILE+10));
       self.itemMap[kOf(it.x,it.y)] = it;
+    });
+    // 初始伙伴的三颗球
+    this.starterMap = {};
+    this.ent.starters.forEach(function(st){
+      st.spr = self.addR(self.add.image(st.x*TILE+TILE/2, st.y*TILE+TILE/2, 'stb_'+st.id).setDepth(st.y*TILE+12));
+      self.tweenR({ targets:st.spr, y:st.spr.y-4, duration:950, yoyo:true, repeat:-1,
+                    ease:'Sine.easeInOut' });
+      self.starterMap[kOf(st.x,st.y)] = st;
+    });
+    // 门口路牌
+    this.gateMap = {};
+    this.ent.gates.forEach(function(g){
+      var spr = self.addR(self.add.image(g.x*TILE+TILE/2, g.y*TILE+TILE/2, 'gate')
+        .setOrigin(0.5, 0.86).setDepth(g.y*TILE+9));
+      var open = !g.lock || g.lock();
+      spr.setTint(open ? 0xffffff : 0x7c86a4);
+      g.spr = spr;
+      self.gateMap[kOf(g.x,g.y)] = g;
     });
 
     // 地标：深度 = 底边所在行，走到建筑北侧会被挡住、走到南侧则挡住建筑
     this.marks = []; this.glows = []; this.blades = [];
     this.lm.forEach(function(m){
       var bx = m.x*TILE + m.w*TILE/2, by = m.base + 2;
-      var im = self.add.image(bx, by, 'mk_'+m.kind+'_'+m.bio).setOrigin(0.5,1).setDepth(m.base + 12);
+      var im = self.addR(self.add.image(bx, by, 'mk_'+m.kind+'_'+m.bio).setOrigin(0.5,1).setDepth(m.base + 12));
       self.marks.push(im);
       var gl = MARK_GLOW[m.kind];
       if (gl){
         var tex = MARK_SIZE[m.kind];
-        // 贴图内坐标 → 世界坐标（贴图原点在底边中点）
         var gx = bx - tex[0]/2 + gl[0], gy = by - tex[1] + gl[1];
-        var gs = blendAdd(self.add.image(gx, gy, 'a_glow').setDepth(m.base + 13)
-          .setTint(gl[3]).setAlpha(0).setDisplaySize(gl[2]*2, gl[2]*2));
+        var gs = self.addR(blendAdd(self.add.image(gx, gy, 'a_glow').setDepth(m.base + 13)
+          .setTint(gl[3]).setAlpha(0).setDisplaySize(gl[2]*2, gl[2]*2)));
         self.glows.push({ spr:gs, r:gl[2] });
         var pv = MARK_PIVOT[m.kind];
         if (pv){
-          var bl = self.add.image(bx - tex[0]/2 + pv[0], by - tex[1] + pv[1], 'mk_blade')
-            .setDepth(m.base + 14);
+          var bl = self.addR(self.add.image(bx - tex[0]/2 + pv[0], by - tex[1] + pv[1], 'mk_blade')
+            .setDepth(m.base + 14));
           self.blades.push(bl);
         }
       }
     });
 
-    // 存档坐标可能已经被 batch7 的地标推平成岩块，落进墙里会直接卡死 → 回到枢纽
-    if (!this.grid[G.pos.y] || !WALK[this.grid[G.pos.y][G.pos.x]]){
-      G.pos = { x: HUB.x, y: HUB.y + 2 };
+    // 出生点：优先用门口给的落点，其次读存档坐标；落进墙里就回广场
+    var pos = spawn || G.pos || { x:HUB.x, y:HUB.y+2 };
+    if (!this.grid[pos.y] || !WALK[this.grid[pos.y][pos.x]]){
+      pos = { x:HUB.x, y:HUB.y+2 };
     }
+    G.pos = { x:pos.x, y:pos.y };
+    G.region = R.key;
+    this.regionKey = R.key;
+    saveG();
 
     this.player = this.add.sprite(G.pos.x*TILE+TILE/2, G.pos.y*TILE+TILE/2, 'hero_down_0')
       .setDepth(G.pos.y*TILE+18);
     this.face = 'down';
+    this.moving = false;
+    this.talking = false;
     this.cameras.main.setBounds(0,0,MAP_W*TILE,MAP_H*TILE);
     this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
+    this.applyCamZoom();
 
+    var startBio = zoneOf(G.pos.x, G.pos.y, this.biomeMap);
+    this.curBiome = startBio.key;
+    // 天气：先清后设，避免上一张图的粒子留在新图上
+    if (this.amb){
+      this.amb.clear();
+      this.amb.set(R.track || (R.biomes && R.biomes[0] ? R.biomes[0].key : 'plains'));
+    }
+    // 营地柔光（夜里能看清休息点在哪儿）
+    if (this.ent.heal){
+      var hlx = this.ent.heal.x*TILE+TILE/2, hly = this.ent.heal.y*TILE+TILE/2;
+      this.glows.push({ r:46, spr: this.addR(blendAdd(this.add.image(hlx, hly-2, 'a_glow')
+        .setTint(0xfff1cf).setAlpha(0).setDisplaySize(92,92).setDepth(this.ent.heal.y*TILE+9))) });
+    }
+
+    this.refreshHud(G.pos.x, G.pos.y);
+    refreshQuest();
+    this.refreshNav();
+
+    this.time.delayedCall(260, function(){
+      self.showZone(R.name, R.sub);
+    });
+    return R;
+  };
+
+  // 走门口：淡出 → 装载目标区域 → 淡入
+  WorldScene.prototype.useGate = function(gate){
+    if (!gate || this.switching) return;
+    if (gate.lock && !gate.lock()){
+      this.showToast(gate.lockMsg || '这条路暂时不通');
+      AUDIO.sfx('bump');
+      this.nudge(0, 1);
+      return;
+    }
+    var self = this;
+    this.switching = true;
+    this.moving = true;
+    this.setPad(false);
+    AUDIO.sfx('item');
+    var cam = this.cameras.main;
+    cam.fadeOut(280, 8, 10, 22);
+    cam.once('camerafadeoutcomplete', function(){
+      var R = self.loadRegion(gate.to, { x:gate.spawn[0], y:gate.spawn[1] });
+      cam.fadeIn(320, 8, 10, 22);
+      self.switching = false;
+      self.setPad(true);
+      self.showToast('进入 ' + R.name);
+    });
+  };
+
+  WorldScene.prototype.create = function(){
+    // ---- 持久层：只建一次，切图不重建 ----
+    this.rSprites = []; this.rTweens = [];
     this.cursors = this.input.keyboard.createCursorKeys();
     this.keys = this.input.keyboard.addKeys('W,A,S,D');
     this.moving = false;
     this.inBattle = false;
     this.uiOpen = false;
     this.talking = false;
-    var startBio = zoneOf(G.pos.x, G.pos.y, this.biomeMap);
-    this.curBiome = startBio.key;
+    this.switching = false;
     this.hud = document.getElementById('hud');
     this.toastEl = document.getElementById('toast');
     this.clockEl = document.getElementById('clock');
+    // 转屏 / 改窗口后视口比例变了，铺满所需的缩放也跟着变
+    this.scale.on('resize', this.applyCamZoom, this);
+    this.events.once('shutdown', function(){ this.scale.off('resize', this.applyCamZoom, this); }, this);
 
-    // 昼夜蒙版：锁相机 + depth 5000（世界物件的 depth 是 y*TILE+偏移，最高约 1110）
+    // 昼夜蒙版：锁相机 + depth 5000（世界物件的 depth 是 y*TILE+偏移）
     this.dayRect = this.add.rectangle(0,0,4096,4096,0x0c1630,0)
       .setOrigin(0,0).setScrollFactor(0).setDepth(5000);
-    // 天气粒子池：按当前群系初始化，跨区域时在 onArrive 里换
     this.amb = new Ambience(this);
-    this.amb.set(this.curBiome === 'town' ? 'plains' : this.curBiome);
-    // 精灵中心与主角脚下的柔光（夜里能看清自己站哪儿）
-    if (this.ent.heal){
-      var hlx = this.ent.heal.x*TILE+TILE/2, hly = this.ent.heal.y*TILE+TILE/2;
-      this.glows.push({ r:46, spr: blendAdd(this.add.image(hlx, hly-2, 'a_glow')
-        .setTint(0xfff1cf).setAlpha(0).setDisplaySize(92,92).setDepth(this.ent.heal.y*TILE+9)) });
-    }
     this.pGlow = blendAdd(this.add.image(0,0,'a_glow').setTint(0xbfd4ff)
       .setAlpha(0).setDisplaySize(56,44).setDepth(3));
-
-    this.refreshHud(G.pos.x, G.pos.y);
-    refreshQuest();
-    // 路线指引：先建对象再算一次（此时 player / ent 都已就绪）
     this.buildNav();
-    this.refreshNav();
 
-    // 开场地名条
-    var ws = this;
+    // ---- 装载当前区域 ----
+    var startKey = REGION_BY_KEY[G.region] ? G.region : 'town';
+    this.loadRegion(startKey, null);
+
+    // 摇杆 / 全屏 / 战斗返回的回调里都用了 self 与 ws，两个别名都要有
+    var ws = this, self = this;
     /* 全新存档：用一段开场把「你是谁、要做什么」讲清楚。
-       原来只弹一句「去找长老 岑」的 toast，玩家一进游戏既不知道自己在哪，
-       也不知道为什么要走 —— 前五分钟全靠猜。老存档（已有徽章 / 见过长老 /
-       已经播过开场）不重播，回来的人不该被按着再听一遍。 */
-    if (!G.flags.metElder && !G.badges.length && !G.flags.opening){
+       老存档（已经选过伙伴 / 见过长老 / 播过开场）不重播，回来的人不该被按着再听一遍。 */
+    if (!G.flags.starterChosen && !G.flags.metElder && !G.badges.length && !G.flags.opening){
       G.flags.opening = 1; saveG();
       this.time.delayedCall(1500, function(){
         if (DLG.open) return;
         say([
           { who:'旁白',    text:'灵契大陆。人和精灵之间的羁绊，会凝成看得见的印记。' },
-          { who:'长老 岑', text:'你手里那只，从小跟你一起长大。它认你，你也认它——这就叫灵契。' },
-          { who:'长老 岑', text:'大陆上有八座道馆，八位馆主，八枚徽章。集齐了，你才有资格站到冠军面前。' },
-          { who:'长老 岑', text:'路不好走。风会告诉你方向，脚下的路会告诉你怎么走。别让人等太久。' }
+          { who:'长老 岑', text:'醒啦？路上辛苦了。灵契中心那张木桌上，摆着三颗精灵球。' },
+          { who:'长老 岑', text:'火苗鼠、水珠蛙、草芽兔——三只都还小，都还什么都没见过。挑一只，从今天起它就是你的伙伴。' },
+          { who:'长老 岑', text:'大陆上有八座道馆，八枚徽章。集齐了，你才有资格站到冠军面前。' },
+          { who:'长老 岑', text:'还有件事。最近有群穿灰袍的人在各处翻找「灵契秘宝」，见着别硬碰，先活着回来。' }
         ], function(){
-          ws.showToast('拖动屏幕走路 · 撞上馆主开战 · 左上角是背包 / 图鉴');
+          ws.showToast('走到广场北侧木桌前，撞一下精灵球就能选伙伴');
         }, ws);
       });
     }
-    this.time.delayedCall(600, function(){
-      ws.showZone(startBio.name, startBio.sub);
-    });
 
     // ---- UI 页面快捷键（Q 图鉴 / E 队伍 / B 背包 / R 徽章 / N 路线）----
     this.input.keyboard.on('keydown-Q', function(){ ws.openUI('dex'); });
@@ -3310,6 +4013,12 @@
   /* ---------------- 路线指引：建对象 / 重算 / 绘制 / 每帧推进 ---------------- */
   WorldScene.prototype.navEntity = function(info){
     if (!info || !this.ent) return null;
+    // 门口 / 木桌这类「目标本身不是 NPC」的指引，直接给坐标
+    if (info.kind === 'gate' && info.gx != null) return { x:info.gx, y:info.gy };
+    if (info.kind === 'starter'){
+      for (var k in this.starterMap){ if (this.starterMap[k]) return this.starterMap[k]; }
+      return { x:HUB.x, y:HUB.y-2 };
+    }
     var list = info.kind === 'gym' ? this.ent.trainers : this.ent.npcs, i;
     for (i = 0; i < list.length; i++) if (list[i].key === info.key) return list[i];
     return null;
@@ -3551,6 +4260,9 @@
     // 剧情 NPC 先判：撞上去 = 对话，不会误开战
     var npc = this.npcMap[kOf(nx,ny)];
     if (npc){ this.nudge(dx,dy); this.talkTo(npc); return; }
+    // 初始伙伴：撞一下就弹出选择
+    var stb = this.starterMap[kOf(nx,ny)];
+    if (stb){ this.nudge(dx,dy); this.chooseStarter(stb); return; }
     var tr = this.trainerMap[kOf(nx,ny)];
     if (tr){
       this.nudge(dx,dy);
@@ -3592,6 +4304,10 @@
     }
     // 走完一格就重算路线：玩家可能为了捡道具偏离原路径，也可能刚拿徽章换了目标
     this.refreshNav();
+
+    // 门口：踩上去就切图（切图期间 this.moving 保持 true，防止连踩）
+    var gate = this.gateMap[kOf(nx,ny)];
+    if (gate){ this.useGate(gate); return; }
 
     var it = this.itemMap[kOf(nx,ny)];
     if (it && !it.taken){
@@ -3653,16 +4369,23 @@
 
   // 遇敌：完全照搬 startWildBattle 的抽取规则
   WorldScene.prototype.startEncounter = function(gx,gy){
+    // 还没选伙伴：草丛不刷怪。否则新档会在拿到精灵之前被拖进一场必输的战斗
+    if (!G.party.length){
+      this.showToast('先去广场北侧的木桌，选一只最初的伙伴');
+      return;
+    }
     var bio = biomeAt(gx,gy,this.biomeMap) || BIOME_BY_KEY.plains;
-    var idx = Math.max(0, BIOMES.indexOf(bio));
+    if (!bio.pools) bio = BIOME_BY_KEY.plains;
     var roll = Math.random(), tier='wild', sid, stage;
     if (roll < 0.05){ tier='boss'; sid=bio.rare; stage=2; }
     else if (roll < 0.14){ tier='rare'; sid=bio.rare; stage=1; }
     else { sid = pick(bio.pools); stage = Math.random()<.6 ? 0 : 1; }
     var sp = spOf(sid);
-    var lv = 4 + stage*7 + Math.floor(Math.random()*4) + Math.floor(idx*0.45);
+    // 等级带由「区域」决定（batch14）：七张图各有一条难度曲线，
+    // 不再用「第几个群系 × 0.45」这种和地图强绑的老公式。
+    var lv = (CUR_REGION.lv0 || 5) + stage * 4 + Math.floor(Math.random()*4);
     if (tier==='rare') lv += 5;
-    if (tier==='boss') lv += 10;
+    if (tier==='boss') lv += 9;
     lv = clamp(lv, 2, SR.CFG.MAX_LV);
     var f = buildFighter(sp, stage, randNature(), lv, STAGE_DAMP);   // 野生个体的进化只兑现一部分
     if (tier==='boss'){
@@ -3746,51 +4469,117 @@
      每段只判断「这件事发生过没有」，不做任务状态机。
      G.flags 里记的都是不可逆的事实：见过长老、拿过小满的东西、赢过影。
      ============================================= */
-  WorldScene.prototype.talkElder = function(){
-    var n = G.badges.length;
-    if (!G.flags.metElder){
-      G.flags.metElder = 1;
-      G.balls += 5; saveG();
-      say([
-        { who:'长老 岑', text:'你醒了。手里那两只，是你自己选的吧。' },
-        { who:'长老 岑', text:'这片地方叫灵契大陆。人与精灵之间有一条看不见的线——线在，就能一起变强。' },
-        { who:'长老 岑', text:'大陆上有八座道馆。每位馆主守着一枚徽章，也守着一门功课。' },
-        { who:'长老 岑', text:'走完八座、集齐八枚，你才有资格站到冠军面前。' },
-        { who:'长老 岑', text:'这些精灵球给你。脚下会浮出一串箭头，它指着你该去的地方——嫌吵就按 N 收起来。' },
-        { who:'长老 岑', text:'路怎么走，还是你自己定。' }
-      ], function(){
+  /* ---------------- 初始伙伴：三选一 ---------------- */
+  WorldScene.prototype.chooseStarter = function(st){
+    if (G.flags.starterChosen || !st) return;
+    var sp = spOf(st.id), self = this;
+    if (!sp) return;
+    var el = typeName(sp.type);
+    say([
+      { who:'木桌',    text:'三颗精灵球并排摆在木桌上。'+sp.stages[0]+' 的那颗，球壳上泛着'+el+'色的光。' },
+      { who:'长老 岑', text:'它一直在动。你走近，它就撞了一下球壁——像是认出你了。' },
+      { who:'长老 岑', text:'选吧。选完了，这一路就是它陪你走。' }
+    ], function(){
+      buildChoice({
+        title: sp.stages[0] + ' · ' + el + '系',
+        sub: sp.desc + '　（初始 Lv.5，会随等级自动学会本系招式）',
+        options: [
+          { label:'就选它！', value:1 },
+          { label:'再看看', value:0, alt:true }
+        ]
+      }, function(v){
+        if (!v) return;
+        G.party = [{ id:st.id, stage:0, lv:5, exp:0, hp:null, nature:'坦率', bond:3, count:1 }];
+        G.activeIdx = 0;
+        dexGot(st.id, 0);
+        G.flags.starterChosen = 1;
+        G.balls = Math.max(G.balls, 8);
+        saveG();
+        AUDIO.sfx('levelup');
+        self.showToast(sp.stages[0] + ' 加入了队伍！背包里多了 8 颗精灵球');
+        // 重建本区：三颗球消失，主角回到广场
+        self.loadRegion('town', { x:HUB.x, y:HUB.y+2 });
         refreshQuest();
-      }, this);
+      }, self);
+    }, this);
+  };
+
+  /* ---------------- 长老：分章引导 ---------------- */
+  WorldScene.prototype.talkElder = function(){
+    var n = G.badges.length, f = G.flags;
+
+    if (!f.starterChosen){
+      say([
+        { who:'长老 岑', text:'先去选伙伴。木桌就在广场北边，三颗球，挑一颗。' },
+        { who:'长老 岑', text:'别挑颜色，挑那只一直盯着你看的。' }
+      ], null, this);
       return;
     }
-    if (n >= GYMS.length){
+
+    if (!f.metElder){
+      f.metElder = 1;
+      G.balls += 8; saveG();
       say([
-        { who:'长老 岑', text:'八枚。我活了这么久，见过的人里不超过五个做到。' },
-        { who:'长老 岑', text:'冠军 曜 就在广场东侧站着。他等你很久了。' },
+        { who:'长老 岑', text:'选好了？让我看看——嗯，眼神不错。' },
+        { who:'长老 岑', text:'这片地方叫灵契大陆。人和精灵之间有一条看不见的线。线在，就能一起变强；线断，两边都会变回野兽。' },
+        { who:'长老 岑', text:'大陆上有八座道馆，八位馆主，八枚徽章。集齐八枚，你才有资格站到冠军 曜 面前。' },
+        { who:'长老 岑', text:'这些精灵球给你。脚下会浮出一串箭头，指着你该去的地方——嫌吵就按 N 收起来。' },
+        { who:'长老 岑', text:'出镇往东是微风原野。第一座馆在风车底下，馆主叫阿澈。' },
+        { who:'长老 岑', text:'路怎么走，还是你自己定。' }
+      ], function(){ refreshQuest(); }, this);
+      return;
+    }
+
+    // 打赢第一个影蚀会喽啰之后，长老把反派线挑明（只讲一次）
+    if (f.grunt1 && !f.elderStory){
+      f.elderStory = 1; saveG();
+      say([
+        { who:'长老 岑', text:'你碰见穿灰袍的人了？' },
+        { who:'长老 岑', text:'他们叫影蚀会。领头的自称「蚀」，手下三位干部：砂、烬、寒。' },
+        { who:'长老 岑', text:'他们不信羁绊。他们说，人和精灵之间那条线，是在慢慢把精灵抽干。' },
+        { who:'长老 岑', text:'所以他们要拆掉这条线。拆的办法，是把四件灵契秘宝聚齐、熔成一颗「蚀月」。' },
+        { who:'长老 岑', text:'潮汐之泪在湖底，夜辉石在遗迹，炎心核在火山，霜晶核在雪山。' },
+        { who:'长老 岑', text:'一件都不能让他们拿到。这不是徽章的事，是这片大陆还能不能有人的事。' },
+        { who:'长老 岑', text:'去吧。先从湖底那件开始——那边已经出事了。' }
+      ], function(){ refreshQuest(); }, this);
+      return;
+    }
+
+    if (n >= GYMS.length && !f.voidBeat){
+      say([
+        { who:'长老 岑', text:'八枚徽章……我活了这么久，见过的人里不超过五个做到。' },
+        { who:'长老 岑', text:'但你先别急着找曜。' },
+        { who:'长老 岑', text:'火山口那扇门后面还有东西没解决。虚空之座上的那位，是蚀亲手叫醒的。' },
+        { who:'长老 岑', text:'冠军可以等。被叫醒的东西不会等。' }
+      ], null, this);
+      return;
+    }
+
+    if (n >= GYMS.length && f.voidBeat){
+      say([
+        { who:'长老 岑', text:'八枚徽章，四件秘宝归位，虚空重新睡下去了。' },
+        { who:'长老 岑', text:'曜 就在广场东侧站着。他等你很久了。' },
         { who:'长老 岑', text:'去吧。这一次，不用回来复命。' }
       ], null, this);
       return;
     }
-    // 老台词按「第几枚」分段，但地图扩到 64×46 之后玩家可以乱序打，
-    // 所以具体是哪一馆一律走 nextGym() 现算，不写死「去微风草原」
-    var g = nextGym();
-    var where = g ? BIOME_BY_KEY[g.key].name : '大陆深处';
-    var who = g ? shortName(g.leader) : '下一位馆主';
+
+    // 其余情况：按当前章节给一句「下一步」，不写死具体地点
+    var ch = chapterNow(), hint = ch.target ? ch.target.hint : ch.hint;
     var lines;
-    if (n === 0) lines = ['还在起点。别急，第一步最难。',
-                          '去'+where+'看看。'+who+'心软，但会认真跟你打。'];
+    if (n === 0) lines = ['还在起点。别急，第一步最难。', '下一站：'+hint+'。'];
     else if (n <= 3) lines = ['才 '+n+' 枚？嗯……不过你走路的样子变了。',
-                              '下一枚在'+where+'，'+who+'守的。路上当心影。'];
+                              '下一站：'+hint+'。路上当心那些灰袍的人。'];
     else if (n <= 6) lines = ['过半了。'+n+' 枚徽章，比我年轻时快。',
-                              '接下来是'+where+'。'+who+'不会留手，记得回灵契中心回复。'];
-    else lines = ['七枚了。只剩'+where+'这一枚。',
-                  who+'守的那门功课最难。过了它，你就能站到冠军面前。'];
+                              '下一站：'+hint+'。打不动就回营地休息，别硬撑。'];
+    else lines = [n+' 枚了。剩下的路不长了。',
+                  '下一站：'+hint+'。过了这一关，你就能站到冠军面前。'];
     say(lines.map(function(t){ return { who:'长老 岑', text:t }; }), null, this);
   };
 
   WorldScene.prototype.talkMira = function(){
     if (!G.flags.miraGift){
-      G.flags.miraGift = 1; G.balls += 3; G.bag.candy += 1; saveG();
+      G.flags.miraGift = 1; G.balls += 5; G.bag.candy += 1; saveG();
       say([
         { who:'学徒 小满', text:'你就是新来的？我叫小满，还在学徒期——所以只能在这儿发东西。' },
         { who:'学徒 小满', text:'先记一件事：属性相克比等级重要。火打草，一下就疼。' },
@@ -3799,17 +4588,37 @@
       ], function(){ refreshQuest(); }, this);
       return;
     }
-    say([ { who:'学徒 小满', text:'打赢师兄了？他嘴上不说，心里肯定服气。' },
-          { who:'学徒 小满', text:'我还在练。等我出师那天，先来挑战你。' } ], null, this);
+    if (!G.flags.grunt1){
+      say([
+        { who:'学徒 小满', text:'对了——林子那边（低语森林，原野东南）有个穿灰袍的人在神木祠翻东西。' },
+        { who:'学徒 小满', text:'我喊他，他回头瞪了我一眼。那眼神……不像好人。' },
+        { who:'学徒 小满', text:'你先去打赢师兄，再去看看？我这种学徒过去就是送。' }
+      ], null, this);
+      return;
+    }
+    say([ { who:'学徒 小满', text:'你真把那个灰袍打跑了？我在树后头看着呢。' },
+          { who:'学徒 小满', text:'他说「还有三件」——是什么意思？' },
+          { who:'学徒 小满', text:'……算了，我还在练。等我出师那天，先来挑战你。' } ], null, this);
   };
 
   WorldScene.prototype.talkChord = function(){
     if (!G.flags.chordGift){
-      G.flags.chordGift = 1; G.bag.stone += 2; saveG();
+      G.flags.chordGift = 1; G.bag.stone += 2; G.balls += 5; saveG();
       say([
         { who:'旅人 弦', text:'这条湖我走了十几年。水声听久了，会以为它在说话。' },
-        { who:'旅人 弦', text:'八位馆主我都见过。他们不是在考你——是在问你要不要留下来。' },
-        { who:'旅人 弦', text:'进化石给你两颗。别急着用，先看看它想变成什么。' }
+        { who:'旅人 弦', text:'不过这两天水声不对。栈桥那边有人在打捞东西，捞了一整夜。' },
+        { who:'旅人 弦', text:'湖底沉着一颗「潮汐之泪」。老辈人说，那是这片水域和人第一次对上眼的那天留下的。' },
+        { who:'旅人 弦', text:'进化石给你两颗，球也拿几颗。别急着用，先看看它想变成什么。' }
+      ], null, this);
+      return;
+    }
+    if (G.flags.grunt2 && !G.flags.chordArtifact){
+      G.flags.chordArtifact = 1; saveG();
+      say([
+        { who:'旅人 弦', text:'你把潮汐之泪拿回来了。' },
+        { who:'旅人 弦', text:'……刚才它在你手里闪了一下。那是「认主」的意思。' },
+        { who:'旅人 弦', text:'四件秘宝会互相找。你带着它，剩下的三件会自己指路。' },
+        { who:'旅人 弦', text:'南边是荒漠，遗迹里有第二件。影蚀会干部「砂」已经在那儿了。' }
       ], null, this);
       return;
     }
@@ -3818,12 +4627,9 @@
           { who:'旅人 弦', text:'我？我就走到走不动为止。路上什么都能碰见。' } ], null, this);
   };
 
-  /* 影这条线原来只有一句「我看看你配不配知道那件事」，然后打败他就改口说
-     「冠军也在等一个人」—— 那件事从头到尾没揭晓，等于把伏笔挖了不填。
-     现在补成完整的三段：门槛 → 揭底 → 通关后的重逢。
-     他的身份是「集齐过八枚、但输了的那一任挑战者」：
-     输的原因不是等级不够，是他从没信过自己的精灵 —— 正好回扣长老开场那句
-     「它认你，你也认它，这就叫灵契」。 */
+  /* 影：集齐过八枚、却输给冠军的那一任挑战者。
+     他的问题不是等级不够，是他从没信过自己的精灵 ——
+     这条线在第 4 枚徽章后揭开，通关后再收一次尾。 */
   WorldScene.prototype.talkShade = function(){
     var self = this;
     if (G.cleared){
@@ -3851,8 +4657,8 @@
     }
     say([
       { who:'影', text:'四枚了。' },
-      { who:'影', text:'我当年拿到第四枚的时候，有个人也在这儿等我。' },
-      { who:'影', text:'他没教我招式，只问了我一句话。' },
+      { who:'影', text:'我当年拿到第四枚的时候，也在这片沙漠里等人。' },
+      { who:'影', text:'等我的那个人没教我招式，只问了我一句话。' },
       { who:'影', text:'……行。先打。打完了，我把那件事告诉你。' }
     ], function(){ self.startShadowBattle(); }, this);
   };
@@ -3873,10 +4679,46 @@
       ], null, this);
       return;
     }
+    if (!G.flags.voidBeat){
+      say([
+        { who:'冠军 曜', text:'八枚了。按规矩，现在该我了。' },
+        { who:'冠军 曜', text:'但你身上还带着火山的灰。' },
+        { who:'冠军 曜', text:'先去了结回廊的事。冠军不会跟一个背着债的人握手。' }
+      ], null, this);
+      return;
+    }
     say([
       { who:'冠军 曜 · '+CHAMPION.title, text:CHAMPION.intro },
       { who:'冠军 曜', text:'来吧。让我看看八枚徽章长在什么人身上。' }
     ], function(){ self.startChampionBattle(); }, this);
+  };
+
+  /* ---------------- 反派对话 ----------------
+     统一入口：打赢记 flag，没打赢先看门槛；
+     门槛不够时说一段「你还不配」，而不是直接开战把新人打回镇上。 */
+  WorldScene.prototype.talkVillain = function(key){
+    var V = VILLAIN_BY_KEY[key], self = this;
+    if (!V) return;
+    var who = V.name;
+    if (G.flags[V.flag]){
+      say(V.idle.map(function(t){ return { who:who, text:t }; }), null, this);
+      return;
+    }
+    if (V.key === 'void' && !G.flags.bossBeat){
+      say([ { who:'虚空', text:'……座上有东西在睡。现在还不是叫醒它的时候。' } ], null, this);
+      return;
+    }
+    if (V.need && !V.need()){
+      say(V.block.map(function(t){ return { who:who, text:t }; }), null, this);
+      return;
+    }
+    say(V.pre.map(function(t){ return { who:who, text:t }; }), function(){
+      self.startBossBattle({
+        team:V.team, name:V.name, tier:(V.key === 'boss' || V.key === 'void') ? 'boss' : 'trainer',
+        biomeKey:(CUR_REGION.biomes && CUR_REGION.biomes[0]) ? CUR_REGION.biomes[0].key : 'ruins',
+        ref:{ key:key, villain:true, name:V.name }
+      });
+    }, this);
   };
 
   WorldScene.prototype.talkTo = function(n){
@@ -3886,6 +4728,7 @@
     if (n.role === 'chord') return this.talkChord();
     if (n.role === 'shade') return this.talkShade();
     if (n.role === 'lumen') return this.talkLumen();
+    if (n.role === 'villain') return this.talkVillain(n.vk || n.key);
   };
 
   /* =====================================================================
@@ -4012,7 +4855,9 @@
   WorldScene.prototype.tickAmbient = function(dt){
     CLOCK.t = (CLOCK.t + dt/DAY_LEN) % 1;
     var ph = dayPhase(CLOCK.t);
-    if (this.dayRect) this.dayRect.setFillStyle(ph.tint, ph.a);
+    // 影蚀回廊：不管外面几点，这里的天从来亮不起来（暗色蒙版压到 0.34 起）
+    var dark = !!(CUR_REGION && CUR_REGION.dark);
+    if (this.dayRect) this.dayRect.setFillStyle(dark ? 0x0a0a1e : ph.tint, dark ? Math.max(ph.a, 0.34) : ph.a);
 
     // 灯光：入夜渐亮、天亮渐灭；灯芯用轻微呼吸，避免死板的静态光斑
     var glow = clamp((ph.a - 0.10) / 0.36, 0, 1);
@@ -6131,6 +6976,49 @@
         } else {
           extra = '🌑 再次战胜 影';
         }
+      } else if (t && t.villain){
+        /* 反派战斗（batch14）：打赢才记 flag，才发「下一章」的钥匙。
+           首领战之后虚空会自动醒；虚空战之后四件秘宝归位。 */
+        var V = VILLAIN_BY_KEY[t.key];
+        if (V && !G.flags[V.flag]){
+          G.flags[V.flag] = 1;
+          G.balls += 3;
+          extra = '🌑 战胜 ' + (V.name || t.name);
+          if (t.key === 'admin3'){
+            G.flags.hollowOpen = 1;
+            extra = '🌑 战胜 寒 · 回廊之门已开';
+          }
+          if (t.key === 'void'){
+            extra = '🌌 虚空之主重归长眠 · 四件秘宝归位';
+            // 传说精灵：打赢之后它自己走进球里（队伍满则换成进化石）
+            if (!G.flags.voidGift){
+              G.flags.voidGift = 1;
+              if (G.party.length < SR.CFG.MAX_PARTY){
+                var vsp = spOf('s38');
+                G.party.push({ id:'s38', stage:2, lv:40, exp:0, hp:null,
+                               nature:'固执', bond:8, count:1 });
+                dexGot('s38', 2);
+                extra += '　·　' + (vsp ? vsp.stages[2] : '虚空章王') + ' 加入了队伍';
+              } else {
+                G.bag.stone += 3;
+                extra += '　·　队伍已满，获得进化石 ×3';
+              }
+            }
+          }
+          saveG();
+          if (world){
+            world._pendingTalk = (V.win || []).map(function(txt){
+              return { who:V.name, text:txt };
+            });
+            if (t.key === 'void' && world.amb){
+              // 虚空睡回去：天气从「遗迹浮尘」换成晴，作为通关的即时反馈
+              world.amb.set('plains');
+            }
+          }
+          endToast = extra + '　·　' + chapterHook();
+        } else {
+          extra = '🌑 再次战胜 ' + ((V && V.name) || t.name);
+        }
       } else if (t && t.champion){
         G.cleared = true; saveG();
         extra = '👑 击败冠军 曜';
@@ -6163,18 +7051,26 @@
     this.cameras.main.fade(900, 0, 0, 0);
     await sleep(1200);
     G.party.forEach(function(c){ c.hp = maxHpOf(c); });
-    G.pos = { x:HUB.x, y:HUB.y+2 };
+    // 全灭送回灵契镇（batch14）：不管倒在哪张图，都送回镇上的营地
+    var TOWN = REGION_BY_KEY.town;
+    G.region = 'town';
+    G.pos = { x:TOWN.hub[0], y:TOWN.hub[1]+2 };
     saveG();
-    this.finish('你被送回了灵契镇，队伍已恢复', true);
+    this.finish('你被送回了灵契镇，队伍已恢复', true, 'town');
   };
 
-  BattleScene.prototype.finish = function(toastMsg, teleport){
+  BattleScene.prototype.finish = function(toastMsg, teleport, regionKey){
     var world = this.inData.world;
     if (world){
       world._battleToast = toastMsg || null;
       if (teleport){
-        world.player.setPosition(G.pos.x*TILE+TILE/2, G.pos.y*TILE+TILE/2);
-        world.refreshHud(G.pos.x, G.pos.y);
+        if (regionKey && regionKey !== world.regionKey){
+          var R = REGION_BY_KEY[regionKey];
+          world.loadRegion(regionKey, { x:R.hub[0], y:R.hub[1]+2 });
+        } else {
+          world.player.setPosition(G.pos.x*TILE+TILE/2, G.pos.y*TILE+TILE/2);
+          world.refreshHud(G.pos.x, G.pos.y);
+        }
       }
     }
     // 清理特效
