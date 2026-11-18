@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>灵契大陆 · Phaser 4 (batch 12 地图扩展/路线指引/UI 重排)</title>
+<title>灵契大陆 · Phaser 4 (batch 15 立绘拆包/高清渲染/离线缓存)</title>
+<!-- 内联图标：省掉一次 /favicon.ico 的 404 请求（那个 404 还带 5.5KB 错误页） -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23e05555' stroke='%231a1a22' stroke-width='2'/%3E%3Cpath d='M2.5 16h27' stroke='%231a1a22' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='5.5' fill='%23fff' stroke='%231a1a22' stroke-width='3'/%3E%3C/svg%3E">
 <style>
   html,body{margin:0;height:100%;background:#101018;overflow:hidden;font-family:system-ui,"PingFang SC",sans-serif;
             -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
@@ -305,7 +307,7 @@
 <div id="pad"><u data-t="u"></u><u data-t="d"></u><u data-t="l"></u><u data-t="r"></u><i></i></div>
 
 <script src="phaser.min.js"></script>
-<script src="phaser-assets.js?v=20261114d"></script>
+<script src="phaser-assets.js?v=20261118a"></script>
 <script>
 (function () {
   var errEl = document.getElementById('err');
@@ -315,6 +317,8 @@
 
   var SR = window.SR;
   var FONT = '"PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,sans-serif';
+
+
 
   // ===== 基础常量（与 src/data/tiles.js 一致）=====
   // batch14 多地图：MAP_W / MAP_H / HUB 改为「当前区域」的运行时变量，
@@ -1453,20 +1457,52 @@
     return ent;
   }
 
-  // ===== 立绘纹理（data URI -> 纹理，完全离线）=====
+  /* ===== 立绘纹理（按物种分片，用到哪只才取哪只）=====
+     立绘合计 1.83MB，但世界开局一张都用不到。主包只留空 ART 容器，
+     每只的三个形态单独放 art/sN.js，用到时才注入 <script>。
+     ART_LOADING 记的是"已经在取的 Promise"，并发重复请求同一只会合并成一次。 */
+  var ART_LOADING = {};
+  function artUrl(id){
+    return (SR.ART_DIR || 'art/') + id + '.js' + (SR.V ? '?v=' + SR.V : '');
+  }
+  function ensureArt(id){
+    if (!id) return Promise.resolve(false);
+    if (ART_LOADING[id]) return ART_LOADING[id];
+    ART_LOADING[id] = new Promise(function(resolve){
+      var s = document.createElement('script');
+      s.src = artUrl(id);
+      s.async = true;
+      s.onload = function(){ resolve(!!SR.ART[id + '_0'] || true); };
+      s.onerror = function(){
+        ART_LOADING[id] = null;   // 允许下次重试，而不是永久判死
+        resolve(false);
+      };
+      document.head.appendChild(s);
+    });
+    return ART_LOADING[id];
+  }
   function loadTex(scene, key){
     return new Promise(function(resolve){
       if (scene.textures.exists(key)) return resolve(true);
-      var data = SR.ART[key];
-      if (!data) return resolve(false);
-      var img = new Image();
-      img.onload = function(){
-        try { scene.textures.addImage(key, img); resolve(true); }
-        catch(e){ resolve(false); }
+      var after = function(){
+        var data = SR.ART[key];
+        if (!data) return resolve(false);
+        var img = new Image();
+        img.onload = function(){
+          try { scene.textures.addImage(key, img); resolve(true); }
+          catch(e){ resolve(false); }
+        };
+        img.onerror = function(){ resolve(false); };
+        img.src = data;
       };
-      img.onerror = function(){ resolve(false); };
-      img.src = data;
+      if (SR.ART[key]) return after();
+      ensureArt(key.split('_')[0]).then(after);
     });
+  }
+  /* 后台预热：只发请求，不参与任何 await，失败静默。
+     进战斗前把队伍和野生种群取好，战斗场景就不用再等立绘。 */
+  function prewarmArt(ids){
+    for (var i=0;i<(ids||[]).length;i++){ if (ids[i]) ensureArt(ids[i]); }
   }
   function artKey(sp, stage){ return sp.id+'_'+stage; }
 
@@ -3975,6 +4011,27 @@
 
     // 世界已经跑起来了：地图烘焙完、玩家落位、导航建好 —— 这时才允许收起加载面板
     hideBoot();
+
+    /* 首屏不需要任何立绘，所以立绘全部改成按需取。这里趁玩家还在读开场旁白，
+       把队伍 + 本地图群系的野生池先拉下来 —— 真进战斗时基本已在缓存里。
+       上限 12 只，避免大区域一开就偷偷吃掉几百 KB。 */
+    (function(){
+      var ids = [], seen = {};
+      var push = function(id){
+        if (!id || seen[id] || ids.length >= 12) return;
+        seen[id] = 1; ids.push(id);
+      };
+      for (var i=0;i<G.party.length;i++) push(G.party[i].id);
+      var region = CUR_REGION || REGION_BY_KEY[G.region] || REGION_BY_KEY.town;
+      var bs = (region.biomes && region.biomes.length) ? region.biomes : [];
+      for (var k=0;k<bs.length;k++){
+        var bk = bs[k];
+        if (!bk) continue;
+        push(bk.rare);
+        for (var j=0;j<(bk.pools||[]).length;j++) push(bk.pools[j]);
+      }
+      setTimeout(function(){ prewarmArt(ids); }, 600);
+    })();
   };
 
   WorldScene.prototype.blocked = function(x,y){
@@ -4381,6 +4438,7 @@
     else if (roll < 0.14){ tier='rare'; sid=bio.rare; stage=1; }
     else { sid = pick(bio.pools); stage = Math.random()<.6 ? 0 : 1; }
     var sp = spOf(sid);
+    prewarmArt([sid]);   // 与 battle 场景里的 loadTex 共用同一个 Promise，不会重复请求
     // 等级带由「区域」决定（batch14）：七张图各有一条难度曲线，
     // 不再用「第几个群系 × 0.45」这种和地图强绑的老公式。
     var lv = (CUR_REGION.lv0 || 5) + stage * 4 + Math.floor(Math.random()*4);
@@ -7969,8 +8027,18 @@
   // 自动测试钩子：只暴露只读引用，不参与任何游戏逻辑（无头浏览器回归用）
   try {
     window.__SRDBG = { game:GAME, G:G, spOf:spOf, buildFighter:buildFighter,
-      movesFor:movesFor, gainExp:gainExp, expNeed:expNeed, saveG:saveG };
+      movesFor:movesFor, gainExp:gainExp, expNeed:expNeed, saveG:saveG,
+      ensureArt:ensureArt, prewarmArt:prewarmArt, loadTex:loadTex };
   } catch(e){}
+
+  /* 离线缓存。GitHub Pages 的 Cache-Control 固定 10 分钟且改不了，
+     所以"二次访问不必重下 500KB"只能靠自己。只有 https 下才注册：
+     file:// 和内嵌面板会直接抛错，这里静默跳过，不影响游戏。 */
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    try {
+      navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(function(){});
+    } catch(e){}
+  }
 })();
 </script>
 </body>
