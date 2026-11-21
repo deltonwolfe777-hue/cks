@@ -3967,15 +3967,23 @@
         self.tweenR({ targets:orb, y:baseY-TILE*0.16, alpha:ready?0.95:0.4,
           duration:1500, yoyo:true, repeat:-1, ease:'Sine.easeInOut' });
         a.orb = orb;
-        // 神兽名字浮标：站在祭坛边上就能看到这只叫什么，不用查图鉴
+        // 神兽名字浮标：站在祭坛边上就能看到这只叫什么，不用查图鉴。
+        // 挂在石台下方而不是上方 —— 镇上的祭坛紧挨着道馆，向上的位置正好被墙挡住，
+        // 名字等于没写；下方是空地，怎么排都不会被建筑吃掉。
         if (sp){
-          var nmT = self.addR(self.add.text(cx, cy-TILE*0.86, sp.stages[0], {
+          var nmT = self.addR(self.add.text(cx, cy+TILE*0.78, sp.stages[0], {
             fontFamily:FONT, fontSize:Math.max(10, Math.round(TILE*0.42))+'px',
             color: ready ? '#ffe9a8' : '#9fb0dd',
             stroke:'#0b1026', strokeThickness:3
-          }).setOrigin(0.5,1).setDepth(a.y*TILE+9));
+          }).setOrigin(0.5,0).setDepth(a.y*TILE+9));
           nmT.setAlpha(ready ? 0.95 : 0.5);
-          self.altarObjs.push(nmT);
+          /* 底衬：不管落在草地还是石板上都读得清 */
+          var pad = self.addR(self.add.graphics().setDepth(a.y*TILE+8.5));
+          pad.fillStyle(0x0b1026, 0.72);
+          pad.fillRoundedRect(cx - nmT.width/2 - 5, nmT.y - 2,
+                              nmT.width + 10, nmT.height + 3, 5);
+          pad.setAlpha(nmT.alpha);
+          self.altarObjs.push(nmT, pad);
         }
       }
       self.altarObjs.push(g);
