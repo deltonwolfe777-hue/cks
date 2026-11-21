@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>灵契大陆 · Phaser 4 (batch 15 立绘拆包/高清渲染/离线缓存)</title>
+<title>灵契大陆 · Phaser 4 (batch 16 神兽祭坛/万字剧情/牧场)</title>
 <!-- 内联图标：省掉一次 /favicon.ico 的 404 请求（那个 404 还带 5.5KB 错误页） -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23e05555' stroke='%231a1a22' stroke-width='2'/%3E%3Cpath d='M2.5 16h27' stroke='%231a1a22' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='5.5' fill='%23fff' stroke='%231a1a22' stroke-width='3'/%3E%3C/svg%3E">
 <style>
@@ -139,6 +139,36 @@
   body.talk #pad{opacity:0!important}
   body.talk #menuBar{opacity:.22;pointer-events:none}
 
+  /* 石碑 / 编年阅读面板（batch16）
+     一万字的剧情不能只靠对话框一句句点 —— 那样读的人会累死，写的人白写。
+     这里给一块能滚动的正文面板：标题、正文、关闭；手机上整屏都能滑。
+     正文用 white-space:pre-line，文本里的 \n 直接就是段落，不用写 <p>。 */
+  #lore{position:fixed;z-index:47;inset:0;display:none;align-items:center;justify-content:center;
+        background:rgba(4,6,16,.84);backdrop-filter:blur(5px);
+        padding:calc(12px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))}
+  #lore.on{display:flex}
+  #loreBox{width:min(660px,100%);max-height:100%;display:flex;flex-direction:column;
+           background:rgba(10,15,32,.975);border:2px solid #5b6fa8;border-radius:16px;
+           box-shadow:0 22px 64px rgba(0,0,0,.72);overflow:hidden}
+  #loreHead{flex:0 0 auto;padding:14px 18px 11px;border-bottom:1px solid rgba(120,145,200,.24);
+            display:flex;align-items:center;gap:10px}
+  #loreHead b{font-size:15px;font-weight:700;color:#ffd98a;letter-spacing:2px;flex:1;
+              overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #loreHead i{font-style:normal;font-size:10.5px;color:#7f95c8;letter-spacing:1px;flex:0 0 auto}
+  #loreBody{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
+            padding:16px 20px 18px;font-size:14.5px;line-height:1.98;color:#dbe6ff;
+            white-space:pre-line;user-select:text;-webkit-user-select:text;letter-spacing:.2px}
+  #loreBody::-webkit-scrollbar{width:8px}
+  #loreBody::-webkit-scrollbar-thumb{background:rgba(122,150,220,.42);border-radius:4px}
+  #loreFoot{flex:0 0 auto;padding:11px 18px 14px;border-top:1px solid rgba(120,145,200,.24);
+            display:flex;gap:9px}
+  #loreFoot button{flex:1;padding:11px;border-radius:10px;border:1.5px solid #6b83c4;
+    background:linear-gradient(180deg,#25325c,#18213c);color:#e8efff;font:inherit;font-size:13.5px;
+    font-weight:600;letter-spacing:1px;cursor:pointer}
+  #loreFoot button:active{transform:translateY(1px)}
+  body.lore #pad{opacity:0!important}
+  body.lore #menuBar,body.lore #hud,body.lore #quest,body.lore #navCmp{opacity:.18;pointer-events:none}
+
   /* 通关结算 */
   #ending{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;
           background:radial-gradient(circle at 50% 38%,rgba(24,36,72,.92),rgba(4,6,16,.97));
@@ -161,7 +191,7 @@
      原来四项竖着挂在右边缘，44px×4 + 间距 ≈ 200px 高，正好压住右半幅画面，
      战斗里还会糊在敌方信息面板和招式菜单上 —— 现在统一贴左边缘一条。
      尺寸走 CSS 变量，任务条的位置靠 calc 跟着按钮宽度走，改小屏不用改第二处。 */
-  :root{--mbs:44px;--mbg:7px;--mbn:5}
+  :root{--mbs:44px;--mbg:7px;--mbn:6}
   #menuBar{position:fixed;z-index:19;display:flex;flex-direction:row;gap:var(--mbg);
            left:calc(8px + env(safe-area-inset-left,0px));
            top:calc(8px + env(safe-area-inset-top,0px))}
@@ -285,12 +315,18 @@
   <button id="endBtn">继续自由探索</button>
 </div></div>
 <div id="err"></div>
+<div id="lore"><div id="loreBox">
+  <div id="loreHead"><b id="loreTitle"></b><i id="loreSub"></i></div>
+  <div id="loreBody"></div>
+  <div id="loreFoot"><button id="loreClose">合上</button></div>
+</div></div>
 <div id="gear" title="设置">⚙</div>
 <div id="menuBar">
   <b data-page="dex" title="精灵图鉴 (Q)">📖<i>图鉴</i></b>
   <b data-page="team" title="我的队伍 (E)">🐾<i>队伍</i></b>
   <b data-page="bag" title="背包 (B)">🎒<i>背包</i></b>
   <b data-page="badge" title="徽章盒 (R)">🏅<i>徽章</i></b>
+  <b data-page="chron" title="大陆编年 (T)">📜<i>编年</i></b>
   <b data-page="nav" id="navBtn" title="路线指引 开/关 (N)">🧭<i>路线</i></b>
 </div>
 <div id="navCmp"><i></i><b></b><em></em></div>
@@ -307,7 +343,10 @@
 <div id="pad"><u data-t="u"></u><u data-t="d"></u><u data-t="l"></u><u data-t="r"></u><i></i></div>
 
 <script src="phaser.min.js"></script>
-<script src="phaser-assets.js?v=20261118a"></script>
+<script src="phaser-assets.js?v=20261121a"></script>
+<!-- 剧情文本库（约 40KB，纯文本）。放在 assets 之后：它要往 window.SR 上挂 STORY。
+     加载失败不影响游戏 —— 所有读取点都有兜底文案。 -->
+<script src="story.js?v=20261121a"></script>
 <script>
 (function () {
   var errEl = document.getElementById('err');
@@ -569,6 +608,84 @@
   }
 
   /* =====================================================================
+     神兽祭坛（2026-11-21）
+
+     八只神兽不参与野外随机刷新 —— 它们各自有一座祭坛，藏在对应区域的深处，
+     并且只在特定时段（或特定剧情节点之后）显现。设计意图：
+       1) 给「长期体验」一个明确的长线目标：通关之后还有八件事可做
+       2) 时段限制让昼夜系统第一次有了实际玩法意义，而不只是换个色调
+       3) 每只都在自己的属性主场（火之王在火山、水之王在湖心），
+          玩家要带对属性才打得动，这是克制系统的收束
+
+     slot 取值：'day' 白天 / 'night' 夜里 / 'dusk' 黄昏 / 'cleared' 通关后 / 'void' 打完虚空后
+     ===================================================================== */
+  var LEGEND_SITES = [
+    { id:'s41', region:'town',   at:[9,7],   slot:'cleared', lv:46,
+      intro:'广场边缘的石阶上多了一顶没有主人的冠。它一直在等你把八枚徽章和一件旧债都还清。' },
+    { id:'s42', region:'hollow', at:[13,8],  slot:'night',   lv:50,
+      intro:'回廊的穹顶裂开一道缝，缝里是星。有什么东西正从星的那边垂下来。' },
+    { id:'s43', region:'meadow', at:[36,29], slot:'dusk',    lv:42,
+      intro:'低语森林最深处的老树下，年轮自己转了一圈。整片林子同时安静下来。' },
+    { id:'s44', region:'frost',  at:[34,30], slot:'day',     lv:44,
+      intro:'龙脊山道的风停了。不是变小，是停——像有谁按住了一整片天空。' },
+    { id:'s45', region:'dunes',  at:[20,27], slot:'day',     lv:43,
+      intro:'沙丘下面传来一声很低的、像山在翻身的声音。脚下的沙开始往两边退。' },
+    { id:'s46', region:'lake',   at:[29,16], slot:'night',   lv:41,
+      intro:'湖心浮起一圈涟漪，却没有风。水面下有个轮廓，比整片湖还大。' },
+    { id:'s47', region:'ember',  at:[29,15], slot:'day',     lv:45,
+      intro:'熔岩环中央的火柱忽然不再往上升，而是收拢成一只眼睛的形状。' },
+    { id:'s48', region:'hollow', at:[21,12], slot:'void',    lv:52,
+      intro:'虚空重新睡下去之后，回廊深处多了一扇门。门后面是所有你没走过的路。' }
+  ];
+  var LEGEND_BY_ID = {}; LEGEND_SITES.forEach(function(s){ LEGEND_BY_ID[s.id] = s; });
+  function legendSiteOf(id){ return LEGEND_BY_ID[id] || null; }
+  function legendOf(id){ var sp = spOf(id); return (sp && sp.legend) ? sp : null; }
+
+  /* 当前时段。用 CLOCK.t 换算成玩家看得懂的四个词，
+     而不是直接把 0..1 的相位丢给玩家看。 */
+  function nowSlot(){
+    var t = ((CLOCK.t % 1) + 1) % 1;
+    if (t >= 0.66 && t < 0.82) return 'dusk';
+    if (t >= 0.82 || t < 0.14) return 'night';
+    if (t >= 0.12 && t < 0.24) return 'dawn';
+    return 'day';
+  }
+  var SLOT_CN = { day:'白天', night:'夜晚', dusk:'黄昏', dawn:'黎明',
+                  cleared:'通关之后', void:'虚空之后' };
+  /* 距离下一个目标时段还有多少秒 —— 祭坛提示用，让「等」变成可预期的事 */
+  function slotWaitSec(slot){
+    var t = ((CLOCK.t % 1) + 1) % 1;
+    var win = { day:[0.24,0.66], dusk:[0.66,0.82], night:[0.82,1.0] };
+    var w = win[slot];
+    if (!w) return 0;
+    var span = w[1] - w[0];
+    var d = (w[0] - t + 1) % 1;
+    return Math.round(d * DAY_LEN / 1000);
+  }
+  function legendReady(site){
+    if (!site) return false;
+    if (G.flags.legendCaught && G.flags.legendCaught[site.id]) return false;
+    if (site.slot === 'cleared') return !!G.cleared;
+    if (site.slot === 'void')    return !!G.flags.voidBeat;
+    var s = nowSlot();
+    if (site.slot === 'day')   return s === 'day';
+    if (site.slot === 'night') return s === 'night';
+    if (site.slot === 'dusk')  return s === 'dusk';
+    return true;
+  }
+  /* 祭坛提示文案：三种状态各说一句话，别让玩家对着石头猜 */
+  function legendHint(site){
+    var sp = legendOf(site.id);
+    var nm = sp ? sp.stages[0] : '？';
+    if (G.flags.legendCaught && G.flags.legendCaught[site.id]) return nm + ' 已经与你同行。祭坛空着。';
+    if (site.slot === 'cleared') return '祭坛沉睡着，还不到时候。通关之后再回来。';
+    if (site.slot === 'void')    return '门还没有出现。先让虚空重新睡下去。';
+    if (legendReady(site)) return '祭坛亮了——' + nm + ' 就在光里。';
+    var w = slotWaitSec(site.slot);
+    return nm + ' 只在「' + SLOT_CN[site.slot] + '」出现 · 还要等约 ' + w + ' 秒';
+  }
+
+  /* =====================================================================
      反派组织：影蚀会（batch14）
 
      设计参考宝可梦的敌对组织：一套制服、一个理念、三位干部、一位首领。
@@ -729,6 +846,8 @@
 
   // ===== 数值系统（逐行照搬 index.html，不改规则）=====
   var SP_BY_ID = {}; SR.SPIRITS.forEach(function(s){ SP_BY_ID[s.id]=s; });
+  // 神兽不是普通野生个体：经验倍率单列一档，结束面板上也有自己的颜色
+  if (SR.TIERS && !SR.TIERS.legend) SR.TIERS.legend = { name:'神兽', mult:4.2, color:'#ffd166' };
   function spOf(id){ return SP_BY_ID[id]; }
   function mult(a,d){ var row=SR.TYPE_CHART[a]; return (row && row[d]!==undefined) ? row[d] : 1; }
 
@@ -791,6 +910,9 @@
       var need = MOVE_LV[i]||1;
       if (L>=need) list.push({ name:pool[i].name, power:pool[i].power, acc:pool[i].acc, type:sp.type, lv:need });
     }
+    /* 神兽的专属招式不是「学会」的，是生来就带着的：1 级起就在手上。
+       SIG_BY_SPECIES 在下面 MOVE_BY_NAME 之后填充，var 提升保证这里能读到。 */
+    if (sp.legend && SIG_BY_SPECIES[sp.id]) list.push(SIG_BY_SPECIES[sp.id]);
     return list;
   }
 
@@ -813,8 +935,18 @@
     dark:'rock', rock:'grass', ice:'water', wind:'electric', psychic:'light', dragon:'fire'
   };
   var MOVE_BY_NAME = {};
+  /* 神兽专属招式：表在 phaser-assets.js 的 SR.SIG_MOVES 里（由 patch_assets.mjs 维护），
+     这里建一份反查，让 movesFor 能按物种取到。普通精灵的学习池永远拿不到这些招。 */
+  var SIG_BY_SPECIES = {};
   (function(){
     var t, i, k;
+    var sig = SR.SIG_MOVES || {};
+    for (k in sig){
+      var sm = sig[k];
+      if (!sm) continue;
+      MOVE_BY_NAME[sm.name] = { name:sm.name, power:sm.power, acc:sm.acc, type:sm.type, sig:true };
+      if (sm.sig) SIG_BY_SPECIES[sm.sig] = MOVE_BY_NAME[sm.name];
+    }
     for (t in SR.TYPE_MOVES){
       for (i=0;i<SR.TYPE_MOVES[t].length;i++){
         var m = SR.TYPE_MOVES[t][i];
@@ -998,6 +1130,20 @@
     return buildStats(s, findNature(inst.nature), inst.stage, inst.lv||20).hp;
   }
   function hpOf(inst){ return (inst.hp==null) ? maxHpOf(inst) : clamp(inst.hp, 0, maxHpOf(inst)); }
+
+  /* ===== 牧场（G.box）相关 =====
+     队伍上限 8 只，装不下的自动进牧场。牧场不参与战斗、不吃经验，
+     只按「同一只精灵算一份」叠 count 计数。换进来的时候带走的是它在牧场里
+     记着的那份 hp，不是满血 —— 不然就成了免费治疗。 */
+  function boxList(){ if (!G.box) G.box = []; return G.box; }
+  function findOwned(id){
+    var i;
+    for (i=0;i<G.party.length;i++) if (G.party[i].id === id) return G.party[i];
+    var bx = boxList();
+    for (i=0;i<bx.length;i++) if (bx[i].id === id) return bx[i];
+    return null;
+  }
+  function allOwned(){ return G.party.concat(boxList()); }
   function fighterFromInstance(inst){
     var s = spOf(inst.id);
     var f = buildFighter(s, inst.stage, findNature(inst.nature), inst.lv||20);
@@ -1041,8 +1187,16 @@
     var k = clamp(1-diff*.03, .35, 1.3);
     return Math.max(1, Math.round(base*enemy.lv*0.45*t.mult*k));
   }
+  /* 伤害公式（2026-11-21 重做）
+     旧版有三个让「练级和进化都没手感」的问题：
+       1) lvl 写死 50 —— 等级只通过 stats 间接影响，30 级打 10 级差距被压平
+       2) 每段伤害硬顶「最大体力 52%」—— 高等级的输出被这个天花板锁死
+       3) 阶差只进 stats，进化完打同一只敌人几乎没变化
+     现在等级差、阶差都直接进伤害乘区，并把天花板抬到 92%。
+     保留「一击不能秒满血」的公平感，但让压制真的打得出来。 */
   function calcDamage(atk, def, move){
-    var lvl = 50;
+    var AL = atk.lv || 20, DL = def.lv || 20;
+    var lvl = 50;   // 基础式里的常数项保持不变，避免整条难度曲线平移
     // 灼烧会削攻击（×0.75）：这是灼烧和中毒的分工 —— 中毒磨血，灼烧削输出
     var atkStat = atk.stats.atk * statusAtkMul(atk);
     var base = Math.floor(((2*lvl/5+2)*move.power*(atkStat/def.stats.def))/50)+2;
@@ -1053,13 +1207,19 @@
     if (atk.species.talentObj.kind==='elem' && tm===2) boost*=1.1;
     var crit = 1;
     if (atk.species.talentObj.kind==='crit' && Math.random()<.15) crit=1.5;
+    // 等级压制：每差 1 级 ±2.8%，封顶 ×1.85 / 压到 ×0.45（差 30 级以上就封顶）
+    var gap = clamp(1 + (AL-DL)*0.028, 0.45, 1.85);
+    // 阶差压制：三阶打一阶 ×1.32，一阶打三阶 ×0.68
+    var stg = clamp(1 + ((atk.stage||0)-(def.stage||0))*0.16, 0.65, 1.6);
+    // 神性压制：神兽对非神兽额外 ×1.15 —— 这是「特殊精灵」在数值上的份量
+    if (atk.species.legend && !def.species.legend) stg *= 1.15;
     var rnd = .85 + Math.random()*.15;
-    var dmg = Math.floor(base*stab*tm*boost*crit*rnd*0.62);
+    var dmg = Math.floor(base*stab*tm*boost*crit*gap*stg*rnd*0.62);
     if (tm===0) dmg=0;
-    var cap = Math.max(6, Math.ceil((def.maxHp||120)*0.52));
+    var cap = Math.max(8, Math.ceil((def.maxHp||120)*0.92));
     dmg = Math.min(dmg, cap);
     if (tm>0) dmg = Math.max(Math.round(move.power*0.1), dmg);
-    return { dmg:Math.max(0,dmg), tm:tm, crit:crit>1 };
+    return { dmg:Math.max(0,dmg), tm:tm, crit:crit>1, gap:gap, stg:stg };
   }
 
   // ===== 全局进度 =====
@@ -1070,6 +1230,9 @@
     // batch14：新档不再预送两只精灵。开局在灵契镇的木桌上三选一，
     // 这三只是火/水/草三系的经典三角，也是玩家对这个世界的第一印象。
     party: [],
+    /* 牧场：队伍满 8 只之后收进来的精灵放这儿。不参战、不吃经验，
+       但保留 lv / hp / bond，换进队伍时原样带走（不回满血）。 */
+    box: [],
     balls: 0,
     ballTopUp: false,
     activeIdx: 0,
@@ -1163,15 +1326,18 @@
         G.bag = (s.bag && typeof s.bag === 'object')
           ? { candy: Math.max(0, s.bag.candy|0), stone: Math.max(0, s.bag.stone|0) }
           : { candy:0, stone:0 };
+        // 牧场：老存档没有这个字段，空数组即可（不会丢任何东西，因为以前装不下就不让捉）
+        G.box = Array.isArray(s.box) ? s.box.filter(function(p){ return p && spOf(p.id); }) : [];
       }
     }catch(e){}
     // 队伍里的精灵自动补记为「已收服」，老存档也能立刻有图鉴进度
     G.party.forEach(function(p){ if (p && spOf(p.id)) dexGot(p.id, p.stage||0); });
+    boxList().forEach(function(p){ if (p && spOf(p.id)) dexGot(p.id, p.stage||0); });
   }
   function saveG(){
     try{
       localStorage.setItem(SAVE_KEY, JSON.stringify({
-        party:G.party, balls:G.balls, ballTopUp:true, activeIdx:G.activeIdx, defeated:G.defeated,
+        party:G.party, box:G.box, balls:G.balls, ballTopUp:true, activeIdx:G.activeIdx, defeated:G.defeated,
         badges:G.badges, flags:G.flags, cleared:G.cleared,
         region:G.region, pos:G.pos, dex:G.dex, bag:G.bag
       }));
@@ -1394,7 +1560,7 @@
   }
   function buildEntities(grid, reachable, lm, R){
     R = R || CUR_REGION;
-    var occupied = new Set(), ent = { trainers:[], items:[], heal:null, npcs:[], starters:[], gates:[] };
+    var occupied = new Set(), ent = { trainers:[], items:[], heal:null, npcs:[], starters:[], gates:[], altars:[], stones:[] };
     // 每个区域都有休息点（营地），不然跨图之后没地方回血，只能回镇
     var hp = snapWalkable(grid, reachable, occupied, HUB.x-1, HUB.y-1);
     occupied.add(kOf(hp.x,hp.y)); ent.heal = {x:hp.x,y:hp.y};
@@ -1454,6 +1620,25 @@
       occupied.add(kOf(p.x,p.y));
       ent.items.push({ x:p.x, y:p.y, kind:kinds[i%kinds.length], taken:false, spr:null });
     });
+
+    /* 神兽祭坛：本图有神兽才放一座。放在最后，让它优先占用「离群系中心最近」
+       的那个空位 —— 祭坛是这一带最显眼的东西，不该被普通道具挤到角落。 */
+    LEGEND_SITES.forEach(function(site){
+      if (site.region !== R.key) return;
+      var p = snapWalkable(grid, reachable, occupied, site.at[0], site.at[1]);
+      occupied.add(kOf(p.x,p.y));
+      ent.altars.push({ id:site.id, x:p.x, y:p.y, spr:null, orb:null });
+    });
+
+    /* 石碑：本图的所有碑文。位置不够（被建筑/水面占了）就就近吸附，
+       吸附不到就跳过 —— 宁可少一块碑，也不能把石头摆进墙里。 */
+    var LORE = (SR.STORY && SR.STORY.lore) || [];
+    LORE.forEach(function(st){
+      if (st.region !== R.key) return;
+      var p = snapWalkable(grid, reachable, occupied, st.at[0], st.at[1]);
+      occupied.add(kOf(p.x,p.y));
+      ent.stones.push({ id:st.id, title:st.title, text:st.text, x:p.x, y:p.y });
+    });
     return ent;
   }
 
@@ -1481,28 +1666,46 @@
     });
     return ART_LOADING[id];
   }
+  /* 神兽不单独造美术：它们借一只普通立绘，再在运行时叠加圣光 / 冠冕 / 光环层。
+     所以纹理请求必须先做一次映射 —— s41_0 要读的是美术源 s5_0，
+     不映射的话 ensureArt('s41') 会去拉一个永远 404 的 art/s41.js。 */
+  function artSrcOf(key){
+    var parts = String(key).split('_');
+    var id = parts[0], st = parseInt(parts[1] || '0', 10) || 0;
+    var sp = spOf(id);
+    if (sp && sp.art){
+      var base = spOf(sp.art);
+      var maxSt = base ? Math.max(0, base.stages.length - 1) : 0;
+      return { load: sp.art, key: sp.art + '_' + Math.min(st, maxSt) };
+    }
+    return { load: id, key: key };
+  }
   function loadTex(scene, key){
     return new Promise(function(resolve){
       if (scene.textures.exists(key)) return resolve(true);
+      var src = artSrcOf(key);
       var after = function(){
-        var data = SR.ART[key];
+        var data = SR.ART[src.key];
         if (!data) return resolve(false);
         var img = new Image();
         img.onload = function(){
+          // 始终注册成请求时用的 key：调用方拿 s41_0 取图，这里就得存 s41_0
           try { scene.textures.addImage(key, img); resolve(true); }
           catch(e){ resolve(false); }
         };
         img.onerror = function(){ resolve(false); };
         img.src = data;
       };
-      if (SR.ART[key]) return after();
-      ensureArt(key.split('_')[0]).then(after);
+      if (SR.ART[src.key]) return after();
+      ensureArt(src.load).then(after);
     });
   }
   /* 后台预热：只发请求，不参与任何 await，失败静默。
      进战斗前把队伍和野生种群取好，战斗场景就不用再等立绘。 */
   function prewarmArt(ids){
-    for (var i=0;i<(ids||[]).length;i++){ if (ids[i]) ensureArt(ids[i]); }
+    for (var i=0;i<(ids||[]).length;i++){
+      if (ids[i]) ensureArt(artSrcOf(ids[i]).load);
+    }
   }
   function artKey(sp, stage){ return sp.id+'_'+stage; }
 
@@ -1897,9 +2100,73 @@
     if (n) n.textContent = q.num;
   }
 
+  /* =====================================================================
+     石碑 / 编年阅读面板
+
+     一万字的剧情需要一个「读者愿意读」的载体。对话框一句一点适合演出，
+     不适合正文；所以长文本走这块可滚动面板：独立层级、可选中、手机上能滑。
+     世界场景在这期间暂停 —— 读碑的时候不该被草丛遇敌拖进战斗。
+     ===================================================================== */
+  var LORE_OPEN = false;
+  function loreIsOpen(){ return LORE_OPEN; }
+  function openLore(title, sub, paragraphs){
+    var el = document.getElementById('lore');
+    if (!el) return;
+    var tt = document.getElementById('loreTitle');
+    var ss = document.getElementById('loreSub');
+    var bd = document.getElementById('loreBody');
+    if (tt) tt.textContent = title || '';
+    if (ss) ss.textContent = sub || '';
+    if (bd){
+      bd.textContent = Array.isArray(paragraphs) ? paragraphs.join('\n\n') : String(paragraphs || '');
+      bd.scrollTop = 0;      // 换一块碑必须回到顶部，否则会停在上一条的中间
+    }
+    el.classList.add('on');
+    document.body.classList.add('lore');
+    LORE_OPEN = true;
+  }
+  function closeLore(){
+    var el = document.getElementById('lore');
+    if (el) el.classList.remove('on');
+    document.body.classList.remove('lore');
+    LORE_OPEN = false;
+  }
+  (function bindLore(){
+    var c = document.getElementById('loreClose');
+    if (c) c.addEventListener('click', function(){ closeLore(); });
+    var el = document.getElementById('lore');
+    if (el) el.addEventListener('pointerdown', function(ev){
+      if (ev.target === el) closeLore();   // 点遮罩空白处也能关
+    });
+  })();
+
+  /* 编年：从 SR.STORY.chronicle 读，缺数据时给一句保底 */
+  function openChronicle(){
+    var S = SR.STORY || {};
+    var list = S.chronicle || [];
+    if (!list.length){
+      openLore('大陆编年', '残卷', '碑上的字大多看不清了。等你走过更多地方，再来翻一次。');
+      return;
+    }
+    var paras = list.map(function(c){ return '【' + c.year + '】' + c.text; });
+    openLore('大陆编年', '碑上看到的 · 说法不一定一致', paras);
+  }
+  /* 已读记录：读过的碑在石头上会暗一格，玩家自己看得出走过哪些。
+     只记 id，不进存档主线判断，删了也不影响任何玩法。 */
+  var LORE_SEEN = {};
+  try {
+    var _ls = JSON.parse(localStorage.getItem('sr_lore_seen') || '{}');
+    if (_ls && typeof _ls === 'object') LORE_SEEN = _ls;
+  } catch(e){}
+  function loreSeenMark(id){
+    if (!id || LORE_SEEN[id]) return false;
+    LORE_SEEN[id] = 1;
+    try { localStorage.setItem('sr_lore_seen', JSON.stringify(LORE_SEEN)); } catch(e){}
+    return true;
+  }
+
   // 战斗胜利后的一句「下一站」：直接复用章节目标，不再单独维护一套文案
-  function chapterHook(){
-    var ch = chapterNow();
+  function chapterHook(){    var ch = chapterNow();
     if (!ch.target) return '旅程继续 · 自由探索';
     return '下一站：' + ch.target.hint;
   }
@@ -2016,8 +2283,19 @@
     }
     if (cb) cb();
   }
-  function advanceTalk(){
+  /* 强行收掉对话，且不执行它的 onDone。
+     进战斗前必须调一次：对话框是 DOM 层的，战斗场景盖不住它 ——
+     开场旁白这类「延迟 3 秒才播」的内容会正好落在战斗第一回合上。 */
+  function cancelTalk(){
     if (!DLG.open) return;
+    var w = DLG.world;
+    DLG.open = false; DLG.lines = []; DLG.i = 0; DLG.onDone = null; DLG.world = null;
+    var el = document.getElementById('dlg');
+    if (el) el.classList.remove('on');
+    document.body.classList.remove('talk');
+    if (w){ w.talking = false; if (w.setPad) w.setPad(true); }
+  }
+  function advanceTalk(){    if (!DLG.open) return;
     DLG.i++;
     if (DLG.i >= DLG.lines.length){ finishTalk(); return; }
     renderTalk();
@@ -3552,6 +3830,9 @@
     this.trees = []; this.marks = []; this.glows = []; this.blades = [];
     this.trainerMap = {}; this.npcMap = {}; this.itemMap = {};
     this.starterMap = {}; this.gateMap = {};
+    this.altarMap = {}; this.altarObjs = [];
+    this.stoneMap = {};
+    this.skyStars = null; this.aurora = null;
     this.npcSprites = [];
     this.navPath = null; this.navPts = null; this.navAt = null; this.navTotal = 0;
     if (this.navG) this.navG.clear();
@@ -3652,6 +3933,119 @@
                     ease:'Sine.easeInOut' });
       self.starterMap[kOf(st.x,st.y)] = st;
     });
+    // 神兽祭坛：石台 + 悬浮光核。三种状态三种长相，玩家不用点就知道能不能打
+    this.altarMap = {};
+    this.altarObjs = [];
+    (this.ent.altars || []).forEach(function(a){
+      var site = legendSiteOf(a.id), sp = legendOf(a.id);
+      var cx = a.x*TILE+TILE/2, cy = a.y*TILE+TILE/2;
+      var done = !!(G.flags.legendCaught && G.flags.legendCaught[a.id]);
+      var ready = legendReady(site);
+      var ringCol = done ? 0x5a6690 : (ready ? 0xffe9a8 : 0x6b78a0);
+
+      var g = self.addR(self.add.graphics().setDepth(a.y*TILE+7));
+      g.fillStyle(done ? 0x141a2e : 0x1a2340, 0.94);
+      g.fillCircle(cx, cy+5, TILE*0.44);
+      g.lineStyle(2, ringCol, done ? 0.5 : 0.95);
+      g.strokeCircle(cx, cy+5, TILE*0.44);
+      g.lineStyle(1, ringCol, 0.55);
+      g.strokeCircle(cx, cy+5, TILE*0.28);
+      // 四向刻纹：让石台读起来是「人造的祭坛」而不是一块石头
+      for (var q=0;q<4;q++){
+        var ang = Math.PI/2*q + Math.PI/4;
+        g.lineBetween(cx + Math.cos(ang)*TILE*0.30, cy+5 + Math.sin(ang)*TILE*0.30,
+                      cx + Math.cos(ang)*TILE*0.44, cy+5 + Math.sin(ang)*TILE*0.44);
+      }
+
+      if (!done){
+        var orb = self.addR(self.add.image(cx, cy-TILE*0.30, 'a_glow')
+          .setTint(ready ? 0xffe9a8 : 0x8fa0cc)
+          .setAlpha(ready ? 0.62 : 0.26)
+          .setDisplaySize(TILE*(ready?2.0:1.4), TILE*(ready?2.0:1.4))
+          .setDepth(a.y*TILE+8));
+        var baseY = orb.y;
+        self.tweenR({ targets:orb, y:baseY-TILE*0.16, alpha:ready?0.95:0.4,
+          duration:1500, yoyo:true, repeat:-1, ease:'Sine.easeInOut' });
+        a.orb = orb;
+        // 神兽名字浮标：站在祭坛边上就能看到这只叫什么，不用查图鉴
+        if (sp){
+          var nmT = self.addR(self.add.text(cx, cy-TILE*0.86, sp.stages[0], {
+            fontFamily:FONT, fontSize:Math.max(10, Math.round(TILE*0.42))+'px',
+            color: ready ? '#ffe9a8' : '#9fb0dd',
+            stroke:'#0b1026', strokeThickness:3
+          }).setOrigin(0.5,1).setDepth(a.y*TILE+9));
+          nmT.setAlpha(ready ? 0.95 : 0.5);
+          self.altarObjs.push(nmT);
+        }
+      }
+      self.altarObjs.push(g);
+      self.altarMap[kOf(a.x,a.y)] = a;
+    });
+
+    /* ============ 夜空层（batch16）============
+       昼夜系统之前只改一层色调，天黑下来还是同一片天。这里补两件事：
+         1) 星空：屏幕空间固定星点，透明度跟着夜色走，不随镜头移动
+         2) 极光：只在霜原（以及回廊）出现，两条缓慢漂移的色带
+       两者都是 Graphics 一次画好、之后只改 alpha —— 每帧重画会把低端机拖死。 */
+    this.skyStars = null;
+    this.aurora = null;
+    (function(scene){
+      var W = Math.max(2600, scene.scale.width*1.6), H = Math.max(1800, scene.scale.height*1.6);
+      var rnd = mulberry32((R.seed || 1) ^ 0x5EED);
+      var sg = scene.addR(scene.add.graphics().setScrollFactor(0).setDepth(11));
+      for (var i=0;i<110;i++){
+        var sx = rnd()*W, sy = rnd()*H*0.66, r = 0.5 + rnd()*1.4;
+        sg.fillStyle(i%9===0 ? 0xffe9a8 : 0xdfe8ff, 0.55 + rnd()*0.45);
+        sg.fillCircle(sx, sy, r);
+      }
+      sg.setAlpha(0);
+      scene.skyStars = sg;
+
+      // 极光只给「高纬度 + 魔域」两张图，否则到处都是就失去意义
+      if (R.key === 'frost' || R.key === 'hollow'){
+        var aur = scene.addR(scene.add.graphics().setScrollFactor(0).setDepth(11.2));
+        var bands = R.key === 'frost'
+          ? [[0x7ce0c0, 0.5], [0x9ab8ff, 0.36], [0xd8a8ff, 0.22]]
+          : [[0x9a7cff, 0.34], [0x5a86d6, 0.26]];
+        for (var b=0;b<bands.length;b++){
+          var col = bands[b][0], a0 = bands[b][1];
+          for (var k=0;k<7;k++){
+            aur.fillStyle(col, a0*(1 - k*0.11));
+            aur.fillRoundedRect(
+              W*0.05 + b*W*0.14 + k*W*0.012,
+              H*0.04 + k*H*0.011 + b*H*0.05,
+              W*0.46,
+              H*0.030,
+              H*0.015);
+          }
+        }
+        aur.setAlpha(0);
+        scene.aurora = aur;
+      }
+    })(self);
+
+    // 石碑：立着的一块石板，没读过的边缘泛暖光，读过的暗下去    this.stoneMap = {};
+    (this.ent.stones || []).forEach(function(st){
+      var cx = st.x*TILE+TILE/2, cy = st.y*TILE+TILE/2;
+      var read = !!LORE_SEEN[st.id];
+      var w = TILE*0.62, h = TILE*0.94;
+      var g = self.addR(self.add.graphics().setDepth(st.y*TILE+6));
+      g.fillStyle(read ? 0x1f2740 : 0x2b3557, 0.98);
+      g.fillRoundedRect(cx-w/2, cy-h*0.62, w, h, TILE*0.11);
+      g.lineStyle(2, read ? 0x545f8a : 0xd8c290, 0.95);
+      g.strokeRoundedRect(cx-w/2, cy-h*0.62, w, h, TILE*0.11);
+      g.lineStyle(1.4, read ? 0x46557f : 0xa89a72, 0.8);
+      for (var q=0;q<3;q++)
+        g.lineBetween(cx-TILE*0.16, cy-h*0.44+q*TILE*0.22, cx+TILE*0.16, cy-h*0.44+q*TILE*0.22);
+      if (!read){
+        var gl2 = self.addR(blendAdd(self.add.image(cx, cy-h*0.66, 'a_glow')
+          .setTint(0xffe9a8).setAlpha(0.30).setDisplaySize(TILE*1.5, TILE*1.5)
+          .setDepth(st.y*TILE+7)));
+        self.tweenR({ targets:gl2, alpha:{ from:0.18, to:0.44 }, duration:1700, yoyo:true, repeat:-1 });
+      }
+      self.stoneMap[kOf(st.x,st.y)] = st;
+    });
+
     // 门口路牌
     this.gateMap = {};
     this.ent.gates.forEach(function(g){
@@ -3725,6 +4119,23 @@
     this.time.delayedCall(260, function(){
       self.showZone(R.name, R.sub);
     });
+
+    /* 首次踏入一张图的旁白。
+       不做成「一进门就弹」，而是等地名条落下去之后再起 —— 两个面板同时出现
+       会互相抢注意力，玩家两样都读不进去。
+       全新存档不播：开场那段已经在讲同一件事，连着播两次会显得啰嗦。 */
+    var ST = SR.STORY && SR.STORY.arrive;
+    if (ST && ST[R.key] && !(G.flags.seenRegion && G.flags.seenRegion[R.key])){
+      var isBrandNew = !G.flags.starterChosen && !G.badges.length && !G.flags.metElder;
+      if (!isBrandNew){
+        if (!G.flags.seenRegion) G.flags.seenRegion = {};
+        G.flags.seenRegion[R.key] = 1; saveG();
+        this.time.delayedCall(2900, function(){
+          if (DLG.open || LORE_OPEN || self.inBattle) return;
+          say(ST[R.key].map(function(t){ return { who:'旁白', text:t }; }), null, self);
+        });
+      }
+    }
     return R;
   };
 
@@ -3807,6 +4218,8 @@
     this.input.keyboard.on('keydown-E', function(){ ws.openUI('team'); });
     this.input.keyboard.on('keydown-B', function(){ ws.openUI('bag'); });
     this.input.keyboard.on('keydown-R', function(){ ws.openUI('badge'); });
+    this.input.keyboard.on('keydown-T', function(){ openChronicle(); });
+    this.input.keyboard.on('keydown-ESC', function(){ if (LORE_OPEN) closeLore(); });
     this.input.keyboard.on('keydown-N', function(){ ws.setNav(!NAV_ON); });
     // 左上角菜单按钮（手机主要入口）
     var bar = document.getElementById('menuBar');
@@ -3819,6 +4232,8 @@
         ev.preventDefault();
         // 路线键不是页面，是开关
         if (page === 'nav'){ ws.setNav(!NAV_ON); return; }
+        // 编年也不是页面：它走石碑阅读面板，不占 UIScene 的页面位
+        if (page === 'chron'){ openChronicle(); return; }
         ws.openUI(page);
       });
     }
@@ -4308,6 +4723,8 @@
   };
 
   WorldScene.prototype.step = function(dx,dy){
+    // 读碑/看编年的时候世界必须停手：键盘还能按方向，不拦住会边读边撞进战斗
+    if (LORE_OPEN) return;
     if (this.moving || this.inBattle || this.talking) return;
     var nx=this.gx()+dx, ny=this.gy()+dy, self=this;
     var dir = dx<0?'left':dx>0?'right':dy<0?'up':'down';
@@ -4381,14 +4798,32 @@
     }
     if (this.ent.heal && this.ent.heal.x===nx && this.ent.heal.y===ny){
       G.party.forEach(function(c){ c.hp = maxHpOf(c); });
+      boxList().forEach(function(c){ c.hp = maxHpOf(c); });   // 牧场里的也一起回满，不然换上来是残血
       saveG();
       this.showToast('精灵中心 · 队伍已完全恢复');
       AUDIO.sfx('heal');
       this.savePos(nx,ny); this.refreshHud(nx,ny);
       return;
     }
+    /* 神兽祭坛：踩上去就判定。条件不足只提示、不进战斗 ——
+       玩家不会因为「走错了一步」被迫打一场打不过的架。 */
+    var altar = this.altarMap && this.altarMap[kOf(nx,ny)];
+    if (altar){
+      this.savePos(nx,ny); this.refreshHud(nx,ny);
+      this.touchAltar(altar);
+      return;
+    }
+    /* 石碑：走过去就读。不弹对话框，直接用可滚动面板 ——
+       一块碑三四百字，一句句点会点到手酸。 */
+    var stone = this.stoneMap && this.stoneMap[kOf(nx,ny)];
+    if (stone){
+      this.savePos(nx,ny); this.refreshHud(nx,ny);
+      var fresh = loreSeenMark(stone.id);
+      openLore(stone.title, fresh ? '新读到的碑文' : '已读过', stone.text);
+      AUDIO.sfx('item');
+      return;
+    }
     this.savePos(nx,ny); this.refreshHud(nx,ny);
-
     // 草丛遇敌（概率表与主游戏一致）
     var code = this.grid[ny][nx];
     var chance = ENC[String(code)] || 0;
@@ -4431,6 +4866,7 @@
       this.showToast('先去广场北侧的木桌，选一只最初的伙伴');
       return;
     }
+    cancelTalk();
     var bio = biomeAt(gx,gy,this.biomeMap) || BIOME_BY_KEY.plains;
     if (!bio.pools) bio = BIOME_BY_KEY.plains;
     var roll = Math.random(), tier='wild', sid, stage;
@@ -4472,8 +4908,83 @@
     return false;
   };
 
+  /* ---------------- 神兽祭坛 ----------------
+     祭坛是所有「特殊精灵」的唯一入口。三段式：环境描写 → 传说碑文 → 确认开战。
+     传说碑文取自 SR.STORY.beasts，和地图上的石碑共用同一份文本，
+     所以玩家在别处读到过的传说，到这里会认出是同一段。
+     ============================================ */
+  WorldScene.prototype.touchAltar = function(a){
+    var self = this, site = legendSiteOf(a.id), sp = legendOf(a.id);
+    if (!site || !sp) return;
+    var nm = sp.stages[0];
+
+    if (G.flags.legendCaught && G.flags.legendCaught[site.id]){
+      this.showToast(nm + ' 已经与你同行。祭坛空着。');
+      return;
+    }
+    if (!legendReady(site)){ this.showToast(legendHint(site)); return; }
+    if (!this.readyToBattle()) return;
+
+    var beast = (SR.STORY && SR.STORY.beasts && SR.STORY.beasts[site.id]) || null;
+    var lines = [{ who:'祭坛', text: site.intro }];
+    if (beast && beast.tale) lines.push({ who:'碑文', text: beast.tale });
+    lines.push({ who: nm + ' · ' + (sp.title || '神兽'),
+                 text: beast && beast.cry ? beast.cry
+                   : '「……你走到这里了。那就让我看看，你带着的那条线有多结实。」' });
+
+    say(lines, function(){
+      buildChoice({
+        title: nm + ' · Lv.' + site.lv,
+        sub: (SR.TYPES[sp.type] ? SR.TYPES[sp.type].name : '') + '系神兽 · 捕捉率极低 · 打赢后可以再挑战',
+        options: [
+          { label:'上前挑战', value:1 },
+          { label:'先退开', value:0, alt:true }
+        ]
+      }, function(v){
+        if (!v) return;
+        self.startLegendBattle(site);
+      }, self);
+    }, this);
+  };
+
+  /* 战斗结束后把祭坛状态刷成最新：收服了就该熄灭，打输了还亮着（可以再来） */
+  WorldScene.prototype.repaintAltar = function(id){
+    var a = null, k, map = this.altarMap || {};
+    for (k in map) if (map[k] && map[k].id === id) a = map[k];
+    if (!a || !a.orb || !a.orb.active) return;
+    var done = !!(G.flags.legendCaught && G.flags.legendCaught[id]);
+    if (done){
+      var orb = a.orb;
+      this.tweens.add({ targets:orb, alpha:0, duration:420,
+        onComplete:function(){ if (orb.active) orb.setVisible(false); } });
+    } else {
+      a.orb.setTint(0x8fa0cc); a.orb.setAlpha(0.26);
+    }
+  };
+
+  WorldScene.prototype.startLegendBattle = function(site){
+    var sp = legendOf(site.id);
+    if (!sp) return;
+    cancelTalk();
+    /* 神兽全额兑现进化倍率（damp=1）：它不是「长成那个样子」，
+       它是真的那么强。STAGE_DAMP 那套打折只适用于野生个体。 */
+    var f = buildFighter(sp, 0, randNature(), clamp(site.lv, 2, SR.CFG.MAX_LV), 1);
+    f.name = sp.stages[0];
+    dexSee(sp.id, 0);
+    prewarmArt([sp.id]);
+    this.inBattle = true;
+    this.setPad(false);
+    this.scene.pause();
+    this.scene.launch('battle', {
+      enemy:f, tier:'legend', isTrainer:false, isLegend:true, legendId:sp.id,
+      biomeKey:(CUR_REGION.biomes && CUR_REGION.biomes[0]) ? CUR_REGION.biomes[0].key : 'plains',
+      world:this
+    });
+  };
+
   WorldScene.prototype.startBossBattle = function(opt){
     if (!this.readyToBattle()) return;
+    cancelTalk();
     var team = [], i;
     for (i=0; i<opt.team.length; i++){
       var e = opt.team[i], sp = spOf(e[0]);
@@ -4919,6 +5430,13 @@
 
     // 灯光：入夜渐亮、天亮渐灭；灯芯用轻微呼吸，避免死板的静态光斑
     var glow = clamp((ph.a - 0.10) / 0.36, 0, 1);
+    /* 夜空：星点与极光共用同一个「夜色」系数，跟灯光反着来 ——
+       灯亮的时候星就淡，天亮的时候星就没了。 */
+    if (this.skyStars && this.skyStars.active) this.skyStars.setAlpha(glow * 0.8);
+    if (this.aurora && this.aurora.active){
+      this.aurora.setAlpha(glow * 0.42);
+      this.aurora.x = Math.sin(CLOCK.t * 46) * 16;   // 极慢横移，一眼看不出在动才是对的
+    }
     var i, gg, pulse;
     for (i=0;i<this.glows.length;i++){
       gg = this.glows[i];
@@ -5010,7 +5528,8 @@
       player: pf, enemy: e, isTrainer: !!d.isTrainer, trainerName: d.trainerName||null,
       trainerRef: d.trainerRef||null,
       tier: d.tier||'wild', over:false, busy:true, menuState:'root', activeIdx:G.activeIdx,
-      enemyTeam: d.enemyTeam||null, enemyIdx: d.enemyIdx||0, bio:bio
+      enemyTeam: d.enemyTeam||null, enemyIdx: d.enemyIdx||0, bio:bio,
+      isLegend: !!d.isLegend, legendId: d.legendId||null
     };
     // 威吓特性：登场降攻
     if (e.species.ability.kind==='intimidate') this.B.player.stats.atk = Math.floor(this.B.player.stats.atk*0.9);
@@ -5035,10 +5554,19 @@
     this.renderMenu();
     this.refreshBars();
 
-    var tierName = this.B.tier==='boss' ? '👑 霸主' : this.B.tier==='rare' ? '✨ 稀有' : '';
+    var tierName = this.B.isLegend ? '🌟 神兽'
+      : this.B.tier==='boss' ? '👑 霸主'
+      : this.B.tier==='rare' ? '✨ 稀有' : '';
     var intro = this.B.isTrainer
       ? this.B.trainerName+' 向你发起了对战！'
-      : (tierName ? tierName+'的 ' : '')+e.name+'（Lv.'+e.lv+'）出现了！';
+      : (tierName ? tierName+' ' : '')+e.name+'（Lv.'+e.lv+'）出现了！';
+    if (this.B.isLegend){
+      // 神兽出场给一个镜头震动 + 闪白，跟普通野生遇敌区分开
+      this.cameras.main.flash(260, 255, 236, 168);
+      this.cameras.main.shake(300, 0.010);
+      var col = (SR.TYPES[e.species.type]||{}).name || '';
+      intro = '🌟 神兽 · '+e.name+'（'+col+'系 · Lv.'+e.lv+'）降临！';
+    }
     this.say(intro);
 
     setTimeout(function(){
@@ -6177,7 +6705,12 @@
     '魔法闪光':'burst', '妖精之风':'wave', '月亮之力':'rain',
     '念力':'orb',      '精神强念':'wave', '预知未来':'burst',
     '起风':'wave',     '空气斩':'slash',  '暴风':'burst',
-    '龙息':'beam',     '龙爪':'slash',    '逆鳞':'ram'
+    '龙息':'beam',     '龙爪':'slash',    '逆鳞':'ram',
+    /* 神兽专属招式：每一只给一种别处没有的投放方式，
+       让「神兽出手」在画面上就和普通招式不一样 */
+    '创世之息':'beam',  '星辰坠':'rain',    '万木归一':'wave',
+    '天穹之翼':'slash', '地脉断章':'burst', '深海神谕':'wave',
+    '不熄之炎':'burst', '万象轮转':'rain'
   };
   function fxStyleOf(mv){ return (mv && MOVE_FX[mv.name]) || 'orb'; }
 
@@ -6714,6 +7247,16 @@
       var tagCol = immune ? '#9fb0dd' : (strong||r.crit) ? '#ffd93d' : '#c9d6ff';
       this.popNumber(dstSpr.x, dstSpr.y - dstSpr.displayHeight*0.28, tag, tagCol, false);
     }
+    /* 总倍率挂牌：属性 × 等级压制 × 阶位压制 合起来的那个数。
+       不写出来，玩家只会看到一串忽大忽小的伤害，读不出「为什么」。 */
+    if (!immune){
+      var totalMul = r.tm * r.gap * r.stg * (r.crit ? 1.5 : 1);
+      if (totalMul >= 1.8 || totalMul <= 0.75){
+        var mCol = totalMul >= 1.8 ? '#ffd93d' : '#9fb0dd';
+        this.popNumber(dstSpr.x + dstSpr.displayWidth*0.26, dstSpr.y - dstSpr.displayHeight*0.44,
+                       '×' + (Math.round(totalMul*10)/10), mCol, totalMul >= 3);
+      }
+    }
     this.tweenBars();
     this.refreshBars();
 
@@ -6722,6 +7265,12 @@
     else if (weak) msg += ' · 效果不佳…';
     else if (immune) msg += ' · 没有效果…';
     if (r.crit) msg += ' · 暴击！';
+    /* 压制要说得出来。玩家看不出「为什么这只打我这么疼」的时候，
+       只会归因成「这游戏随机性很强」。把等级差和阶位差直接写在战斗日志里，
+       练级和进化的收益才是可感知的。 */
+    if (!immune && r.gap >= 1.25) msg += ' · 等级压制！';
+    else if (!immune && r.gap <= 0.8) msg += ' · 被等级压制…';
+    if (!immune && r.stg >= 1.2) msg += ' · 阶位压制！';
     this.say(msg);
 
     await sleep(immune?460:520);
@@ -6907,7 +7456,9 @@
     if (G.balls <= 0){ this.say('精灵球用完了！去草丛或道具球找找吧。'); return; }
     var owned = false;
     for (var i=0;i<G.party.length;i++) if (G.party[i].id === B.enemy.species.id) owned = true;
-    if (!owned && G.party.length >= SR.CFG.MAX_PARTY){ this.say('队伍已满（6 只），无法再捕捉！'); return; }
+    /* 队伍满了不再拒绝捕捉 —— 收进牧场（G.box）。
+       旧版直接弹「队伍已满，无法捕捉」，玩家在草丛里遇到稀有只能放弃，
+       这是设计缺陷而不是难度。现在捕捉永远成立，只是去处不同。 */
 
     B.busy = true; B.menuState='root';
     G.balls--; saveG();
@@ -6927,6 +7478,10 @@
     var ratio = B.enemy.hp / B.enemy.maxHp;
     var chance = 0.20 + (1-ratio)*0.62;
     if (B.enemy.stage >= 2) chance *= 0.85;
+    /* 神兽：捕捉率单独一套。0.05 + 残血 0.30 —— 满血约 2%，红血约 35%。
+       这个数字是设计过的：既不能一球带走（那就没有「神兽」的分量），
+       也不能低到让玩家觉得「这游戏在耍我」。 */
+    if (B.isLegend) chance = 0.05 + (1-ratio)*0.30;
 
     if (Math.random() < chance){
       B.over = true;
@@ -6936,19 +7491,27 @@
       this.popNumber(this.enemySpr.x, this.enemySpr.y - this.enemySpr.displayHeight*0.7, 'GET!', '#ffd93d', true);
       this.tweens.add({ targets:this.enemySpr, alpha:0, scaleX:this.enemySpr.scaleX*0.6, scaleY:this.enemySpr.scaleY*0.6, duration:380 });
 
-      var exist = null;
-      for (var j=0;j<G.party.length;j++) if (G.party[j].id === B.enemy.species.id) exist = G.party[j];
-      if (exist){ exist.count++; exist.bond = Math.min(SR.CFG.MAX_BOND, exist.bond+1); }
-      else {
-        G.party.push({ id:B.enemy.species.id, stage:B.enemy.stage, bond:1, count:1,
-          nature:B.enemy.nature.name, hp:B.enemy.hp, lv:B.enemy.lv, exp:0 });
-      }
+      var inst = { id:B.enemy.species.id, stage:B.enemy.stage, bond:1, count:1,
+                   nature:B.enemy.nature.name, hp:B.enemy.hp, lv:B.enemy.lv, exp:0 };
+      var exist = findOwned(B.enemy.species.id);
+      var toBox = false;
+      if (exist){ exist.count = (exist.count||1) + 1; exist.bond = Math.min(SR.CFG.MAX_BOND, exist.bond+1); }
+      else if (G.party.length < SR.CFG.MAX_PARTY) G.party.push(inst);
+      else { boxList().push(inst); toBox = true; }
       dexGot(B.enemy.species.id, B.enemy.stage);   // 图鉴：收服这一阶
+      // 神兽入档：再走回祭坛只会看到一块空台子，不会重复刷
+      if (B.isLegend && B.legendId){
+        if (!G.flags.legendCaught) G.flags.legendCaught = {};
+        G.flags.legendCaught[B.legendId] = 1;
+      }
       saveG();
       AUDIO.sfx('caught');
-      this.say('太好了！'+nm+'（Lv.'+B.enemy.lv+'）被抓住了！');
+      this.say(toBox
+        ? '队伍满了，'+nm+' 被送回牧场寄存（可在「我的队伍」里换进来）。'
+        : '太好了！'+nm+'（Lv.'+B.enemy.lv+'）被抓住了！');
       await sleep(1200);
-      this.finish('🎉 收服了 '+nm+' · Lv.'+B.enemy.lv);
+      this.finish(toBox ? '📦 '+nm+' 存入牧场 · Lv.'+B.enemy.lv
+                        : '🎉 收服了 '+nm+' · Lv.'+B.enemy.lv);
     } else {
       AUDIO.sfx('escape');
       this.cameras.main.shake(180, 0.008);
@@ -6997,6 +7560,9 @@
     this.popNumber(this.playerSpr.x, this.playerSpr.y - this.playerSpr.displayHeight*0.8, 'WIN', '#4ade80', true);
     await sleep(700);
     var endToast = '战斗胜利';
+    /* 神兽被「打倒」不等于收服。它退回祭坛，下一次时段对了还能再来 ——
+       否则玩家一次手快就会永久失去一只神兽，这是不可接受的设计。 */
+    if (B.isLegend) endToast = '🌟 打倒了 ' + B.enemy.name + ' · 它退回祭坛，下次还能再来';
     if (B.isTrainer){
       var t = B.trainerRef, extra = '', world = this.inData && this.inData.world;
       if (t && t.gym){
@@ -7012,6 +7578,12 @@
           if (world){
             world._pendingTalk = [{ who:g.leader, text:g.win }];
             if (g.after) world._pendingTalk.push({ who:g.leader, text:g.after });
+            /* 徽章余波：SR.STORY.afterBadge 里的那两三句。
+               放在馆主台词之后 —— 玩家刚打完，先听对手认输，再看「这一章留下了什么」。 */
+            var AS = (SR.STORY && SR.STORY.afterBadge) || {};
+            if (AS[g.key]) AS[g.key].forEach(function(t){
+              world._pendingTalk.push({ who:'旁白', text:t });
+            });
           }
           // 回到世界后播的提示里带上「下一站」，比只报一句「战斗胜利」有用
           endToast = '🏅 '+g.badge+' 到手　·　'+chapterHook();
@@ -7048,19 +7620,21 @@
           }
           if (t.key === 'void'){
             extra = '🌌 虚空之主重归长眠 · 四件秘宝归位';
-            // 传说精灵：打赢之后它自己走进球里（队伍满则换成进化石）
+            // 传说精灵：打赢之后它自己走进球里（队伍满则先进牧场，不再改送道具）
             if (!G.flags.voidGift){
               G.flags.voidGift = 1;
+              var vsp = spOf('s38');
+              var vinst = { id:'s38', stage:2, lv:40, exp:0, hp:null,
+                            nature:'固执', bond:8, count:1 };
+              var vName = vsp ? vsp.stages[2] : '虚空章王';
               if (G.party.length < SR.CFG.MAX_PARTY){
-                var vsp = spOf('s38');
-                G.party.push({ id:'s38', stage:2, lv:40, exp:0, hp:null,
-                               nature:'固执', bond:8, count:1 });
-                dexGot('s38', 2);
-                extra += '　·　' + (vsp ? vsp.stages[2] : '虚空章王') + ' 加入了队伍';
+                G.party.push(vinst);
+                extra += '　·　' + vName + ' 加入了队伍';
               } else {
-                G.bag.stone += 3;
-                extra += '　·　队伍已满，获得进化石 ×3';
+                boxList().push(vinst);
+                extra += '　·　' + vName + ' 已寄存到牧场';
               }
+              dexGot('s38', 2);
             }
           }
           saveG();
@@ -7121,6 +7695,8 @@
     var world = this.inData.world;
     if (world){
       world._battleToast = toastMsg || null;
+      // 神兽战结束后祭坛要立刻改样子（收服=熄灭，打输了=还亮着）
+      if (this.inData.isLegend && world.repaintAltar) world.repaintAltar(this.inData.legendId);
       if (teleport){
         if (regionKey && regionKey !== world.regionKey){
           var R = REGION_BY_KEY[regionKey];
@@ -7255,6 +7831,7 @@
     if (this.page === 'dex')                return this.renderDex(head, body, foot);
     if (this.page === 'team' && this.selMon !== null) return this.renderMonDetail(head, body, foot);
     if (this.page === 'team')               return this.renderTeam(head, body, foot);
+    if (this.page === 'box')                return this.renderBox(head, body, foot);
     if (this.page === 'badge')              return this.renderBadge(head, body, foot);
     return this.renderBag(head, body, foot);
   };
@@ -7498,16 +8075,37 @@
 
     // 栖息地（从群系遇敌池反查，说明在哪能找到）
     var homes = [];
+    if (sp.legend){
+      /* 神兽不在野外刷新，用「祭坛 + 时段」代替栖息地 ——
+         图鉴是玩家查「去哪找」的地方，给一句「暂未发现」等于没有信息。 */
+      var site = legendSiteOf(sp.id);
+      var R0 = site ? REGION_BY_KEY[site.region] : null;
+      var whenTxt = site ? SLOT_CN[site.slot] : '';
+      var got = G.flags.legendCaught && G.flags.legendCaught[sp.id];
+      homes.push('神兽祭坛 · ' + (R0 ? R0.name : '？') + ' · ' + whenTxt
+                 + (got ? '（已收服）' : ''));
+    }
     BIOMES.forEach(function(bm){
       if (bm.pools.indexOf(sp.id) >= 0) homes.push(bm.name + (bm.rare===sp.id?'（稀有）':''));
       else if (bm.rare === sp.id) homes.push(bm.name + '（稀有）');
     });
     var homeTxt = homes.length ? homes.join('、') : '本作暂未在野外发现';
-    var ht = this.utext(info.x, 0, '栖息地  '+homeTxt, fz(12),
-                        homes.length ? '#9fb0dd' : '#d98f8f', 0, 6);
+    var ht = this.utext(info.x, 0, (sp.legend ? '出现  ' : '栖息地  ') + homeTxt, fz(12),
+                        homes.length ? (sp.legend ? '#ffd98a' : '#9fb0dd') : '#d98f8f', 0, 6);
     ht.setWordWrapWidth(info.w, true);
     ht.setY(y + ht.height*0.5);
     y += ht.height + this.gap;
+
+    /* 神兽的传说直接在图鉴里给一段 —— 玩家抓到之后想知道「它是什么」，
+       不该被要求回去找那座祭坛。 */
+    if (sp.legend && SR.STORY && SR.STORY.beasts && SR.STORY.beasts[sp.id]){
+      var tale = SR.STORY.beasts[sp.id];
+      var tt = this.utext(info.x, 0, '『' + tale.title + '』', fz(12), '#ffd98a', 0, 6);
+      tt.setY(y + tt.height*0.5); y += tt.height + this.gap*0.5;
+      var tx = this.utext(info.x, 0, tale.tale.split('\n')[0], fz(11), '#9fb0dd', 0, 6);
+      tx.setWordWrapWidth(info.w, true);
+      tx.setY(y + tx.height*0.5); y += tx.height + this.gap;
+    }
 
     // 底部
     this.makeBtn(foot.x, foot.y, Math.min(foot.w*0.34, fz(160)), foot.h, '← 返回图鉴', function(){
@@ -7521,7 +8119,9 @@
     var tok = ++this._tok;
     var alive = 0;
     G.party.forEach(function(c){ if (hpOf(c) > 0) alive++; });
-    this.header(head, '我的队伍', G.party.length + '/' + SR.CFG.MAX_PARTY + ' · 可战斗 ' + alive);
+    this.header(head, '我的队伍',
+      G.party.length + '/' + SR.CFG.MAX_PARTY + ' · 可战斗 ' + alive
+      + (G.party.length < SR.CFG.MAX_PARTY ? ' · 还有 ' + (SR.CFG.MAX_PARTY-G.party.length) + ' 个空位' : ''));
 
     var keys = G.party.map(function(c){ return c.id + '_' + (c.stage||0); });
     await Promise.all(keys.map(function(k){ return loadTex(self, k); }));
@@ -7533,6 +8133,14 @@
     var gap = this.gap;
     var cw = (body.w - gap*(cols-1)) / cols;
     var ch = Math.min((body.h - gap*(rows-1)) / Math.max(1,rows), fz(96));
+    /* 满员网格：只要 8 格排下来每格还看得清，就把网格直接按满员排。
+       这样空位落在网格里，而不是「所有卡之后另起一行」——
+       两列宽屏时第 8 格本来就在最后一行右边，另起一行会把它挤出屏幕，
+       于是空位框一个都画不出来（第一版就是这个毛病）。 */
+    var fullRows = Math.ceil(SR.CFG.MAX_PARTY / cols);
+    var chFull = (body.h - gap*(fullRows-1)) / fullRows;
+    var gridOn = chFull >= Math.max(52, fz(58));
+    if (gridOn){ rows = fullRows; ch = Math.min(chFull, fz(96)); }
 
     for (var i=0;i<n;i++){
       var c = G.party[i], sp = spOf(c.id);
@@ -7586,15 +8194,119 @@
       })(i);
     }
 
-    // 空位提示
-    if (n < SR.CFG.MAX_PARTY){
-      var emptyTxt = '还有 '+(SR.CFG.MAX_PARTY-n)+' 个空位 · 在草丛削弱野生精灵后投球捕捉';
-      this.utext(body.x+body.w/2, foot.y-foot.h*0.55, emptyTxt,
-                 Math.max(9, Math.round(fz(11))), '#6b78a0', 0.5);
+    /* 空位占位格：队伍上限 8，只填 3 张卡时下面会剩一大块空场，看着像页面坏了。
+       按同一个网格往下排空位，位置和真卡完全对齐（含两列时最后一行的右半格）。 */
+    if (n && n < SR.CFG.MAX_PARTY){
+      for (var e=n;e<SR.CFG.MAX_PARTY;e++){
+        var ex = body.x + (e % cols)*(cw+gap);
+        var ey = body.y + Math.floor(e/cols)*(ch+gap);
+        if (ey + ch > body.y + body.h + 1) break;
+        var pg = this.add.graphics().setDepth(5);
+        pg.fillStyle(0x121a2e, 0.5);
+        pg.fillRoundedRect(ex, ey, cw, ch, 9);
+        pg.lineStyle(2, 0x33426b, 0.55);
+        pg.strokeRoundedRect(ex, ey, cw, ch, 9);
+        this.track(pg);
+        this.utext(ex+cw/2, ey+ch/2, '空位 '+(e+1), Math.max(10, Math.round(fz(12))), '#4a5980', 0.5, 12);
+      }
     }
 
-    this.makeBtn(foot.x, foot.y, Math.min(foot.w*0.34, fz(160)), foot.h, '关闭', this.close.bind(this),
+    // 空位提示
+    /* 空位提示原本浮在页脚上方，队伍扩到 8 只之后会压到最后一张卡上。
+       现在空位数并进页头副标题，这里改成只在「一只都没有」时给一句引导。 */
+    if (!n){
+      this.utext(body.x+body.w/2, body.y+body.h*0.42,
+        '队伍还是空的 · 去广场北侧的木桌选一只最初的伙伴', Math.max(11, Math.round(fz(13))),
+        '#8fa0cc', 0.5);
+    }
+
+    this.makeBtn(foot.x, foot.y, Math.min(foot.w*0.30, fz(150)), foot.h, '📦 牧场 ('+boxList().length+')',
+      function(){ self.page='box'; self.selMon=null; self.render(); }, { size: fz(13) });
+    this.makeBtn(foot.x+Math.min(foot.w*0.30, fz(150))+this.gap, foot.y,
+      Math.min(foot.w*0.30, fz(150)), foot.h, '关闭', this.close.bind(this),
       { size: fz(13) });
+  };
+
+  /* ---------------- 牧场 ----------------
+     队伍上限 8 只之后，多出来的进这里。牧场是「仓库」不是「队伍」：
+     不参战、不吃经验、不参与羁绊成长，换进队伍时带走的是它自己那份 hp。
+     不做成无限容量的列表分页 —— 一只精灵最多占一行，玩家不会存到几百只。
+     ===================================== */
+  UIScene.prototype.renderBox = async function(head, body, foot){
+    var self = this, fz = this.fz.bind(this);
+    var tok = ++this._tok;
+    var bx = boxList();
+    var full = G.party.length >= SR.CFG.MAX_PARTY;
+    this.header(head, '牧场', '寄存 '+bx.length+' 只 · 队伍 '+G.party.length+'/'+SR.CFG.MAX_PARTY);
+
+    if (!bx.length){
+      this.utext(body.x+body.w/2, body.y+body.h*0.42,
+        '牧场是空的', fz(15), '#8fa0cc', 0.5);
+      this.utext(body.x+body.w/2, body.y+body.h*0.42+fz(26),
+        '队伍满 '+SR.CFG.MAX_PARTY+' 只之后，捕捉到的精灵会自动送到这里', fz(11), '#6b78a0', 0.5);
+      this.makeBtn(foot.x, foot.y, Math.min(foot.w*0.34, fz(160)), foot.h, '← 返回队伍',
+        function(){ self.page='team'; self.render(); }, { size: fz(13) });
+      return;
+    }
+
+    var keys = bx.map(function(c){ return c.id+'_'+(c.stage||0); });
+    await Promise.all(keys.map(function(k){ return loadTex(self, k); }));
+    if (tok !== this._tok) return;
+
+    // 行高按数量自适应，最多 8 行可见，再多就滚动式压缩（不引入滚动容器）
+    var maxRows = Math.min(bx.length, 8);
+    var rowH = Math.min((body.h - this.gap*(maxRows-1)) / Math.max(1,maxRows), fz(72));
+    var y = body.y;
+    for (var i=0;i<bx.length;i++){
+      if (y + rowH > body.y + body.h + 1) break;   // 超出可视区就停，避免压到页脚
+      var c = bx[i], sp = spOf(c.id);
+      if (!sp) continue;
+      (function(idx, c, sp, yy){
+        var g = self.add.graphics().setDepth(5);
+        g.fillStyle(0x1a2440, 0.96); g.fillRoundedRect(body.x, yy, body.w, rowH, 9);
+        g.lineStyle(2, 0x46557f, 0.9); g.strokeRoundedRect(body.x, yy, body.w, rowH, 9);
+        self.track(g);
+
+        var artS = rowH*0.76;
+        if (self.textures.exists(c.id+'_'+(c.stage||0))){
+          var im = self.add.image(body.x+rowH*0.5, yy+rowH*0.5, c.id+'_'+(c.stage||0)).setDepth(6);
+          im.setScale(artS/256); self.track(im);
+        }
+        var nx = body.x + rowH*0.95;
+        self.utext(nx, yy+rowH*0.34, sp.stages[c.stage||0]+'  Lv.'+(c.lv||20)+'  ×'+(c.count||1),
+                   fz(14), '#eaf0ff', 0, 7);
+        self.utext(nx, yy+rowH*0.68, '羁绊 '+c.bond+'  ·  HP '+hpOf(c)+'/'+maxHpOf(c),
+                   fz(11), '#8fa0cc', 0, 7);
+        // 右端：一只「换进队伍」按钮，状态由队伍是否满员决定
+        var bw = Math.min(fz(96), body.w*0.24), bh = Math.min(rowH*0.62, fz(34));
+        self.makeBtn(body.x+body.w-bw-fz(10), yy+(rowH-bh)/2, bw, bh,
+          full ? '队伍已满' : '换进来', function(){
+            if (G.party.length >= SR.CFG.MAX_PARTY){
+              self.flashNote('队伍已满 '+SR.CFG.MAX_PARTY+' 只，先在队伍里选一只送进牧场');
+              return;
+            }
+            var moved = boxList().splice(idx, 1)[0];
+            G.party.push(moved);
+            saveG();
+            self.flashNote(sp.stages[moved.stage||0] + ' 加入队伍');
+            self.render();
+          }, { size: fz(12), disabled: full });
+      })(i, c, sp, y);
+      y += rowH + this.gap;
+    }
+
+    /* 存量少的时候下面会空一大截，看着像没画完。留一句规则说明，
+       顺便把「牧场不参战」这条讲清楚 —— 玩家最常问的就是寄存的会不会掉经验。 */
+    var spare = (body.y + body.h) - y;
+    if (spare > fz(54)){
+      var hy = body.y + body.h - Math.min(spare - this.gap, fz(40));
+      this.utext(body.x + body.w/2, hy - fz(16),
+        '牧场不参战、不吃经验 · 点「换进来」直接进队伍，队伍满了要先送一只出来',
+        fz(11), '#6b78a0', 0.5, 7);
+    }
+
+    this.makeBtn(foot.x, foot.y, Math.min(foot.w*0.34, fz(160)), foot.h, '← 返回队伍',
+      function(){ self.page='team'; self.render(); }, { size: fz(13) });
   };
 
   /* ---------------- 队伍：单只详情 ---------------- */
@@ -7701,30 +8413,42 @@
       : (canEvo ? '可以进化！' : '进化需羁绊 '+EVO_BOND[(c.stage||0)+1]+'（当前 '+c.bond+'）');
     this.utext(info.x, y, '进化  '+evoTxt, fz(12), canEvo ? '#9ee6b8' : '#8fa0cc', 0, 7);
 
-    // 底部：出战 / 调整位置
+    // 底部：出战 / 调整位置 / 送入牧场
     var gap = this.gap;
     var isActive = idx === G.activeIdx;
-    var bw3 = (foot.w - gap*2) / 3;
-    this.makeBtn(foot.x, foot.y, bw3, foot.h, isActive ? '★ 当前出战' : '设为出战', function(){
+    var bw4 = (foot.w - gap*3) / 4;
+    this.makeBtn(foot.x, foot.y, bw4, foot.h, isActive ? '★ 出战' : '设为出战', function(){
       if (hpOf(G.party[idx]) <= 0){ self.flashNote('失去战斗力的精灵不能出战'); return; }
       if (idx === G.activeIdx) return;
       G.activeIdx = idx; saveG();
       self.flashNote('出战精灵已切换'); self.selMon = null; self.render();
-    }, { size: fz(13), disabled: isActive || hpOf(c) <= 0, accent: 0xffd166 });
+    }, { size: fz(12), disabled: isActive || hpOf(c) <= 0, accent: 0xffd166 });
 
-    this.makeBtn(foot.x+bw3+gap, foot.y, bw3, foot.h, '↑ 前移', function(){
+    this.makeBtn(foot.x+(bw4+gap), foot.y, bw4, foot.h, '↑ 前移', function(){
       if (idx <= 0) return;
       var t = G.party[idx-1]; G.party[idx-1] = G.party[idx]; G.party[idx] = t;
       if (G.activeIdx === idx) G.activeIdx = idx-1; else if (G.activeIdx === idx-1) G.activeIdx = idx;
       saveG(); self.selMon = idx-1; self.render();
-    }, { size: fz(13), disabled: idx <= 0 });
+    }, { size: fz(12), disabled: idx <= 0 });
 
-    this.makeBtn(foot.x+(bw3+gap)*2, foot.y, bw3, foot.h, '↓ 后移', function(){
+    this.makeBtn(foot.x+(bw4+gap)*2, foot.y, bw4, foot.h, '↓ 后移', function(){
       if (idx >= G.party.length-1) return;
       var t = G.party[idx+1]; G.party[idx+1] = G.party[idx]; G.party[idx] = t;
       if (G.activeIdx === idx) G.activeIdx = idx+1; else if (G.activeIdx === idx+1) G.activeIdx = idx;
       saveG(); self.selMon = idx+1; self.render();
-    }, { size: fz(13), disabled: idx >= G.party.length-1 });
+    }, { size: fz(12), disabled: idx >= G.party.length-1 });
+
+    this.makeBtn(foot.x+(bw4+gap)*3, foot.y, bw4, foot.h, '📦 牧场', function(){
+      // 最后一只不能送走：队伍空了就没法开战，也选不回来后手
+      if (G.party.length <= 1){ self.flashNote('至少留一只在队伍里'); return; }
+      var moved = G.party.splice(idx, 1)[0];
+      boxList().push(moved);
+      if (G.activeIdx >= G.party.length) G.activeIdx = Math.max(0, G.party.length-1);
+      else if (G.activeIdx > idx) G.activeIdx--;
+      saveG();
+      self.flashNote(spOf(moved.id).stages[moved.stage||0] + ' 已送入牧场');
+      self.selMon = null; self.page = 'box'; self.render();
+    }, { size: fz(12) });
   };
 
   /* ---------------- 背包 ---------------- */
@@ -7959,16 +8683,26 @@
     // 数值浮现：进化的「实打实变强」要看得见数字，否则还是换皮
     this.time.delayedCall(1080, function(){
       if (finished) return;
+      /* 只写「旧 → 新」还不够 —— 玩家读完两个数还是不知道强了多少。
+         补上百分比涨幅和一行「战力总计」，进化才是能用眼睛结算的一件事。 */
+      function row(label, a, b){
+        var up = a > 0 ? Math.round((b - a) / a * 100) : 0;
+        return label + '  ' + a + ' → ' + b + '   (+' + up + '%)';
+      }
+      var sumB = b4.atk + b4.def + b4.spd + Math.round(b4.hp * 0.18);
+      var sumA = af.atk + af.def + af.spd + Math.round(af.hp * 0.18);
       var lines = [
-        '攻击  ' + b4.atk + ' → ' + af.atk,
-        '防御  ' + b4.def + ' → ' + af.def,
-        '速度  ' + b4.spd + ' → ' + af.spd,
-        '生命  ' + b4.hp  + ' → ' + af.hp
+        row('攻击', b4.atk, af.atk),
+        row('防御', b4.def, af.def),
+        row('速度', b4.spd, af.spd),
+        row('生命', b4.hp,  af.hp),
+        '战力  ' + sumB + ' → ' + sumA + '   (+' + Math.round((sumA-sumB)/Math.max(1,sumB)*100) + '%)'
       ];
-      var st = reg(self.add.text(cx, cy + size*0.80, lines.join('\n'), {
-        fontFamily:FONT, fontSize:Math.round(base*0.027)+'px',
-        color:'#c9d6ff', align:'center', lineSpacing:Math.round(base*0.010)
+      var st = reg(self.add.text(cx, cy + size*0.78, lines.join('\n'), {
+        fontFamily:FONT, fontSize:Math.round(base*0.025)+'px',
+        color:'#c9d6ff', align:'center', lineSpacing:Math.round(base*0.009)
       }).setOrigin(0.5, 0).setDepth(63).setAlpha(0));
+      // 最后一行「战力」用金色，它是这次进化的结论
       self.tweens.add({ targets:st, alpha:1, duration:320 });
     });
 
@@ -8028,7 +8762,9 @@
   try {
     window.__SRDBG = { game:GAME, G:G, spOf:spOf, buildFighter:buildFighter,
       movesFor:movesFor, gainExp:gainExp, expNeed:expNeed, saveG:saveG,
-      ensureArt:ensureArt, prewarmArt:prewarmArt, loadTex:loadTex };
+      ensureArt:ensureArt, prewarmArt:prewarmArt, loadTex:loadTex,
+      openLore:openLore, closeLore:closeLore, openChronicle:openChronicle,
+      LEGEND_SITES:LEGEND_SITES, legendReady:legendReady, nowSlot:nowSlot };
   } catch(e){}
 
   /* 离线缓存。GitHub Pages 的 Cache-Control 固定 10 分钟且改不了，
