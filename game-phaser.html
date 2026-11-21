@@ -343,10 +343,10 @@
 <div id="pad"><u data-t="u"></u><u data-t="d"></u><u data-t="l"></u><u data-t="r"></u><i></i></div>
 
 <script src="phaser.min.js"></script>
-<script src="phaser-assets.js?v=20261121h"></script>
+<script src="phaser-assets.js?v=20261121i"></script>
 <!-- 剧情文本库（约 40KB，纯文本）。放在 assets 之后：它要往 window.SR 上挂 STORY。
      加载失败不影响游戏 —— 所有读取点都有兜底文案。 -->
-<script src="story.js?v=20261121h"></script>
+<script src="story.js?v=20261121i"></script>
 <script>
 (function () {
   var errEl = document.getElementById('err');
@@ -1211,10 +1211,13 @@
     var stab = (move.type===atk.species.type) ? 1.5 : 1;
     var tm = mult(move.type, def.species.type);
     var boost = 1;
+    /* talentObj 可能缺失（神兽曾经全缺，导致一出手就抛异常卡死整场），
+       这里取值一律走兜底对象，宁可少一次加成也不能让回合结算炸掉。 */
+    var tal = atk.species.talentObj || {};
     if (atk.species.ability.kind==='boost' && move.type===atk.species.type) boost*=1.1;
-    if (atk.species.talentObj.kind==='elem' && tm===2) boost*=1.1;
+    if (tal.kind==='elem' && tm===2) boost*=1.1;
     var crit = 1;
-    if (atk.species.talentObj.kind==='crit' && Math.random()<.15) crit=1.5;
+    if (tal.kind==='crit' && Math.random()<.15) crit=1.5;
     // 等级压制：每差 1 级 ±2.8%，封顶 ×1.85 / 压到 ×0.45（差 30 级以上就封顶）
     var gap = clamp(1 + (AL-DL)*0.028, 0.45, 1.85);
     // 阶差压制：三阶打一阶 ×1.32，一阶打三阶 ×0.68
@@ -7169,6 +7172,7 @@
     var B = this.B;
     if (!B || B.over || B.busy) return;
     B.busy = true;
+    try {
     var pm = B.player.moves[idx];
     var em = pick(B.enemy.moves);
     // 麻痹会把速度砍半，可能直接翻掉出手顺序 —— 这是麻痹最容易被感知的价值
@@ -7186,6 +7190,15 @@
     if (this.B && !this.B.over && !this.B.force) await this.endTurnStatus();
     if (this.B && !this.B.over && !this.B.force){
       this.B.busy = false; this.B.menuState='root'; this.renderMenu();
+    }
+    } catch(e){
+      /* 兜底：任何一回合的异常都不能把 busy 卡在 true ——
+         那会让整个战斗界面失去响应，玩家只能刷新页面丢进度。 */
+      console.error('[battle] 回合结算异常', e);
+      if (this.B && !this.B.over){
+        this.B.busy = false; this.B.menuState='root'; this.renderMenu();
+        this.showToast('这一回合出了点问题，已经恢复');
+      }
     }
   };
 
