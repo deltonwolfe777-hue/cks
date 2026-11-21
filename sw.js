@@ -14,7 +14,7 @@
 
    升级方法：改 VER，同时改 game-phaser.html 里的 ?v= 和资源生成器的 SR_VER。
 */
-const VER = '20261121e';
+const VER = '20261121f';
 const CACHE = 'sr-' + VER;
 const VER_KEY = './__sr_ver__';
 
