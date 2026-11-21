@@ -23,18 +23,23 @@ export function typeInfo(t) { return t === 'none' ? TYPE_NONE : (TYPES[t] || TYP
 export function typeName(t) { return typeInfo(t).name; }
 
 // 属性克制倍率表：atk -> { def: 倍率 }
+// 11 属性完整互克（66 条关系）。每个属性至少 2 个克制目标、2 个被抵抗目标。
+// 三对设计上的特殊关系：
+//   风↔火 互克 —— 风助火势，但烈风也能把火吹熄，谁先出手谁占便宜
+//   光↔暗 互克 —— 同上，这一对是主线里「影蚀会 vs 灵契」的数值镜像
+//   电→岩 0、超→暗 0、龙→光 0 —— 三处硬免疫，用来给队伍留「完全打不动」的对手
 export const TYPE_CHART = {
-  fire:     { grass: 2, ice: 2, fire: .5, water: .5, rock: .5, dragon: .5 },
-  water:    { fire: 2, rock: 2, water: .5, grass: .5, dragon: .5 },
-  grass:    { water: 2, rock: 2, fire: .5, grass: .5, wind: .5, dragon: .5 },
-  electric: { water: 2, wind: 2, electric: .5, grass: .5, dragon: .5 },
-  ice:      { grass: 2, wind: 2, dragon: 2, fire: .5, water: .5, ice: .5 },
-  rock:     { fire: 2, ice: 2, wind: 2 },
-  dark:     { psychic: 2, dark: .5, light: .5 },
-  light:    { dragon: 2, dark: 2, fire: .5 },
-  psychic:  { psychic: .5, dark: 0 },
-  wind:     { grass: 2, electric: .5, rock: .5 },
-  dragon:   { dragon: 2, light: 0 }
+  fire:     { grass: 2, ice: 2, wind: 2, fire: .5, water: .5, rock: .5, dragon: .5 },
+  water:    { fire: 2, rock: 2, water: .5, grass: .5, ice: .5, dragon: .5 },
+  grass:    { water: 2, rock: 2, fire: .5, grass: .5, wind: .5, ice: .5, dragon: .5 },
+  electric: { water: 2, wind: 2, rock: 0, electric: .5, grass: .5, dragon: .5 },
+  ice:      { grass: 2, wind: 2, dragon: 2, fire: .5, water: .5, ice: .5, rock: .5 },
+  rock:     { fire: 2, ice: 2, wind: 2, electric: 2, grass: .5, rock: .5 },
+  dark:     { psychic: 2, light: 2, dark: .5, rock: .5 },
+  light:    { dark: 2, dragon: 2, fire: .5, light: .5, rock: .5, psychic: .5 },
+  psychic:  { wind: 2, dragon: 2, psychic: .5, dark: 0, light: .5 },
+  wind:     { grass: 2, fire: 2, electric: .5, rock: .5, ice: .5, wind: .5 },
+  dragon:   { dragon: 2, wind: 2, electric: 2, rock: .5, ice: .5, light: 0 }
 };
 
 // 攻击属性对防御属性的克制倍率（缺省 1）

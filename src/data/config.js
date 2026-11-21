@@ -8,7 +8,9 @@ export const EVO_BOND = [0, 4, 9];
 export const EVO_LV = [0, 7, 18];
 
 export const MAX_BOND = 12;
-export const MAX_PARTY = 6;
+// 2026-11-21：6 只扩到 8 只。八张区域图 + 八只神兽，6 个位置根本装不下
+// 「打道馆的队伍」和「想带在身边的伙伴」。多出的两只进牧场（G.box）寄存。
+export const MAX_PARTY = 8;
 export const MAX_LV = 50;
 
 // 升到 L+1 需要的经验 = (L+1)^3 - L^3
