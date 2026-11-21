@@ -343,10 +343,10 @@
 <div id="pad"><u data-t="u"></u><u data-t="d"></u><u data-t="l"></u><u data-t="r"></u><i></i></div>
 
 <script src="phaser.min.js"></script>
-<script src="phaser-assets.js?v=20261121a"></script>
+<script src="phaser-assets.js?v=20261121b"></script>
 <!-- 剧情文本库（约 40KB，纯文本）。放在 assets 之后：它要往 window.SR 上挂 STORY。
      加载失败不影响游戏 —— 所有读取点都有兜底文案。 -->
-<script src="story.js?v=20261121a"></script>
+<script src="story.js?v=20261121b"></script>
 <script>
 (function () {
   var errEl = document.getElementById('err');
@@ -849,6 +849,14 @@
   // 神兽不是普通野生个体：经验倍率单列一档，结束面板上也有自己的颜色
   if (SR.TIERS && !SR.TIERS.legend) SR.TIERS.legend = { name:'神兽', mult:4.2, color:'#ffd166' };
   function spOf(id){ return SP_BY_ID[id]; }
+  /* 形态上限按物种实际段数算，不能写死 2。
+     八只神兽 stages 只有一段（出场即终态），写死 2 会让进化石把它们推到
+     stages[1] —— 名字变 undefined、立绘纹理 s41_1 根本不存在，出来是一张白图。 */
+  function maxStageOf(sp){ return sp ? Math.max(0, sp.stages.length - 1) : 0; }
+  function evoNeedOf(c){
+    var sp = spOf(c.id), st = c.stage || 0;
+    return st >= maxStageOf(sp) ? 0 : EVO_BOND[st + 1];
+  }
   function mult(a,d){ var row=SR.TYPE_CHART[a]; return (row && row[d]!==undefined) ? row[d] : 1; }
 
   /* 属性画像：哪些属性打它疼、哪些打它不疼。
@@ -8414,11 +8422,12 @@
     }
     y += Math.ceil(mv.length/mCols)*(mh2+this.gap*0.5) + this.gap*1.2;
 
-    // 进化条件（只看羁绊，与原版 evolveInst 完全一致）
-    var canEvo = (c.stage||0) < 2 && c.bond >= EVO_BOND[(c.stage||0)+1];
-    var evoTxt = (c.stage||0) >= 2
-      ? '已是最终形态'
-      : (canEvo ? '可以进化！' : '进化需羁绊 '+EVO_BOND[(c.stage||0)+1]+'（当前 '+c.bond+'）');
+    // 进化条件（羁绊 + 该物种还有下一形态；神兽单段，永远进不了）
+    var evoNeed = evoNeedOf(c);
+    var canEvo = evoNeed > 0 && c.bond >= evoNeed;
+    var evoTxt = evoNeed === 0
+      ? '已是最终形态 · 无下一形态'
+      : (canEvo ? '可以进化！' : '进化需羁绊 '+evoNeed+'（当前 '+c.bond+'）');
     this.utext(info.x, y, '进化  '+evoTxt, fz(12), canEvo ? '#9ee6b8' : '#8fa0cc', 0, 7);
 
     // 底部：出战 / 调整位置 / 送入牧场
@@ -8586,8 +8595,8 @@
       }
       var nx = body.x + rowH*0.95;
       this.utext(nx, y+rowH*0.36, sp.stages[c.stage||0]+'  Lv.'+c.lv, fz(14), '#eaf0ff', 0, 7);
-      var evoNeed = (c.stage||0) < 2 ? EVO_BOND[(c.stage||0)+1] : 0;
-      var info = (c.stage||0) >= 2
+      var evoNeed = evoNeedOf(c);
+      var info = evoNeed === 0
         ? '最终形态 · 羁绊 '+c.bond
         : '羁绊 '+c.bond+' / 进化需 '+evoNeed;
       this.utext(nx, y+rowH*0.68, info, fz(11), '#8fa0cc', 0, 7);
@@ -8732,11 +8741,14 @@
     }
     // stone
     if (G.bag.stone <= 0){ this.flashNote('进化石不够了'); return; }
-    if ((c.stage||0) >= 2){ this.flashNote('已是最终形态'); return; }
-    var need = EVO_BOND[(c.stage||0)+1];
+    var sp = spOf(c.id);
+    if ((c.stage||0) >= maxStageOf(sp)){
+      this.flashNote(sp.legend ? '神兽没有下一形态' : '已是最终形态');
+      return;
+    }
+    var need = evoNeedOf(c);
     if (c.bond < need){ this.flashNote('羁绊不足，需要 '+need+'（当前 '+c.bond+'）'); return; }
     G.bag.stone--;
-    var sp = spOf(c.id);
     var fromStage = c.stage||0;
     // 进化前后的真实数值：不给玩家看这两个数，进化就永远只是「换了张图」
     var b4 = buildStats(sp, findNature(c.nature), fromStage, c.lv||20);
