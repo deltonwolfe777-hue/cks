@@ -8053,11 +8053,15 @@
       l3.setWordWrapWidth(info.w, true); l3.setY(y + l3.height*0.5); y += l3.height + fz(2);
     }
 
-    // 三阶进度
+    // 形态进度：按物种真实段数排。写死 3 会让单段的神兽长出「未知 → 未知 → 未知」
     var stageLine = '';
-    for (var s2=0;s2<3;s2++){
-      var nmS = d.got[s2] ? sp.stages[s2] : (d.see[s2] ? '？？？' : '未知');
-      stageLine += (s2? '  →  ':'') + nmS;
+    if (sp.stages.length <= 1){
+      stageLine = (d.got[0] ? sp.stages[0] : (d.see[0] ? '？？？' : '未知')) + '（单一形态 · 不进化）';
+    } else {
+      for (var s2=0;s2<sp.stages.length;s2++){
+        var nmS = d.got[s2] ? sp.stages[s2] : (d.see[s2] ? '？？？' : '未知');
+        stageLine += (s2? '  →  ':'') + nmS;
+      }
     }
     var st = this.utext(info.x, y+lh*0.5, '形态  '+stageLine, fz(12),
                         d.gotCount ? '#9ee6b8' : '#7c88ad', 0, 6);
