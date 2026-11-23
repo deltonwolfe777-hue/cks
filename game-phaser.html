@@ -69,6 +69,38 @@
   #cfgClose{margin-top:12px;width:100%;padding:11px;border-radius:10px;border:1px solid #5a7bd6;
             background:#243358;color:#e8eeff;font-size:14px;cursor:pointer}
   #cfgClose:active{background:#31456f}
+  #cfgSave{margin-top:10px;width:100%;padding:11px;border-radius:10px;border:1px solid #7a5bd6;
+           background:#2a2450;color:#e8eeff;font-size:13px;cursor:pointer}
+  #cfgSave:active{background:#3a3070}
+
+  /* 存档选择页：启动时盖在最上层；也复用成游戏内的「存档管理」 */
+  #saves{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;
+         background:rgba(4,6,16,.90);backdrop-filter:blur(6px);padding:16px}
+  #saves.on{display:flex}
+  #saveBox{width:min(720px,94vw);max-height:88vh;overflow:auto;background:#151b34;
+           border:2px solid #4a5d94;border-radius:16px;padding:18px;color:#dfe7ff;
+           box-shadow:0 22px 60px rgba(0,0,0,.7)}
+  #saveBox h2{margin:0 0 5px;font-size:17px;letter-spacing:2px}
+  #saveBox .sub{font-size:11.5px;opacity:.62;margin-bottom:14px;line-height:1.65}
+  .svCard{border:1.5px solid #33436e;border-radius:12px;padding:12px 14px;margin-bottom:10px;
+          background:#101733}
+  .svCard.cur{border-color:#7f9bff;background:#162045}
+  .svHead{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .svHead b{font-size:13.5px;letter-spacing:1px}
+  .svHead i{font-style:normal;font-size:10px;padding:2px 7px;border-radius:9px;
+            background:#3a4f8a;color:#dbe6ff}
+  .svCh{font-size:13px;color:#ffd98a;margin-bottom:4px}
+  .svMeta{font-size:11.5px;color:#a8b8dd;line-height:1.7}
+  .svTime{font-size:11px;color:#7f95c8;margin-top:2px}
+  .svEmpty{font-size:12px;color:#7f95c8;padding:9px 0}
+  .svBtns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .svBtns button{flex:1 1 0;min-width:94px;padding:9px;border-radius:9px;font-size:12.5px;
+                 cursor:pointer;border:1px solid #5a7bd6;background:#243358;color:#e8eeff}
+  .svBtns button.alt{border-color:#3f6b52;background:#1d3a2c;color:#cfeedd}
+  .svBtns button.danger{border-color:#7a3a48;background:#3a1e26;color:#f0c3cc}
+  .svBtns button:active{filter:brightness(1.3)}
+  #saveClose{width:100%;margin-top:6px;padding:11px;border-radius:10px;border:1px solid #5a7bd6;
+             background:#1a2440;color:#dfe7ff;font-size:13px;cursor:pointer}
 
   /* 区域地名条：跨越群系边界时滑入滑出 */
   #zone{position:fixed;left:50%;top:15%;transform:translate(-50%,-14px);z-index:18;
@@ -337,16 +369,23 @@
     <div class="cfgRow"><b>音乐</b><input type="range" id="vMusic" min="0" max="100" step="1"><span id="vMusicN">55</span></div>
     <div class="cfgRow"><b>音效</b><input type="range" id="vSfx" min="0" max="100" step="1"><span id="vSfxN">75</span></div>
     <div id="cfgMute">全部静音</div>
+    <button id="cfgSave">存档管理</button>
     <button id="cfgClose">关闭</button>
   </div>
 </div>
+<div id="saves"><div id="saveBox">
+  <h2>存 档</h2>
+  <div class="sub" id="saveSub"></div>
+  <div id="saveList"></div>
+  <button id="saveClose">返回游戏</button>
+</div></div>
 <div id="pad"><u data-t="u"></u><u data-t="d"></u><u data-t="l"></u><u data-t="r"></u><i></i></div>
 
 <script src="phaser.min.js"></script>
-<script src="phaser-assets.js?v=20261121i"></script>
+<script src="phaser-assets.js?v=20261123a"></script>
 <!-- 剧情文本库（约 40KB，纯文本）。放在 assets 之后：它要往 window.SR 上挂 STORY。
      加载失败不影响游戏 —— 所有读取点都有兜底文案。 -->
-<script src="story.js?v=20261121i"></script>
+<script src="story.js?v=20261123a"></script>
 <script>
 (function () {
   var errEl = document.getElementById('err');
@@ -1237,6 +1276,39 @@
   // 键名沿用原型期的 sr_phaser_test_v2：改名会让所有已有存档凭空消失，所以不动它。
   // 旧版（DOM 版）的 sr_game_v2 / sr_coll_v2 只读不写，见 migrateLegacySave()。
   var SAVE_KEY = 'sr_phaser_test_v2';
+  /* ---------------- 三格存档（2026-11-23） ----------------
+     槽 1 沿用老键名：老玩家的进度全在 sr_phaser_test_v2 里，
+     换键名等于把所有人的存档清空，所以不换。
+     另外两格用后缀键，互不干扰。 */
+  var SLOT_KEYS = [null, SAVE_KEY, SAVE_KEY + '_s2', SAVE_KEY + '_s3'];
+  var SLOT_META_KEY = 'sr_slot_meta_v1';
+  var SLOT_NAMES = ['', '存档一', '存档二', '存档三'];
+  var SLOT = 1;
+  function slotKey(k){ return SLOT_KEYS[k] || SAVE_KEY; }
+  function readSlotRaw(k){
+    try { return localStorage.getItem(slotKey(k)); } catch(e){ return null; }
+  }
+  function readSlot(k){
+    try { return JSON.parse(readSlotRaw(k) || 'null'); } catch(e){ return null; }
+  }
+  function readSlotMeta(){
+    try { return JSON.parse(localStorage.getItem(SLOT_META_KEY) || 'null') || {}; } catch(e){ return {}; }
+  }
+  function writeSlotMeta(m){
+    try { localStorage.setItem(SLOT_META_KEY, JSON.stringify(m || {})); } catch(e){}
+  }
+  /* 自动化开关：探针与视觉回归要直接进游戏，不能在选档页停住 */
+  function bootSkipSaveMenu(){
+    try { if (localStorage.getItem('sr_skip_boot') === '1') return true; } catch(e){}
+    return /(^|[?&])nointro=1(&|$)/.test(location.search || '');
+  }
+  /* 槽位必须在 loadG 之前定好：loadG 读的是「当前槽」 */
+  (function pickSlotBeforeLoad(){
+    var m = readSlotMeta();
+    var k = m && m.active ? (m.active | 0) : 0;
+    SLOT = (k >= 1 && k <= 3) ? k : 1;
+  })();
+
   var G = {
     // batch14：新档不再预送两只精灵。开局在灵契镇的木桌上三选一，
     // 这三只是火/水/草三系的经典三角，也是玩家对这个世界的第一印象。
@@ -1304,7 +1376,7 @@
   }
   function loadG(){
     try{
-      var s = JSON.parse(localStorage.getItem(SAVE_KEY));
+      var s = JSON.parse(localStorage.getItem(slotKey(SLOT)));
       // batch14：队伍可以为空（新档还没选初始伙伴），所以这里不再要求 party.length>0。
       // 只要求「存档结构正确」，进度字段才有资格覆盖默认值。
       if (s && Array.isArray(s.party)){
@@ -1341,16 +1413,22 @@
         G.box = Array.isArray(s.box) ? s.box.filter(function(p){ return p && spOf(p.id); }) : [];
       }
     }catch(e){}
+    /* 老存档（这个版本之前通关的）：主线戏大多已成过去，终章那两场也不该重播
+       —— 玩家早就看过结局，再演一次「曜倒下去」只会出戏。只留后日谈。 */
+    if (!G.flags.mainScene && G.cleared && SR.STORY && SR.STORY.main){
+      G.flags.mainScene = { s25:1, s25b:1 };
+    }
     // 队伍里的精灵自动补记为「已收服」，老存档也能立刻有图鉴进度
     G.party.forEach(function(p){ if (p && spOf(p.id)) dexGot(p.id, p.stage||0); });
     boxList().forEach(function(p){ if (p && spOf(p.id)) dexGot(p.id, p.stage||0); });
   }
   function saveG(){
     try{
-      localStorage.setItem(SAVE_KEY, JSON.stringify({
+      localStorage.setItem(slotKey(SLOT), JSON.stringify({
         party:G.party, box:G.box, balls:G.balls, ballTopUp:true, activeIdx:G.activeIdx, defeated:G.defeated,
         badges:G.badges, flags:G.flags, cleared:G.cleared,
-        region:G.region, pos:G.pos, dex:G.dex, bag:G.bag
+        region:G.region, pos:G.pos, dex:G.dex, bag:G.bag,
+        at:Date.now()          // 存档页要显示「什么时候存的」
       }));
     }catch(e){}
   }
@@ -1360,7 +1438,7 @@
   // 旧键一律不删：万一迁移判错，玩家还能靠旧版页面找回。
   function migrateLegacySave(){
     try{
-      if (localStorage.getItem(SAVE_KEY)) return false;       // 已有新存档，直接放行
+      if (localStorage.getItem(slotKey(SLOT))) return false;  // 已有存档，直接放行
       var coll = null, old = null;
       try{ coll = JSON.parse(localStorage.getItem('sr_coll_v2')); }catch(e){}
       try{ old  = JSON.parse(localStorage.getItem('sr_game_v2')); }catch(e){}
@@ -1403,9 +1481,186 @@
       return true;
     }catch(e){ return false; }
   }
-
   migrateLegacySave();   // 老玩家第一次打开新版时，把旧版存档搬过来（无新存档才执行）
   loadG();
+
+  /* =====================================================================
+     存档页
+
+     两个入口共用一个界面：
+       - 启动时（有存档才弹）：继续 / 换一份 / 重新开始
+       - 设置里的「存档管理」：随时保存、切换、删档
+
+     覆盖与删除都要点两次。这不是多余的仪式：
+     进度是玩家唯一不可再生的东西，误触一次就是几十小时。
+     ===================================================================== */
+  var SAVE_MENU_FROM_GAME = false;
+  function fmtTime(ts){
+    if (!ts) return '时间未知';
+    var d = new Date(ts);
+    function p(x){ return (x < 10 ? '0' : '') + x; }
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+           ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  function slotSummary(k){
+    var s = readSlot(k);
+    if (!s || !Array.isArray(s.party)) return null;
+    var badges = Array.isArray(s.badges) ? s.badges : [];
+    var reg = (s.region && REGION_BY_KEY[s.region]) ? REGION_BY_KEY[s.region].name : '灵契镇';
+    var f = (s.flags && typeof s.flags === 'object') ? s.flags : {};
+    // 章节：优先用主线进度表推算，推不出来就按徽章数说个大概
+    var ch = '';
+    try {
+      var keepB = G.badges, keepF = G.flags, keepC = G.cleared, keepR = G.region;
+      G.badges = badges.slice(); G.flags = f; G.cleared = !!s.cleared; G.region = s.region || 'town';
+      var now = mainNow();
+      if (now && now.ch) ch = now.ch;
+      G.badges = keepB; G.flags = keepF; G.cleared = keepC; G.region = keepR;
+    } catch(e){}
+    if (!ch){
+      ch = s.cleared ? '已通关 · 自由探索'
+         : badges.length ? ('旅途进行中 · ' + badges.length + ' 枚徽章')
+         : '旅程刚开始';
+    }
+    var dexN = 0;
+    if (s.dex && typeof s.dex === 'object'){
+      for (var id in s.dex){
+        var r = s.dex[id];
+        if (!r || !r.got) continue;
+        for (var i = 0; i < 3; i++) if (r.got[i]){ dexN++; break; }
+      }
+    }
+    return {
+      ch: ch,
+      meta: '徽章 ' + badges.length + '/8 · 队伍 ' + s.party.length + ' 只' +
+            (s.box && s.box.length ? ' · 牧场 ' + s.box.length + ' 只' : '') +
+            (dexN ? ' · 图鉴 ' + dexN + ' 种' : ''),
+      where: reg,
+      time: fmtTime(s.at)
+    };
+  }
+  function renderSaveMenu(fromGame){
+    var list = document.getElementById('saveList');
+    var sub = document.getElementById('saveSub');
+    if (!list) return;
+    if (sub){
+      sub.textContent = fromGame
+        ? '当前进度已经在自动保存。切换存档会先保存这一份，再载入另一份。'
+        : '选一份进度继续，或者从灵契镇重新开始。覆盖和删除都需要点两次确认。';
+    }
+    var cur = fromGame ? SLOT : (readSlotMeta().active || SLOT || 1);
+    var html = '';
+    for (var k = 1; k <= 3; k++){
+      var sm = slotSummary(k);
+      html += '<div class="svCard' + (k === cur ? ' cur' : '') + '" data-slot="' + k + '">';
+      html += '<div class="svHead"><b>' + SLOT_NAMES[k] + '</b>' +
+              (k === SLOT ? '<i>当前进度</i>' : '') + '</div>';
+      if (sm){
+        html += '<div class="svCh">' + sm.ch + '</div>';
+        html += '<div class="svMeta">' + sm.meta + '</div>';
+        html += '<div class="svTime">' + sm.where + ' · ' + sm.time + '</div>';
+        html += '<div class="svBtns">' +
+                '<button data-act="load">' + (k === SLOT ? '继续' : '读取这份') + '</button>' +
+                '<button data-act="new" class="alt">重新开始</button>' +
+                '<button data-act="del" class="danger">删除</button></div>';
+      } else {
+        html += '<div class="svEmpty">空（还没有进度）</div>';
+        html += '<div class="svBtns"><button data-act="new">新游戏</button></div>';
+      }
+      html += '</div>';
+    }
+    list.innerHTML = html;
+  }
+  function openSaveMenu(fromGame){
+    var el = document.getElementById('saves');
+    if (!el) return;
+    SAVE_MENU_FROM_GAME = !!fromGame;
+    renderSaveMenu(SAVE_MENU_FROM_GAME);
+    el.classList.add('on');
+    document.body.classList.add('savemenu');
+  }
+  function closeSaveMenu(){
+    var el = document.getElementById('saves');
+    if (el) el.classList.remove('on');
+    document.body.classList.remove('savemenu');
+    try { document.getElementById('cfg').classList.remove('on'); } catch(e){}
+  }
+  function restartAtSlot(k, fresh){
+    // 切槽 / 重开都走「落盘 + 重载」：世界已经按旧 G 建好了，热替换迟早出状态残留
+    writeSlotMeta({ active:k });
+    SLOT = k;
+    /* 重开是「我现在就要开始玩」，不是「再看一次菜单」。
+       用一次性标记让下一次启动跳过选档页，否则玩家点完「重新开始」
+       会又停在同一个菜单上，像是没生效。 */
+    if (fresh){ try { localStorage.setItem('sr_newgame_once', '1'); } catch(e){} }
+    location.reload();
+  }
+  function onSaveMenuClick(ev){
+    var b = ev.target;
+    while (b && b.tagName !== 'BUTTON') b = b.parentNode;
+    if (!b) return;
+    var card = b;
+    while (card && !(card.getAttribute && card.getAttribute('data-slot'))) card = card.parentNode;
+    var k = card ? (card.getAttribute('data-slot') | 0) : 0;
+    var act = b.getAttribute('data-act');
+    if (!k || !act) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (act === 'load'){
+      if (k === SLOT){ closeSaveMenu(); return; }
+      saveG();                       // 先把当前这格存好，切换不是丢弃
+      restartAtSlot(k);
+      return;
+    }
+    if (act === 'new' || act === 'del'){
+      /* 两次点击确认：第一次改文案，第二次才真的执行 */
+      if (b.getAttribute('data-sure') !== '1'){
+        b.setAttribute('data-sure', '1');
+        b.textContent = act === 'new' ? '确认覆盖？' : '确认删除？';
+        b.classList.add('danger');
+        setTimeout(function(){
+          if (b.isConnected){
+            b.removeAttribute('data-sure');
+            b.textContent = act === 'new' ? '重新开始' : '删除';
+          }
+        }, 3600);
+        return;
+      }
+      try { localStorage.removeItem(slotKey(k)); } catch(e){}
+      if (act === 'del'){
+        if (k === SLOT){ restartAtSlot(1); return; }
+        renderSaveMenu(SAVE_MENU_FROM_GAME);
+        return;
+      }
+      restartAtSlot(k, true);        // 覆盖成新游戏：清空后重载，从头开始
+    }
+  }
+  (function bindSaveMenu(){
+    var el = document.getElementById('saves');
+    if (el) el.addEventListener('click', function(ev){
+      if (ev.target === el){ closeSaveMenu(); return; }
+      onSaveMenuClick(ev);
+    });
+    var c = document.getElementById('saveClose');
+    if (c) c.addEventListener('click', closeSaveMenu);
+    var g = document.getElementById('cfgSave');
+    if (g) g.addEventListener('click', function(){ openSaveMenu(true); });
+  })();
+  /* 启动时：有存档才弹选档页。没有存档直接进新游戏，别让新人先看一个空菜单。 */
+  /* 延后一拍再弹：这段代码在 MAIN_FLOW / REGION 数据之前执行，
+     立刻渲染会读不到章节表。setTimeout(0) 就够 —— 脚本跑完就轮到它。 */
+  setTimeout(function bootSaveMenu(){
+    if (bootSkipSaveMenu()) return;
+    try {
+      if (localStorage.getItem('sr_newgame_once') === '1'){
+        localStorage.removeItem('sr_newgame_once');   // 只跳过一次
+        return;
+      }
+    } catch(e){}
+    var any = readSlot(1) || readSlot(2) || readSlot(3);
+    if (!any) return;
+    openSaveMenu(false);
+  }, 30);
 
   // ===== 地图生成（batch14：按区域生成）=====
   function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
@@ -2183,6 +2438,223 @@
   }
   // 「草原少年 阿澈」→「阿澈」：台词里连称号一起念太生硬
   function shortName(s){ return String(s || '').split(/[\s　]+/).pop(); }
+
+  /* =====================================================================
+     主线剧情驱动器（2026-11-23）
+
+     用户的原话是：之前只在地图上加了背景介绍，不是把主线延长。
+     所以这一版把「剧情」从「碑上的说明」改成「按章节推进的戏」：
+     四十多场，从序章到后日谈，一场一场演出来，并且必须按顺序发生。
+
+     四个设计点：
+
+     1) 条件和文本分家。
+        文本在 story.js 的 main 段（改文案不碰逻辑），
+        条件在这张 MAIN_FLOW 表里（改顺序不碰文案）。
+
+     2) 每场戏都有「下界」和「上界」。
+        need  = 什么时候可以播（拿到上一枚徽章 / 打赢某个干部）
+        until = 这一章什么时候算过去（过了就跳过并标已读）
+        老存档进来时前面的戏 need 成立、until 不成立，会直接标已读 ——
+        不会把十场旧戏一次性糊在玩家脸上。
+
+     3) 只在下述状态播：不在战斗、不在对话、没开 UI、没在读碑。
+        触发用一个 1.4 秒的轮询，而不是在每个玩法点埋钩子：埋钩子容易漏，
+        漏了就是「这段剧情永远不出现」，比晚几秒严重得多。
+
+     4) 播完再落档。播到一半刷新会重播这一场，可以接受；
+        反过来「先落档再播」会让刷新后的玩家永久丢掉后半段。
+     ===================================================================== */
+  function mainDone(id){
+    return !!(G.flags.mainScene && G.flags.mainScene[id]);
+  }
+  function markMainDone(id){
+    if (!G.flags.mainScene) G.flags.mainScene = {};
+    G.flags.mainScene[id] = 1;
+    saveG();
+  }
+  function hasBadge(k){ return G.badges.indexOf(k) >= 0; }
+  function badgeN(){ return G.badges.length; }
+
+  /* 数组顺序 = 剧情顺序。同一段窗口里有多场时，按这里的先后播。 */
+  var MAIN_FLOW = [
+    /* region=null 表示不限图；until 一律放宽到下一两章，只为拦住老存档重播 */
+    { id:'s0', ch:'序章 · 空白徽记', region:'town',
+      need:function(f){ return !!f.metElder && badgeN() === 0; },
+      until:function(f){ return badgeN() === 0; } },
+    { id:'s1', ch:'序章 · 空白徽记', region:'town',
+      need:function(f){ return !!f.metElder && badgeN() === 0; },
+      until:function(f){ return badgeN() === 0; } },
+    { id:'s1b', ch:'序章 · 空白徽记', region:'town',
+      need:function(f){ return !!f.metElder && badgeN() === 0; },
+      until:function(f){ return badgeN() === 0; } },
+    { id:'s2', ch:'第 1 章 · 风不来的原野', region:'meadow',
+      need:function(f){ return badgeN() === 0; },
+      until:function(f){ return badgeN() === 0; } },
+    { id:'s3', ch:'第 1 章 · 风不来的原野', region:'meadow',
+      need:function(f){ return badgeN() === 0; },
+      until:function(f){ return badgeN() === 0; } },
+    { id:'s2b', ch:'第 2 章 · 林间低语', region:'meadow',
+      need:function(f){ return hasBadge('plains') && badgeN() === 1; },
+      until:function(f){ return badgeN() <= 1; } },
+    { id:'s4', ch:'第 2 章 · 林间低语', region:'meadow',
+      need:function(f){ return hasBadge('plains') && !f.grunt1; },
+      until:function(f){ return !hasBadge('forest'); } },
+    { id:'s4b', ch:'第 2 章 · 林间低语', region:'meadow',
+      need:function(f){ return !!f.grunt1 && !f.elderStory; },
+      until:function(f){ return !hasBadge('lake'); } },
+    { id:'s5', ch:'第 2 章 · 苔痕', region:'meadow',
+      need:function(f){ return hasBadge('forest') && badgeN() === 2; },
+      until:function(f){ return badgeN() <= 2; } },
+    { id:'s5b', ch:'第 2 章 · 苔痕', region:'meadow',
+      need:function(f){ return hasBadge('forest') && badgeN() === 2; },
+      until:function(f){ return badgeN() <= 2; } },
+    { id:'s6', ch:'第 3 章 · 湖底的泪', region:'lake',
+      need:function(f){ return hasBadge('forest') && !f.grunt2; },
+      until:function(f){ return !hasBadge('desert'); } },
+    { id:'s6b', ch:'第 3 章 · 湖底的泪', region:'lake',
+      need:function(f){ return hasBadge('forest') && !f.grunt2; },
+      until:function(f){ return !hasBadge('desert'); } },
+    { id:'s7', ch:'第 3 章 · 湖底的泪', region:'lake',
+      need:function(f){ return !!f.grunt2 && !hasBadge('lake'); },
+      until:function(f){ return !hasBadge('desert'); } },
+    { id:'s8', ch:'第 3 章 · 湖底的泪', region:'lake',
+      need:function(f){ return !!f.grunt2; },
+      until:function(f){ return !hasBadge('desert'); } },
+    { id:'s7b', ch:'第 3 章 · 湖底的泪', region:'lake',
+      need:function(f){ return hasBadge('lake') && badgeN() === 3; },
+      until:function(f){ return badgeN() <= 3; } },
+    { id:'s9', ch:'第 4 章 · 沙下的石头', region:'dunes',
+      need:function(f){ return hasBadge('lake') && !hasBadge('desert'); },
+      until:function(f){ return !hasBadge('desert'); } },
+    { id:'s9b', ch:'第 4 章 · 沙下的石头', region:'dunes',
+      need:function(f){ return hasBadge('lake') && !hasBadge('desert'); },
+      until:function(f){ return !hasBadge('desert'); } },
+    { id:'s10', ch:'第 4 章 · 沙下的石头', region:'dunes',
+      need:function(f){ return hasBadge('lake') && !hasBadge('desert'); },
+      until:function(f){ return !hasBadge('ruins'); } },
+    { id:'s10b', ch:'第 4 章 · 沙下的石头', region:'dunes',
+      need:function(f){ return hasBadge('desert') && !hasBadge('ruins'); },
+      until:function(f){ return !hasBadge('volcano'); } },
+    { id:'s11', ch:'第 4 章 · 沙下的石头', region:'dunes',
+      need:function(f){ return hasBadge('ruins') && !f.shadeBeat; },
+      until:function(f){ return !hasBadge('volcano'); } },
+    { id:'s12', ch:'第 4 章 · 沙下的石头', region:'dunes',
+      need:function(f){ return !!f.admin1; },
+      until:function(f){ return !hasBadge('snow'); } },
+    { id:'s13', ch:'第 5 章 · 余烬', region:'ember',
+      need:function(f){ return hasBadge('ruins') && !hasBadge('volcano'); },
+      until:function(f){ return !hasBadge('volcano'); } },
+    { id:'s14', ch:'第 5 章 · 余烬', region:'ember',
+      need:function(f){ return hasBadge('ruins') && !hasBadge('volcano'); },
+      until:function(f){ return !hasBadge('snow'); } },
+    { id:'s14b', ch:'第 5 章 · 余烬', region:'ember',
+      need:function(f){ return !!f.admin2; },
+      until:function(f){ return !hasBadge('snow'); } },
+    { id:'s15', ch:'第 5 章 · 余烬', region:'ember',
+      need:function(f){ return !!f.admin2; },
+      until:function(f){ return !hasBadge('snow'); } },
+    { id:'s16', ch:'第 6 章 · 霜与冰', region:'frost',
+      need:function(f){ return hasBadge('volcano') && !hasBadge('snow'); },
+      until:function(f){ return !hasBadge('snow'); } },
+    { id:'s17', ch:'第 6 章 · 霜与冰', region:'frost',
+      need:function(f){ return hasBadge('volcano') && !hasBadge('snow'); },
+      until:function(f){ return !hasBadge('ridge'); } },
+    { id:'s16b', ch:'第 6 章 · 霜与冰', region:'frost',
+      need:function(f){ return hasBadge('snow') && badgeN() === 7; },
+      until:function(f){ return badgeN() <= 7; } },
+    { id:'s18', ch:'第 6 章 · 霜晶核', region:'frost',
+      need:function(f){ return !!f.admin3; },
+      until:function(f){ return !f.bossBeat; } },
+    { id:'s19', ch:'第 7 章 · 八枚之后', region:null,
+      need:function(f){ return hasBadge('ridge') && badgeN() === 8; },
+      until:function(f){ return badgeN() === 8; } },
+    { id:'s19b', ch:'第 7 章 · 八枚之后', region:'town',
+      need:function(f){ return badgeN() === 8 && !f.voidBeat; },
+      until:function(f){ return badgeN() === 8 && !f.voidBeat; } },
+    { id:'s20', ch:'第 8 章 · 回廊尽头', region:'hollow',
+      need:function(f){ return !!f.hollowOpen && !f.bossBeat; },
+      until:function(f){ return !f.bossBeat; } },
+    { id:'s20b', ch:'第 8 章 · 回廊尽头', region:'hollow',
+      need:function(f){ return !!f.hollowOpen && !f.bossBeat; },
+      until:function(f){ return !f.bossBeat; } },
+    { id:'s21', ch:'第 8 章 · 拆锁的人', region:'hollow',
+      need:function(f){ return !!f.hollowOpen && !f.bossBeat; },
+      until:function(f){ return !f.bossBeat; } },
+    { id:'s22', ch:'第 8 章 · 拆锁的人', region:'hollow',
+      need:function(f){ return !!f.bossBeat && !f.voidBeat; },
+      until:function(f){ return !f.voidBeat; } },
+    { id:'s22b', ch:'第 8 章 · 拆锁的人', region:'hollow',
+      need:function(f){ return !!f.bossBeat && !f.voidBeat; },
+      until:function(f){ return !f.voidBeat; } },
+    { id:'s23', ch:'第 8 章 · 虚空之主', region:null,
+      need:function(f){ return !!f.voidBeat && !G.cleared; },
+      until:function(f){ return !!f.voidBeat && !G.cleared; } },
+    { id:'s23b', ch:'第 8 章 · 虚空之主', region:null,
+      need:function(f){ return !!f.voidBeat && !G.cleared; },
+      until:function(f){ return !!f.voidBeat && !G.cleared; } },
+    { id:'s24', ch:'终章 · 十年', region:'town',
+      need:function(f){ return !!f.voidBeat && !G.cleared; },
+      until:function(f){ return !!f.voidBeat && !G.cleared; } },
+    { id:'s25', ch:'终章 · 十年', region:'town',
+      need:function(f){ return !!G.cleared; },
+      until:function(f){ return !!G.cleared; } },
+    { id:'s25b', ch:'终章 · 十年', region:'town',
+      need:function(f){ return !!G.cleared; },
+      until:function(f){ return !!G.cleared; } },
+    { id:'s26', ch:'后日谈 · 一个月后', region:'town',
+      need:function(f){ return !!G.cleared; },
+      until:function(f){ return !!G.cleared; } },
+  ];
+
+  /* 找出下一场该播的。已经过了窗口的直接标已读，返回 null 就是没戏可播。 */
+  function mainNext(){
+    var S = (SR.STORY && SR.STORY.main) || {};
+    for (var i = 0; i < MAIN_FLOW.length; i++){
+      var e = MAIN_FLOW[i];
+      if (!S[e.id] || mainDone(e.id)) continue;
+      if (e.until && !e.until(G.flags)){ markMainDone(e.id); continue; }
+      if (e.need && !e.need(G.flags)) continue;
+      return { e:e, lines:S[e.id] };
+    }
+    return null;
+  }
+  /* 当前主线进度（给调试和存档摘要用）：返回正在演的那一场 */
+  function mainNow(){
+    var S = (SR.STORY && SR.STORY.main) || {};
+    for (var i = 0; i < MAIN_FLOW.length; i++){
+      var e = MAIN_FLOW[i];
+      if (!S[e.id] || mainDone(e.id)) continue;
+      if (e.until && !e.until(G.flags)) continue;
+      if (e.need && !e.need(G.flags)) continue;
+      return { id:e.id, ch:e.ch };
+    }
+    return null;
+  }
+
+  function mainTick(world){
+    if (!world || !world.scene || !world.scene.isActive()) return false;
+    if (world.inBattle || world.talking || world.uiOpen || world.switching) return false;
+    if (DLG.open || CHOICE.open || LORE_OPEN) return false;
+    if (document.body.classList.contains('battle')) return false;
+    // 换图后的 5.2 秒留给地名条和「首次踏入」旁白；两段一起弹会互相抢注意力
+    if (Date.now() - (world._regionAt || 0) < 5200) return false;
+    // 上一场戏收官后留 4.5 秒，别让两场对话无缝接上
+    if (Date.now() - (world._storyAt || 0) < 4500) return false;
+    var n = mainNext();
+    if (!n) return false;
+    /* 这场戏发生在别的区域：先不播，也不标已读，等玩家走到那张图
+       （不标已读很重要 —— 标了就等于「这段剧情被永久跳过」） */
+    if (n.e.region && n.e.region !== G.region) return false;
+    var lines = n.lines.map(function(p){ return { who:p[0], text:p[1] }; });
+    if (n.e.ch && world._chCard !== n.e.ch){
+      world.showZone(n.e.ch, '主线剧情');
+      world._chCard = n.e.ch;
+    }
+    world._storyAt = Date.now();
+    say(lines, function(){ markMainDone(n.e.id); refreshQuest(); }, world);
+    return true;
+  }
 
   /* =====================================================================
      路线指引（batch12）
@@ -3869,6 +4341,7 @@
 
   WorldScene.prototype.loadRegion = function(key, spawn){
     var self = this;
+    this._regionAt = Date.now();   // 主线剧情轮询用它错开地名条与区域旁白
     var R = REGION_BY_KEY[key] || REGION_BY_KEY.town;
     this.teardownRegion();
 
@@ -4214,6 +4687,9 @@
 
     // 摇杆 / 全屏 / 战斗返回的回调里都用了 self 与 ws，两个别名都要有
     var ws = this, self = this;
+    /* 主线剧情轮询：1.4 秒一次，播完一场后由 _storyAt 自动拉开间隔 */
+    this._regionAt = this._regionAt || Date.now();
+    this.time.addEvent({ delay:1400, loop:true, callback:function(){ mainTick(ws); } });
     /* 全新存档：用一段开场把「你是谁、要做什么」讲清楚。
        老存档（已经选过伙伴 / 见过长老 / 播过开场）不重播，回来的人不该被按着再听一遍。 */
     if (!G.flags.starterChosen && !G.flags.metElder && !G.badges.length && !G.flags.opening){
@@ -5500,6 +5976,10 @@
     var self = this;
     // 战斗期间收掉任务条：它固定在底部，正好压住招式菜单第一行
     document.body.classList.add('battle');
+    /* 演出等待队列（见 bwait）。每回合有 1.5~2 秒是「动画自己走」的，
+       玩家点了没反应就会读成卡顿；这个队列让任何一次点击都能立刻推进。 */
+    this._waiters = [];
+    this._bindSkip();
     AUDIO.sfx('encounter');
     AUDIO.track('battle');
     this.bgG = this.add.graphics().setDepth(0);
@@ -6222,6 +6702,46 @@
     this.tickAuras(delta);
   };
 
+  /* ---------------- 可打断的等待 ----------------
+     战斗演出大量依赖「等 300~600ms 再演下一段」。用 setTimeout 硬等的话，
+     玩家在这段时间里点屏幕没有任何反馈，整场战斗的体感就是「一卡一卡的」。
+     bwait 把这些等待注册进队列：点一下（或空格/回车）立刻全部放行，
+     自动播放则照原时长推进。两种节奏都成立，由玩家决定。
+
+     注意：只放行「当前已经在等」的那些。后面新产生的等待仍然需要新的一次点击，
+     否则一次乱点会把整回合的演出瞬间播完，反而看不懂发生了什么。 */
+  BattleScene.prototype.bwait = function(ms){
+    var self = this;
+    if (!this._waiters) this._waiters = [];
+    return new Promise(function(res){
+      var done = false, tm = null;
+      var fin = function(){
+        if (done) return;
+        done = true;
+        var i = self._waiters.indexOf(fin);
+        if (i >= 0) self._waiters.splice(i, 1);
+        if (tm) clearTimeout(tm);
+        res();
+      };
+      tm = setTimeout(fin, ms);
+      self._waiters.push(fin);
+    });
+  };
+  BattleScene.prototype.skipWait = function(){
+    if (!this._waiters || !this._waiters.length) return false;
+    var list = this._waiters.slice();
+    for (var i = 0; i < list.length; i++) list[i]();
+    return true;
+  };
+  BattleScene.prototype._bindSkip = function(){
+    var self = this;
+    this.input.on('pointerdown', function(){ self.skipWait(); });
+    if (this.input.keyboard){
+      this.input.keyboard.on('keydown-SPACE', function(){ self.skipWait(); });
+      this.input.keyboard.on('keydown-ENTER', function(){ self.skipWait(); });
+    }
+  };
+
   // 台座：跟着立绘脚底走，竖屏横屏都不会飘
   BattleScene.prototype.drawStands = function(){
     var d = this.decoG;
@@ -6352,6 +6872,10 @@
     this.panel(mX,mY,mW,mH,20);
     this.msgT = this.label(mX+mW*0.035, mY+mH*0.5, '', fz(14), '#e8eeff', 22);
     this.msgT.setWordWrapWidth(mW*0.93, true);
+    /* 加速提示放在消息框正上方右侧：不压正文，也不占精灵的位置。
+       alpha 压到 0.5，只在玩家想找它的时候才看得见。 */
+    this.hintT = this.label(mX + mW, mY - fz(9), '▸ 点击加速', fz(9), '#8fb8ff', 22, 1);
+    this.hintT.setAlpha(0.5);
 
     // 菜单区
     this.menuX = G.menu.x;
@@ -7087,12 +7611,12 @@
         f.status = null;
         this.say(f.name + ' 醒了。');
         this.refreshBars(); this.syncStatusFx();
-        await sleep(420);
+        await this.bwait(330);
         return true;
       }
       this.say(f.name + ' 睡得正沉…');
       this.refreshBars(); this.syncStatusFx();
-      await sleep(540);
+      await this.bwait(430);
       return false;
     }
 
@@ -7101,12 +7625,12 @@
         f.status = null;
         this.say(f.name + ' 身上的冰化了！');
         this.refreshBars(); this.syncStatusFx();
-        await sleep(420);
+        await this.bwait(330);
         return true;
       }
       this.say(f.name + ' 被冻住了，动不了！');
       this.refreshBars(); this.syncStatusFx();
-      await sleep(540);
+      await this.bwait(430);
       return false;
     }
 
@@ -7114,7 +7638,7 @@
       this.say(f.name + ' 麻痹了，动不了！');
       if (spr) this.popNumber(spr.x, spr.y - spr.displayHeight*0.60, '麻痹', d.color, false);
       AUDIO.sfx('shake');
-      await sleep(540);
+      await this.bwait(430);
       return false;
     }
     return true;
@@ -7222,7 +7746,7 @@
         this.say(f.name + ' 受到「' + d.name + '」的伤害 ' + dot + ' 点');
         this.tweenBars(); this.refreshBars();
         AUDIO.sfx('bump');
-        await sleep(560);
+        await this.bwait(440);
         if (f.hp <= 0){ await this.onFaint(p.isPlayer ? 'player' : 'enemy'); return; }
       }
     }
@@ -7242,11 +7766,11 @@
     this.fxAura(srcSpr, mv.type);
     this.fxMoveName(srcSpr, mv.name, mv.type);
     this.lunge(srcSpr, isPlayer ? 1 : -1);
-    await sleep(130);
+    await this.bwait(100);
 
     if (Math.random()*100 > mv.acc){
       this.say(atk.name+' 的「'+mv.name+'」没有命中！');
-      await sleep(500);
+      await this.bwait(400);
       return;
     }
 
@@ -7259,7 +7783,7 @@
       AUDIO.typeHit(mv.type);
       this.playFx(mv.type, dstSpr.x, dstSpr.y - dstSpr.displayHeight*0.32, power,
                   fxStyleOf(mv), isPlayer ? 1 : -1);
-      await sleep(140);
+      await this.bwait(110);
       this.hitStop(strong || r.crit ? 95 : 70, strong || r.crit ? 0.06 : 0.14);  // 克制/暴击顿得更重
       this.hurt(dstSpr);
       if (strong || r.crit) this.cameras.main.shake(160, 0.006);
@@ -7302,7 +7826,7 @@
     if (!immune && r.stg >= 1.2) msg += ' · 阶位压制！';
     this.say(msg);
 
-    await sleep(immune?460:520);
+    await this.bwait(immune?370:410);
     if (def.hp <= 0){ await this.onFaint(isPlayer ? 'enemy' : 'player'); return; }
 
     /* ---- 状态附加 ----
@@ -7314,7 +7838,7 @@
       this.popNumber(dstSpr.x, dstSpr.y - dstSpr.displayHeight*0.72, '解冻', '#fdba74', false);
       this.say(def.name + ' 身上的冰被火焰化开了！');
       this.refreshBars(); this.syncStatusFx();
-      await sleep(460);
+      await this.bwait(370);
       return;
     }
     if (!immune && !def.status){
@@ -7324,7 +7848,7 @@
         this.applyStatus(def, dstSpr, stq[0]);
         // 播报放在 say 之后，玩家先读伤害再读状态，因果顺序才对
         this.say(def.name + ' 陷入了「' + sd.name + '」状态！');
-        await sleep(560);
+        await this.bwait(440);
       }
     }
   };
@@ -7338,7 +7862,7 @@
       this.stopBreath(spr);          // 倒地过程中别再呼吸，否则边淡出边脉动
       AUDIO.sfx('faint');
       this.tweens.add({ targets:spr, alpha:0, y:spr.y+40, duration:420 });
-      await sleep(520);
+      await this.bwait(420);
       await this.awardExp(B.enemy, B.tier);
       if (!this.B) return;
       if (this.B.isTrainer && this.B.enemyTeam && this.B.enemyIdx < this.B.enemyTeam.length-1){
@@ -7346,7 +7870,7 @@
         var next = this.B.enemyTeam[this.B.enemyIdx];
         this.B.enemy = next;
         this.say(this.B.trainerName+' 派出了 '+next.name+'！');
-        await sleep(600);
+        await this.bwait(480);
         if (!this.B) return;
         // 换敌方立绘
         await loadTex(this, artKey(next.species, next.stage));
@@ -7408,7 +7932,7 @@
     var t = SR.TIERS[tierKey]||SR.TIERS.wild;
     var bonus = tierKey==='boss' ? '（霸主 ×'+t.mult+'）' : tierKey==='rare' ? '（稀有 ×'+t.mult+'）' : tierKey==='trainer' ? '（训练家 ×'+t.mult+'）' : '';
     this.say(spName+' 获得了 '+gain+' 点经验值！'+bonus);
-    await sleep(r.ups?800:500);
+    await this.bwait(r.ups?620:400);
 
     if (r.ups){
       AUDIO.sfx('levelup');
@@ -7416,9 +7940,9 @@
       this.popNumber(this.playerSpr.x, this.playerSpr.y - this.playerSpr.displayHeight*0.8, 'LV UP', '#ffd93d', true);
       this.refreshBars();
       this.say(spName+' 升级！Lv.'+inst.lv);
-      await sleep(900);
+      await this.bwait(700);
       if (r.learned && r.learned.length && this.B) this.say('Lv.'+inst.lv+'！学会了新招式：'+r.learned.join('、'));
-      await sleep(r.learned && r.learned.length ? 760 : 0);
+      await this.bwait(r.learned && r.learned.length ? 600 : 0);
       // 灵光判定学到的招：一圈属性色光环 + 单独一行提示，否则玩家根本不知道刚才发生了什么
       if (r.extra && r.extra.length){
         for (var li=0; li<r.extra.length; li++){
@@ -7434,7 +7958,7 @@
           this.say(lx.lost.length
             ? '习得「'+lx.got+'」（换下「'+lx.lost.join('、')+'」）'
             : '灵光一闪！习得「'+lx.got+'」');
-          await sleep(1050);
+          await this.bwait(820);
         }
         this.refreshBars();
       }
@@ -7501,7 +8025,7 @@
       targets:ball, x:this.enemySpr.x, y:this.enemySpr.y - this.enemySpr.displayHeight*0.55,
       duration:520, ease:'Quad.easeOut'
     });
-    await sleep(700);
+    await this.bwait(560);
     if (!this.B || this.B.over){ if (ball.active) ball.destroy(); return; }
 
     var ratio = B.enemy.hp / B.enemy.maxHp;
@@ -7538,7 +8062,7 @@
       this.say(toBox
         ? '队伍满了，'+nm+' 被送回牧场寄存（可在「我的队伍」里换进来）。'
         : '太好了！'+nm+'（Lv.'+B.enemy.lv+'）被抓住了！');
-      await sleep(1200);
+      await this.bwait(950);
       this.finish(toBox ? '📦 '+nm+' 存入牧场 · Lv.'+B.enemy.lv
                         : '🎉 收服了 '+nm+' · Lv.'+B.enemy.lv);
     } else {
@@ -7549,7 +8073,7 @@
           onComplete:function(){ if (ball.active) ball.destroy(); } });
       }
       this.say('可恶！它从精灵球里挣脱了！');
-      await sleep(820);
+      await this.bwait(650);
       if (!this.B || this.B.over) return;
       await this.execMove(this.B.enemy, this.B.player, pick(this.B.enemy.moves), false);
       if (this.B && !this.B.over) await this.endTurnStatus();
@@ -7566,11 +8090,11 @@
     if (Math.random() < chance){
       AUDIO.sfx('escape');
       this.say('成功逃走了！');
-      await sleep(650);
+      await this.bwait(520);
       this.finish('成功逃走');
     } else {
       this.say('没能逃掉！');
-      await sleep(620);
+      await this.bwait(500);
       if (!this.B || this.B.over) return;
       await this.execMove(this.B.enemy, this.B.player, pick(this.B.enemy.moves), false);
       if (this.B && !this.B.over) await this.endTurnStatus();
@@ -7587,7 +8111,7 @@
     AUDIO.sfx('win');
     this.say('战斗胜利！羁绊提升了。');
     this.popNumber(this.playerSpr.x, this.playerSpr.y - this.playerSpr.displayHeight*0.8, 'WIN', '#4ade80', true);
-    await sleep(700);
+    await this.bwait(560);
     var endToast = '战斗胜利';
     /* 神兽被「打倒」不等于收服。它退回祭坛，下一次时段对了还能再来 ——
        否则玩家一次手快就会永久失去一只神兽，这是不可接受的设计。 */
@@ -7698,9 +8222,9 @@
         extra = '🏆 战胜 '+(B.trainerName || '对手');
       }
       this.showToast(extra);
-      await sleep(700);
+      await this.bwait(700);
     }
-    await sleep(400);
+    await this.bwait(400);
     this.finish(endToast);
   };
 
@@ -7710,7 +8234,7 @@
     AUDIO.sfx('lose');
     this.say('你的精灵全部失去了战斗力…眼前一黑！');
     this.cameras.main.fade(900, 0, 0, 0);
-    await sleep(1200);
+    await this.bwait(1200);
     G.party.forEach(function(c){ c.hp = maxHpOf(c); });
     // 全灭送回灵契镇（batch14）：不管倒在哪张图，都送回镇上的营地
     var TOWN = REGION_BY_KEY.town;
@@ -8799,6 +9323,7 @@
   try {
     window.__SRDBG = { game:GAME, G:G, spOf:spOf, buildFighter:buildFighter,
       movesFor:movesFor, gainExp:gainExp, expNeed:expNeed, saveG:saveG,
+      mainNow:mainNow, mainNext:mainNext, mainTick:mainTick, MAIN_FLOW:MAIN_FLOW, markMainDone:markMainDone,
       ensureArt:ensureArt, prewarmArt:prewarmArt, loadTex:loadTex,
       openLore:openLore, closeLore:closeLore, openChronicle:openChronicle,
       LEGEND_SITES:LEGEND_SITES, legendReady:legendReady, nowSlot:nowSlot };
