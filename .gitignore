@@ -12,6 +12,9 @@ _*.png
 _*.js
 _shot.mjs
 
+# 临时分析目录（探针脚本 / 截图 / 无头浏览器 profile）。2026-11-17 误提交过 77MB，别再犯
+_sync/
+
 # 本地依赖（canvas 预览工具用，不入库）
 node_modules/
 package-lock.json
