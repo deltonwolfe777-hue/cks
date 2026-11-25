@@ -382,10 +382,10 @@
 <div id="pad"><u data-t="u"></u><u data-t="d"></u><u data-t="l"></u><u data-t="r"></u><i></i></div>
 
 <script src="phaser.min.js"></script>
-<script src="phaser-assets.js?v=20261125e"></script>
+<script src="phaser-assets.js?v=20261126a"></script>
 <!-- 剧情文本库（约 40KB，纯文本）。放在 assets 之后：它要往 window.SR 上挂 STORY。
      加载失败不影响游戏 —— 所有读取点都有兜底文案。 -->
-<script src="story.js?v=20261125e"></script>
+<script src="story.js?v=20261126a"></script>
 <script>
 (function () {
   var errEl = document.getElementById('err');
@@ -2257,33 +2257,34 @@
     return ent;
   }
 
-  /* ===== 立绘纹理（按物种分片，用到哪只才取哪只）=====
-     立绘合计 1.83MB，但世界开局一张都用不到。主包只留空 ART 容器，
-     每只的三个形态单独放 art/sN.js，用到时才注入 <script>。
-     ART_LOADING 记的是"已经在取的 Promise"，并发重复请求同一只会合并成一次。 */
+  /* ===== 立绘纹理（一阶一张 webp，用到哪阶才取哪阶）=====
+     立绘合计 1.53MB，世界开局一张都用不到，所以不能进主包。
+     batch23 之前是「一只的三形态打成一个 base64 分片」：图鉴详情只要一阶，
+     也得把另外两阶一起下下来（≈52KB → 现在 ≈13KB）；队伍页 8 只同理，省 4 倍。
+     顺手省掉 base64 解码和 50KB 字符串常驻。
+     ART_LOADING 记的是"已经在取的 Promise"，并发请求同一张会合并成一次。 */
   var ART_LOADING = {};
-  function artUrl(id){
-    return (SR.ART_DIR || 'art/') + id + '.js' + (SR.V ? '?v=' + SR.V : '');
+  function artUrl(key){
+    return (SR.ART_DIR || 'art/') + key + '.webp' + (SR.V ? '?v=' + SR.V : '');
   }
-  function ensureArt(id){
-    if (!id) return Promise.resolve(false);
-    if (ART_LOADING[id]) return ART_LOADING[id];
-    ART_LOADING[id] = new Promise(function(resolve){
-      var s = document.createElement('script');
-      s.src = artUrl(id);
-      s.async = true;
-      s.onload = function(){ resolve(!!SR.ART[id + '_0'] || true); };
-      s.onerror = function(){
-        ART_LOADING[id] = null;   // 允许下次重试，而不是永久判死
+  function ensureArt(key){
+    if (!key) return Promise.resolve(false);
+    if (key.indexOf('_') < 0) key += '_0';   // 只给物种 id（s7）时预热首阶
+    if (ART_LOADING[key]) return ART_LOADING[key];
+    ART_LOADING[key] = new Promise(function(resolve){
+      var img = new Image();
+      img.onload = function(){ resolve(true); };
+      img.onerror = function(){
+        ART_LOADING[key] = null;   // 允许下次重试，而不是永久判死
         resolve(false);
       };
-      document.head.appendChild(s);
+      img.src = artUrl(key);
     });
-    return ART_LOADING[id];
+    return ART_LOADING[key];
   }
   /* 神兽不单独造美术：它们借一只普通立绘，再在运行时叠加圣光 / 冠冕 / 光环层。
      所以纹理请求必须先做一次映射 —— s41_0 要读的是美术源 s5_0，
-     不映射的话 ensureArt('s41') 会去拉一个永远 404 的 art/s41.js。 */
+     不映射的话会去拉一个永远 404 的 art/s41_0.webp。 */
   function artSrcOf(key){
     var parts = String(key).split('_');
     var id = parts[0], st = parseInt(parts[1] || '0', 10) || 0;
@@ -2295,34 +2296,52 @@
     }
     return { load: id, key: key };
   }
+  /* 同一个纹理可能被两处同时要（战斗立绘 + 队伍列表就是典型）：
+     两边都过了 exists 检查、都去 addImage，后一次会被 Phaser 判成
+     "Texture key already in use" 并丢掉 —— 图没坏，但控制台报错，而且白发一次请求。
+     TEX_PENDING 把在飞的加载合并成一次。 */
+  var TEX_PENDING = {};
   function loadTex(scene, key){
-    return new Promise(function(resolve){
-      if (scene.textures.exists(key)) return resolve(true);
+    if (scene.textures.exists(key)) return Promise.resolve(true);
+    if (TEX_PENDING[key]) return TEX_PENDING[key];
+    TEX_PENDING[key] = new Promise(function(resolve){
       var src = artSrcOf(key);
-      var after = function(){
-        var data = SR.ART[src.key];
-        if (!data) return resolve(false);
-        var img = new Image();
-        img.onload = function(){
-          // 始终注册成请求时用的 key：调用方拿 s41_0 取图，这里就得存 s41_0
-          try { scene.textures.addImage(key, img); resolve(true); }
-          catch(e){ resolve(false); }
-        };
-        img.onerror = function(){ resolve(false); };
-        img.src = data;
+      var img = new Image();
+      img.onload = function(){
+        delete TEX_PENDING[key];
+        if (scene.textures.exists(key)) return resolve(true);
+        // 始终注册成请求时用的 key：调用方拿 s41_0 取图，这里就得存 s41_0
+        try { scene.textures.addImage(key, img); resolve(true); }
+        catch(e){ resolve(false); }
       };
-      if (SR.ART[src.key]) return after();
-      ensureArt(src.load).then(after);
+      img.onerror = function(){ delete TEX_PENDING[key]; resolve(false); };
+      img.src = artUrl(src.key);
     });
+    return TEX_PENDING[key];
   }
   /* 后台预热：只发请求，不参与任何 await，失败静默。
      进战斗前把队伍和野生种群取好，战斗场景就不用再等立绘。 */
-  function prewarmArt(ids){
-    for (var i=0;i<(ids||[]).length;i++){
-      if (ids[i]) ensureArt(artSrcOf(ids[i]).load);
+  function prewarmArt(keys){
+    for (var i=0;i<(keys||[]).length;i++){
+      if (keys[i]) ensureArt(artSrcOf(keys[i]).key);
     }
   }
   function artKey(sp, stage){ return sp.id+'_'+stage; }
+
+  /* 纯色剪影（未收服 / 只在远处见过）。
+     Phaser 4 把 setTintFill 换成了 setTint + setTintMode(FILL)，
+     但旧方法名还留着、是个只打 console.error 的空壳 ——
+     所以「if (img.setTintFill)」这种兼容写法在 4.x 里等于什么都没做。
+     必须显式判断 TintModes 是否存在。 */
+  var SILHOUETTE = 0x3d4d75;   // 剪影色：比卡片底亮一档才看得出「有东西」
+  function tintSolid(img, color){
+    if (!img || typeof img.setTint !== 'function') return img;
+    img.setTint(color);
+    if (typeof img.setTintMode === 'function' && typeof Phaser !== 'undefined' && Phaser.TintModes){
+      img.setTintMode(Phaser.TintModes.FILL);
+    }
+    return img;
+  }
 
   /* 收起加载面板。只在世界场景建好后调用 —— 提前收会露出空白 canvas，
      比多等两秒更让人怀疑是不是坏了。 */
@@ -5722,7 +5741,7 @@
     else if (roll < 0.14){ tier='rare'; sid=bio.rare; stage=1; }
     else { sid = pick(bio.pools); stage = Math.random()<.6 ? 0 : 1; }
     var sp = spOf(sid);
-    prewarmArt([sid]);   // 与 battle 场景里的 loadTex 共用同一个 Promise，不会重复请求
+    prewarmArt([sid + '_' + stage]);   // 预热抽到的那一阶，battle 里的 loadTex 会命中同一份缓存
     // 等级带由「区域」决定（batch14）：七张图各有一条难度曲线，
     // 不再用「第几个群系 × 0.45」这种和地图强绑的老公式。
     var lv = (CUR_REGION.lv0 || 5) + stage * 4 + Math.floor(Math.random()*4);
@@ -9134,6 +9153,7 @@
   /* ---------------- 主渲染 ---------------- */
   UIScene.prototype.render = function(){
     var w = this.scale.width, h = this.scale.height;
+    this.stopFloat();          // 目标对象马上要被 clearUI 销毁，补间必须先停
     this.clearUI();
     var fz = this.fz.bind(this);
 
@@ -9175,6 +9195,30 @@
     var label = backFn ? '← 返回' : '✕';
     this.makeBtn(head.x+head.w-bw, head.y+(head.h-bh)/2, bw, bh, label,
       backFn || this.close.bind(this), { size: fz(backFn?13:16) });
+  };
+
+  /* ---------------- 立绘呼吸（batch23） ----------------
+     详情页的立绘原本是张完全静止的图，摆在那儿像截图。
+     引擎是 canvas，CSS 动画作用不到 canvas 里的精灵，所以用补间做等价效果：
+     整体沿 y 轴做正弦往返（±1% 卡高），不缩放 —— 缩放会让轮廓线抖动，
+     位置移动则不会。振幅按容器大小算，手机上 2px、宽屏 3~4px。
+     同时只允许一个浮动补间：换页面/重排时必须先停，否则旧补间还在推已销毁的对象。 */
+  UIScene.prototype.floatArt = function(img, baseY, amp){
+    if (!img) return;
+    this.stopFloat();
+    this._floatImg = img;
+    img._floatY = baseY;
+    this._floatTw = this.tweens.add({
+      targets: img, y: baseY - amp, duration: 2400, yoyo: true, repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+    return img;
+  };
+  UIScene.prototype.stopFloat = function(){
+    if (this._floatTw){ this._floatTw.stop(); this._floatTw = null; }
+    var im = this._floatImg;
+    if (im && im.active && typeof im._floatY === 'number') im.y = im._floatY;
+    this._floatImg = null;
   };
 
   /* ---------------- 图鉴：列表 ---------------- */
@@ -9229,9 +9273,7 @@
       if (st >= 0 && this.textures.exists(sp.id+'_'+st)){
         var im = this.add.image(cx+cellW/2, artY, sp.id+'_'+st).setDepth(6);
         im.setScale(artSize/256);
-        if (!got){   // 见过但未收服：暗色剪影
-          if (im.setTintFill) im.setTintFill(0x101a30); else im.setTint(0x18203a);
-        }
+        if (!got) tintSolid(im, SILHOUETTE);   // 见过但未收服：暗色剪影
         this.track(im);
       } else {
         this.utext(cx+cellW/2, artY, '?', Math.round(artSize*0.5), '#37436b');
@@ -9298,26 +9340,21 @@
     await loadTex(this, sp.id+'_'+showSt);
     if (tok !== this._tok) return;
 
-    var artBox = tall
-      ? { x:body.x+body.w*0.5-body.h*0.26, y:body.y, w:body.h*0.52, h:body.h*0.52 }
-      : { x:body.x, y:body.y, w:body.w*0.34, h:Math.min(body.h*0.86, body.w*0.34) };
-    var info = tall
-      ? { x:body.x, y:body.y+artBox.h+this.gap*1.5, w:body.w, h:body.h-artBox.h-this.gap*1.5 }
-      : { x:body.x+artBox.w+this.gap*2, y:body.y, w:body.w-artBox.w-this.gap*2, h:body.h };
-
-    // 立绘卡
-    var cg = this.add.graphics().setDepth(5);
-    cg.fillStyle(0x101830, 0.9); cg.fillRoundedRect(artBox.x, artBox.y, artBox.w, artBox.h, 10);
-    cg.lineStyle(2, isGot ? 0x5a86d6 : 0x40506f, 0.9);
-    cg.strokeRoundedRect(artBox.x, artBox.y, artBox.w, artBox.h, 10);
-    this.track(cg);
-    if (this.textures.exists(sp.id+'_'+showSt)){
-      var size = Math.min(artBox.w, artBox.h)*0.86;
-      var im = this.add.image(artBox.x+artBox.w/2, artBox.y+artBox.h*0.5, sp.id+'_'+showSt).setDepth(6);
-      im.setScale(size/256);
-      if (!isGot){ if (im.setTintFill) im.setTintFill(0x121c34); else im.setTint(0x18203a); }
-      this.track(im);
+    /* ---------- 两段式布局（batch23） ----------
+       第一段：先把内容按「满宽」排出来，量出真实高度。
+       文字换行只取决于栏宽，不取决于起点 y，所以可以放心先排再挪。
+       第二段：算出立绘卡该占多高，把内容整体平移到卡下面。
+       宽屏不走这套：立绘卡直接吃满 body 高，右栏本来就宽，没必要量。 */
+    var artBox = null;
+    var info;
+    if (tall){
+      info = { x:body.x, y:body.y, w:body.w, h:body.h };
+    } else {
+      var artW = Math.min(body.w*0.36, Math.max(body.h*0.56, body.w*0.2));
+      artBox = { x:body.x, y:body.y, w:artW, h:body.h };
+      info = { x:artBox.x+artW+this.gap*2, y:body.y, w:body.w-artW-this.gap*2, h:body.h };
     }
+    var flowFrom = this.ui.length;   // 这之后建的都是「内容」，量完统一平移
 
     // 名称 / 属性
     var y = info.y;
@@ -9328,8 +9365,8 @@
     var nm = this.label(info.x, y, isGot ? sp.stages[d.topGot] : sp.name, fz(20), '#eaf0ff', 6);
     var types = sp.types || [sp.type];
     var bx = info.x + nm.width + fz(10);
-    for (var i=0;i<types.length;i++){
-      var r = this.badge(bx, y+lh*0.5, (SR.TYPES[types[i]]?SR.TYPES[types[i]].name:'—'), types[i], 8);
+    for (var i2=0;i2<types.length;i2++){
+      var r = this.badge(bx, y+lh*0.5, (SR.TYPES[types[i2]]?SR.TYPES[types[i2]].name:'—'), types[i2], 8);
       bx += (r.t.width + fz(16)) + fz(6);
     }
     y += lh*1.34;
@@ -9404,7 +9441,50 @@
       bg.fillStyle(0x6b8cff, 1); bg.fillRoundedRect(rx, by, Math.max(barH, cellW*ratio), barH, barH/2);
       this.track(bg);
     }
-    y += lh*3.0;   // 数值柱画到 2.27lh + barH，留 0.7 行余量，栖息地才不会压在柱子上
+    y += lh*3.15;   // 数值柱画到 2.27lh + barH，留 0.9 行余量，招式标题才不会贴着柱子
+
+    /* 招式（batch23）：图鉴此前只写属性，等于说「它是什么」却不说「它会怎么打你」。
+       而玩家要决定带谁上阵，这条信息比弱点还直接。
+       取满级招式表里最后 4 招 = 成型四招，和队伍详情用同一套配色。 */
+    var mvAll = movesFor(sp, SR.CFG.MAX_LV);
+    var mv = mvAll.slice(Math.max(0, mvAll.length - MAX_MOVES));
+    if (tall){
+      // 竖屏横向只有一栏，四个胶囊排不下 —— 压成一行带属性色的小字
+      this.utext(info.x, y+lh*0.34, '招式', fz(11), '#8fa0cc', 0, 7);
+      var mvt = this.utext(info.x+fz(34), 0, mv.map(function(m){ return m.name; }).join(' · '),
+                           fz(11.5), '#dfe8ff', 0, 7);
+      mvt.setWordWrapWidth(info.w-fz(34), true);
+      mvt.setY(y + mvt.height*0.5);
+      y += mvt.height + this.gap*0.6;
+    } else {
+      this.utext(info.x, y+lh*0.34, '招式 · Lv.'+SR.CFG.MAX_LV+' 成型', fz(11), '#8fa0cc', 0, 7);
+      y += lh*0.86;
+      var mCols = 2, mw2 = (info.w - this.gap)/mCols, mh3 = Math.max(24, Math.round(fz(28)));
+      for (var m3=0;m3<mv.length;m3++){
+        var mo = mv[m3], cc = m3 % mCols, rr2 = Math.floor(m3 / mCols);
+        var mx = info.x + cc*(mw2+this.gap), my = y + rr2*(mh3+this.gap*0.5);
+        var tc = typeC(mo.type), col = Array.isArray(tc)?tc[0]:tc;
+        var mg = this.add.graphics().setDepth(6);
+        mg.fillStyle(0x141c33, 1); mg.fillRoundedRect(mx, my, mw2, mh3, 6);
+        mg.fillStyle(col, 1); mg.fillRoundedRect(mx, my, Math.max(3, mw2*0.022), mh3, 3);
+        this.track(mg);
+        var tn2 = (mo.type==='none') ? '普通' : (SR.TYPES[mo.type]?SR.TYPES[mo.type].name:'—');
+        var pw2 = mo.power > 0 ? ('威力 '+mo.power) : ('变化 · '+fxTag(mo));
+        this.utext(mx+this.gap*0.9, my+mh3*0.5, mo.name+' · '+tn2+' · '+pw2,
+                   Math.max(9, Math.round(fz(11))), '#dfe8ff', 0, 7);
+      }
+      y += Math.ceil(mv.length/mCols)*(mh3+this.gap*0.5) + this.gap*0.8;
+    }
+
+    /* 进化条件（batch23）：形态链只说了「会变成谁」，没说「怎么才变」。
+       羁绊是唯一条件，直接把阈值写出来。 */
+    if (sp.stages.length > 1){
+      var eTxt = [];
+      for (var e2=1;e2<sp.stages.length;e2++) eTxt.push(String(EVO_BOND[e2]));
+      var evoLine = this.utext(info.x, 0, '进化  羁绊 ' + eTxt.join(' → '), fz(11.5), '#9ee6b8', 0, 7);
+      evoLine.setY(y + evoLine.height*0.5);
+      y += evoLine.height + this.gap*0.4;
+    }
 
     // 栖息地（从群系遇敌池反查，说明在哪能找到）
     var homes = [];
@@ -9431,16 +9511,147 @@
     ht.setY(y + ht.height*0.5);
     y += ht.height + this.gap;
 
-    /* 神兽的传说直接在图鉴里给一段 —— 玩家抓到之后想知道「它是什么」，
-       不该被要求回去找那座祭坛。 */
+    /* 形态条（batch23）：三张脸并排，进化链从「一行字」变成「看得见的三个阶段」。
+       没见过的画「—」、见过没抓到的画剪影（和上方主立绘同一套处理），
+       所以没见过的形态不会因为这条提前泄露美术。 */
+    var stripFrom = this.ui.length, stripTop = y, stripH = 0;
+    if (sp.stages.length > 1){
+      var needKs = [];
+      for (var s4=0;s4<sp.stages.length;s4++){
+        if (d.see[s4]) needKs.push(sp.id+'_'+s4);
+      }
+      if (needKs.length) await Promise.all(needKs.map(function(k){ return loadTex(self, k); }));
+      if (tok !== this._tok) return;
+
+      var boxH = Math.max(40, Math.round(fz(54)));
+      var boxW = Math.min(boxH*1.25, (info.w - this.gap*(sp.stages.length-1))/sp.stages.length);
+      var totalW = boxW*sp.stages.length + this.gap*(sp.stages.length-1);
+      var sx0 = info.x + Math.max(0, (info.w-totalW)/2);
+      var nameH = Math.max(9, Math.round(fz(10)));
+      for (var s3=0;s3<sp.stages.length;s3++){
+        var bxx = sx0 + s3*(boxW+this.gap), byy = y;
+        var seen3 = !!d.see[s3], got3 = !!d.got[s3];
+        var sg = this.add.graphics().setDepth(6);
+        sg.fillStyle(0x141c33, 1); sg.fillRoundedRect(bxx, byy, boxW, boxH, 7);
+        sg.lineStyle(1.5, got3 ? 0x5a86d6 : 0x2b3352, 0.9);
+        sg.strokeRoundedRect(bxx, byy, boxW, boxH, 7);
+        this.track(sg);
+        var k3 = sp.id+'_'+s3;
+        if (seen3 && this.textures.exists(k3)){
+          var sz3 = Math.min(boxW, boxH)*0.78;
+          var im3 = this.add.image(bxx+boxW*0.5, byy+boxH*0.5, k3).setDepth(7);
+          im3.setScale(sz3/256);
+          if (!got3) tintSolid(im3, SILHOUETTE);
+          this.track(im3);
+        } else {
+          this.utext(bxx+boxW*0.5, byy+boxH*0.5, seen3 ? '？' : '—', fz(15), '#5f6b8c', 0.5, 7);
+        }
+        this.utext(bxx+boxW*0.5, byy+boxH+nameH*0.75,
+                   got3 ? sp.stages[s3] : (seen3 ? '？？？' : '未知'),
+                   nameH, got3 ? '#c9d6ff' : '#5f6b8c', 0.5, 7);
+      }
+      y += boxH + nameH*1.6 + this.gap*0.6;
+      stripH = y - stripTop;
+    }
+
+    /* ---------- 第二段：定立绘高度，把内容整体挪下去 ---------- */
+    var used = y - info.y;
+    if (tall){
+      /* 立绘上界 = 原来写死的 52%（内容再短也不该比这更占地方）；
+         下界 24%：再小就只剩个图标，认不出是谁。
+         夹取之后剩下的空隙由内容自己吃掉，不再出现"下半屏全空"。 */
+      var maxArt = Math.min(body.h*0.58, body.w*0.95);
+      var minArt = Math.min(body.h*0.24, maxArt);
+      /* 神兽有传说要放（标题 + 两行正文 ≈ 52px）。立绘差几十像素看不出来，
+         传说被挤掉就是实打实少了一段内容，所以先给它留位再从立绘里扣。 */
+      var reserve = (sp.legend && SR.STORY && SR.STORY.beasts && SR.STORY.beasts[sp.id])
+                    ? Math.round(fz(52)) : 0;
+      var artH = clamp(body.h - used - reserve - this.gap*1.8, minArt, maxArt);
+      var cardW = Math.min(body.w, artH*1.02);
+      artBox = { x:body.x+(body.w-cardW)/2, y:body.y, w:cardW, h:artH };
+      var dy = artBox.y + artBox.h + this.gap*1.8 - info.y;
+      for (var q=flowFrom; q<this.ui.length; q++){
+        var ob = this.ui[q];
+        if (ob && typeof ob.y === 'number') ob.y += dy;
+      }
+      info.y += dy;
+      y += dy;
+    } else if (stripH > 0){
+      /* 宽屏右栏按内容长度算下来总会剩一截，把形态条锚到底部：
+         上边是「它是谁」，下边是「它会变成谁」，中间的空当读起来像分组呼吸，
+         比在底部留一块纯背景体面得多。 */
+      var anchor = body.y + body.h - stripH;
+      var dyw = anchor - stripTop;
+      if (dyw > this.gap){
+        for (var q3=stripFrom; q3<this.ui.length; q3++){
+          var ob3 = this.ui[q3];
+          if (ob3 && typeof ob3.y === 'number') ob3.y += dyw;
+        }
+        y += dyw;
+      }
+    }
+
+    /* 立绘卡最后画：尺寸要等量完才知道，但深度比文字低，
+       绘制顺序和压盖关系无关。 */
+    var cg = this.add.graphics().setDepth(5);
+    cg.fillStyle(0x101830, 0.9); cg.fillRoundedRect(artBox.x, artBox.y, artBox.w, artBox.h, 10);
+    cg.lineStyle(2, isGot ? 0x5a86d6 : 0x40506f, 0.9);
+    cg.strokeRoundedRect(artBox.x, artBox.y, artBox.w, artBox.h, 10);
+    this.track(cg);
+    if (this.textures.exists(sp.id+'_'+showSt)){
+      // 宽屏的卡是竖长的，按短边算会留一大圈空白 —— 让宽度说话
+      var size = Math.min(artBox.w*0.94, artBox.h*0.9);
+      var baseY = artBox.y+artBox.h*0.5;
+      var im = this.add.image(artBox.x+artBox.w/2, baseY, sp.id+'_'+showSt).setDepth(6);
+      im.setScale(size/256);
+      if (!isGot) tintSolid(im, SILHOUETTE);
+      this.track(im);
+      // 静止的立绘看着像截图，给一点整体浮动（不缩放，轮廓才不抖）
+      this.floatArt(im, baseY, Math.max(2, Math.round(artBox.h*0.012)));
+    }
+
+    /* 神兽的传说：有位置才放。详情页是一屏到底、不滚动，
+       塞不下就整段丢掉，宁可少一段，也不能让字压到底部按钮上。 */
     if (sp.legend && SR.STORY && SR.STORY.beasts && SR.STORY.beasts[sp.id]){
       var tale = SR.STORY.beasts[sp.id];
+      var keep = this.ui.length, yKeep = y;
       var tt = this.utext(info.x, 0, '『' + tale.title + '』', fz(12), '#ffd98a', 0, 6);
+      tt.setWordWrapWidth(info.w, true);
       tt.setY(y + tt.height*0.5); y += tt.height + this.gap*0.5;
-      var tx = this.utext(info.x, 0, tale.tale.split('\n')[0], fz(11), '#9fb0dd', 0, 6);
+      /* 传说全文是 5~6 段。以前只取第一段，玩家在图鉴里永远读不到故事的后半截，
+         宽屏右栏也因此空一块。现在按剩余高度二分截断 —— 能放多少放多少，
+         截断处补省略号，读起来是「还有下文」，不是「就这么多」。 */
+      var full = String(tale.tale).replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+      var room = body.y + body.h - y - this.gap;
+      var tx = this.utext(info.x, 0, full, fz(11), '#9fb0dd', 0, 6);
       tx.setWordWrapWidth(info.w, true);
+      if (tx.height > room){
+        var lo = 8, hi = full.length, cut = full.slice(0, lo);
+        while (lo <= hi){
+          var mid = (lo + hi) >> 1;
+          tx.setText(full.slice(0, mid) + '……');
+          if (tx.height <= room){ cut = full.slice(0, mid); lo = mid + 1; }
+          else hi = mid - 1;
+        }
+        tx.setText(cut + '……');
+      }
       tx.setY(y + tx.height*0.5); y += tx.height + this.gap;
+      if (y > body.y + body.h + 1){
+        for (var q2=keep; q2<this.ui.length; q2++){
+          if (this.ui[q2] && this.ui[q2].destroy) this.ui[q2].destroy();
+        }
+        this.ui.length = keep;
+        y = yKeep;
+      }
     }
+
+    // 排版自检口：探针靠这几个数判断「有没有溢出 / 立绘吃了多少」
+    this._layout = {
+      tall: tall, artH: Math.round(artBox.h), artW: Math.round(artBox.w),
+      used: Math.round(used), contentBottom: Math.round(y),
+      bodyBottom: Math.round(body.y + body.h),
+      overflow: Math.round(Math.max(0, y - (body.y + body.h)))
+    };
 
     // 底部
     this.makeBtn(foot.x, foot.y, Math.min(foot.w*0.34, fz(160)), foot.h, '← 返回图鉴', function(){
