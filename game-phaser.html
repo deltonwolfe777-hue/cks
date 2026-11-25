@@ -382,10 +382,10 @@
 <div id="pad"><u data-t="u"></u><u data-t="d"></u><u data-t="l"></u><u data-t="r"></u><i></i></div>
 
 <script src="phaser.min.js"></script>
-<script src="phaser-assets.js?v=20261125b"></script>
+<script src="phaser-assets.js?v=20261125c"></script>
 <!-- 剧情文本库（约 40KB，纯文本）。放在 assets 之后：它要往 window.SR 上挂 STORY。
      加载失败不影响游戏 —— 所有读取点都有兜底文案。 -->
-<script src="story.js?v=20261125b"></script>
+<script src="story.js?v=20261125c"></script>
 <script>
 (function () {
   var errEl = document.getElementById('err');
@@ -4798,7 +4798,8 @@
       }
     })(self);
 
-    // 石碑：立着的一块石板，没读过的边缘泛暖光，读过的暗下去    this.stoneMap = {};
+    // 石碑：立着的一块石板，没读过的边缘泛暖光，读过的暗下去
+    this.stoneMap = {};
     (this.ent.stones || []).forEach(function(st){
       var cx = st.x*TILE+TILE/2, cy = st.y*TILE+TILE/2;
       var read = !!LORE_SEEN[st.id];
