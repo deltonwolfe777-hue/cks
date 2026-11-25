@@ -382,10 +382,10 @@
 <div id="pad"><u data-t="u"></u><u data-t="d"></u><u data-t="l"></u><u data-t="r"></u><i></i></div>
 
 <script src="phaser.min.js"></script>
-<script src="phaser-assets.js?v=20261123c"></script>
+<script src="phaser-assets.js?v=20261125a"></script>
 <!-- 剧情文本库（约 40KB，纯文本）。放在 assets 之后：它要往 window.SR 上挂 STORY。
      加载失败不影响游戏 —— 所有读取点都有兜底文案。 -->
-<script src="story.js?v=20261123c"></script>
+<script src="story.js?v=20261125a"></script>
 <script>
 (function () {
   var errEl = document.getElementById('err');
@@ -879,6 +879,45 @@
 
   function hex(n){ return parseInt(String(n).replace('#',''),16); }
   function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
+  /* AI 选招（batch19 新增）。
+     原来是纯随机：伤害招之间随机还看不出来，加了战术招之后就会反复「冥想」
+     白给。这里给每招打分，留 15% 抖动 —— 每次都用最优解会显得很假。 */
+  function aiMove(atk, def){
+    var ms = (atk && atk.moves) ? atk.moves.filter(function(m){ return m && m.name; }) : [];
+    if (!ms.length) return pick((atk && atk.moves) || []);
+    var scored = [], i;
+    for (i=0;i<ms.length;i++){
+      var m = ms[i], fx = m.fx || {}, sc = 0;
+      if (m.power > 0){
+        var tm = mult(m.type, def.species.type);
+        sc = m.power * (tm === 0 ? 0.05 : tm) * (m.type === atk.species.type ? 1.4 : 1);
+      }
+      if (fx.status && !def.status) sc += 62;
+      if (fx.heal){
+        var hr = atk.maxHp ? atk.hp/atk.maxHp : 1;
+        sc += hr < 0.45 ? (0.45 - hr) * 260 : -45;   // 血还厚时别浪费一回合
+      }
+      if (fx.protect) sc += (atk.protectLast ? -70 : 26);
+      if (fx.drain && atk.maxHp && atk.hp/atk.maxHp < 0.6) sc += 30;
+      if (fx.stat){
+        for (var j=0;j<fx.stat.length;j++){
+          var s = fx.stat[j];
+          var who = s.who === 'foe' ? def : atk;
+          var cur = statStage(who, s.k);
+          var room = s.d > 0 ? (STAGE_MAX - cur) : (cur + STAGE_MAX);
+          if (room <= 0) continue;
+          sc += s.who === 'foe' ? 34 : 40;
+        }
+      }
+      sc *= 0.85 + Math.random()*0.3;
+      scored.push({ m:m, sc:sc });
+    }
+    scored.sort(function(a,b){ return b.sc - a.sc; });
+    if (scored.length > 1 && Math.random() < 0.15){
+      return scored[1 + Math.floor(Math.random()*(scored.length-1))].m;
+    }
+    return scored[0].m;
+  }
   function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
   function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
   function rgb(c){ return 'rgb('+Math.round(c[0]*255)+','+Math.round(c[1]*255)+','+Math.round(c[2]*255)+')'; }
@@ -957,9 +996,23 @@
       var need = MOVE_LV[i]||1;
       if (L>=need) list.push({ name:pool[i].name, power:pool[i].power, acc:pool[i].acc, type:sp.type, lv:need });
     }
+    /* 战术招按 lv 插进正确位置，而不是直接 push 到末尾 ——
+       否则 5 级学到的招会排在 16 级招式后面，菜单里的顺序跟解锁顺序对不上。 */
+    var tac = TACTIC_MOVES[sp.type];
+    if (tac && L >= tac.lv){
+      var tm = { name:tac.name, power:(tac.power||0), acc:tac.acc, type:sp.type,
+                 lv:tac.lv, fx:tac.fx, tactic:true };
+      var at = list.length;
+      for (var j=0;j<list.length;j++){ if ((list[j].lv||1) > tm.lv){ at = j; break; } }
+      list.splice(at, 0, tm);
+    }
     /* 神兽的专属招式不是「学会」的，是生来就带着的：1 级起就在手上。
        SIG_BY_SPECIES 在下面 MOVE_BY_NAME 之后填充，var 提升保证这里能读到。 */
-    if (sp.legend && SIG_BY_SPECIES[sp.id]) list.push(SIG_BY_SPECIES[sp.id]);
+    var sgm = (sp.legend && SIG_BY_SPECIES[sp.id]) ? SIG_BY_SPECIES[sp.id] : null;
+    if (sgm){
+      list.push({ name:sgm.name, power:sgm.power, acc:sgm.acc,
+                  type:sgm.type, lv:17, sig:true });
+    }
     return list;
   }
 
@@ -976,6 +1029,35 @@
     { name:'全力一击', power:86, acc:82,  type:'none' },
     { name:'回身闪击', power:64, acc:98,  type:'none' }
   ];
+
+  /* ===== 战术招（batch19）=====
+     在此之前 33 个招式全是伤害：同属性三招只差威力，一回合的决策退化成
+     「算克制 × 挑最大的」。这一层给每个属性配一招非伤害手段，
+     四个招式位才真的构成一个「构筑」。
+     - 威力 0 = 纯效果招，不造成伤害
+     - 带 power 的（寄生藤蔓）= 先打伤害，再按比例吸血
+     fx 字段：
+       status  必定施加状态（'burn'/'paralyze'/...）
+       stat    [{ who:'self'|'foe', k:'atk'|'def'|'spd', d:±1|±2 }]
+       heal    回复自身最大 HP 的比例
+       cure    顺带解除自身异常状态
+       drain   命中后回复「造成伤害」的比例
+       protect 本回合免疫伤害（连续使用会失败）
+     等级统一 5：开局第一只就能拿到，新手第一场仗就有「强化 / 削弱」可学。 */
+  var TACTIC_MOVES = {
+    fire:     { name:'鬼火',     lv:5, acc:95,  fx:{ status:'burn' } },
+    water:    { name:'自我再生', lv:5, acc:100, fx:{ heal:0.40 } },
+    grass:    { name:'寄生藤蔓', lv:5, acc:100, power:55, fx:{ drain:0.55 } },
+    electric: { name:'电磁波',   lv:5, acc:90,  fx:{ status:'paralyze' } },
+    ice:      { name:'冰墙',     lv:5, acc:100, fx:{ protect:1 } },
+    rock:     { name:'坚壁',     lv:5, acc:100, fx:{ stat:[{who:'self',k:'def',d:2}] } },
+    dark:     { name:'挑衅',     lv:5, acc:100, fx:{ stat:[{who:'foe',k:'atk',d:-1}] } },
+    light:    { name:'治愈之光', lv:5, acc:100, fx:{ heal:0.32, cure:1 } },
+    psychic:  { name:'冥想',     lv:5, acc:100, fx:{ stat:[{who:'self',k:'atk',d:1},{who:'self',k:'def',d:1}] } },
+    wind:     { name:'顺风',     lv:5, acc:100, fx:{ stat:[{who:'self',k:'spd',d:2}] } },
+    dragon:   { name:'龙之舞',   lv:5, acc:100, fx:{ stat:[{who:'self',k:'atk',d:1},{who:'self',k:'spd',d:1}] } }
+  };
+  function tacticOf(type){ return TACTIC_MOVES[type] || null; }
   // 相性属性：给每只精灵留一个「可以跨属性学」的方向，克制关系才有搭配可言
   var SUB_TYPE = {
     fire:'wind', water:'ice', grass:'rock', electric:'light', light:'psychic',
@@ -1001,6 +1083,11 @@
       }
     }
     for (k=0;k<COMMON_MOVES.length;k++) MOVE_BY_NAME[COMMON_MOVES[k].name] = COMMON_MOVES[k];
+    for (k in TACTIC_MOVES){
+      var tm2 = TACTIC_MOVES[k];
+      MOVE_BY_NAME[tm2.name] = { name:tm2.name, power:(tm2.power||0), acc:tm2.acc,
+                                 type:k, fx:tm2.fx, tactic:true };
+    }
     MOVE_BY_NAME['撞击'] = { name:'撞击', power:40, acc:100, type:'none' };
   })();
   var MAX_MOVES = 4;
@@ -1036,11 +1123,21 @@
     var extra = inst.moves || [];
     for (i=0;i<extra.length;i++) push(moveByName(extra[i]));
     if (list.length > MAX_MOVES){
-      list.sort(function(a,b){
+      /* 原来一律「按威力取前 4」，战术招威力 0 会被优先砍掉 ——
+         那等于这一层白做了。改成：先保 1 个战术招，其余按威力取最强的。 */
+      var tacs = [], dmgs = [];
+      for (i=0;i<list.length;i++){
+        if (list[i].tactic) tacs.push(list[i]); else dmgs.push(list[i]);
+      }
+      dmgs.sort(function(a,b){
         var dp = (b.power||0) - (a.power||0);
         return dp !== 0 ? dp : (a.name < b.name ? -1 : 1);
       });
-      list.length = MAX_MOVES;
+      var keep = [];
+      if (tacs.length) keep.push(tacs[0]);
+      for (i=0;i<dmgs.length && keep.length<MAX_MOVES;i++) keep.push(dmgs[i]);
+      for (i=1;i<tacs.length && keep.length<MAX_MOVES;i++) keep.push(tacs[i]);
+      list = keep;
     }
     return list;
   }
@@ -1102,7 +1199,11 @@
     var L = lv||20, stats = buildStats(sp,nature,stage,L,damp);
     return { species:sp, stage:stage, nature:nature, lv:L, name:sp.stages[stage],
              stats:stats, hp:stats.hp, maxHp:stats.hp, moves:movesFor(sp,L),
-             status:null };   // 状态异常：null 或 { kind, turns }
+             status:null,     // 状态异常：null 或 { kind, turns }
+             stages:{ atk:0, def:0, spd:0 },   // 能力等级 -2..+2
+             protect:false,
+             // 回复/守护在一场战斗里各限 3 次：没有 PP 系统，不设限就能无限拖时间
+             tacUsed:{ heal:0, protect:0 } };
   }
 
   /* =====================================================================
@@ -1207,7 +1308,10 @@
     var s = spOf(inst.id); if(!s) return empty;
     if (typeof inst.lv!=='number') inst.lv=20;
     if (typeof inst.exp!=='number') inst.exp=0;
-    var from = inst.lv, beforeMoves = movesFor(s, inst.lv).length;
+    var from = inst.lv;
+    /* 不能再用「数组长度差」判断学会了什么：战术招插在中间，
+       会在跨过 5 级那一级把后面的招式错认成新学的。按名字差分才稳。 */
+    var beforeNames = movesFor(s, inst.lv).map(function(m){ return m.name; });
     inst.exp += amount;
     var ups = 0;
     while (inst.lv < SR.CFG.MAX_LV && inst.exp >= expNeed(inst.lv)){
@@ -1218,7 +1322,9 @@
       if (inst.hp!=null) inst.hp = Math.min(newMax, inst.hp + Math.max(0, newMax-oldMax));
     }
     if (inst.lv >= SR.CFG.MAX_LV) inst.exp = 0;
-    var learned = movesFor(s, inst.lv).slice(beforeMoves).map(function(m){ return m.name; });
+    var learned = movesFor(s, inst.lv).filter(function(m){
+      return beforeNames.indexOf(m.name) < 0;
+    }).map(function(m){ return m.name; });
     // 每升一级额外掷一次「灵光」判定；多级连升就掷多次
     var extra = [];
     for (var u=0; u<ups; u++){
@@ -1245,8 +1351,10 @@
     var AL = atk.lv || 20, DL = def.lv || 20;
     var lvl = 50;   // 基础式里的常数项保持不变，避免整条难度曲线平移
     // 灼烧会削攻击（×0.75）：这是灼烧和中毒的分工 —— 中毒磨血，灼烧削输出
-    var atkStat = atk.stats.atk * statusAtkMul(atk);
-    var base = Math.floor(((2*lvl/5+2)*move.power*(atkStat/def.stats.def))/50)+2;
+    // 能力等级直接乘进攻防两端：这就是「强化 / 削弱」能被感知到的唯一位置
+    var atkStat = atk.stats.atk * statusAtkMul(atk) * statMul(atk, 'atk');
+    var defStat = def.stats.def * statMul(def, 'def');
+    var base = Math.floor(((2*lvl/5+2)*move.power*(atkStat/defStat))/50)+2;
     var stab = (move.type===atk.species.type) ? 1.5 : 1;
     var tm = mult(move.type, def.species.type);
     var boost = 1;
@@ -1270,6 +1378,70 @@
     dmg = Math.min(dmg, cap);
     if (tm>0) dmg = Math.max(Math.round(move.power*0.1), dmg);
     return { dmg:Math.max(0,dmg), tm:tm, crit:crit>1, gap:gap, stg:stg };
+  }
+
+  /* ===== 战斗内能力等级（batch19）=====
+     ±2 封顶就够：宝可梦的 ±6 在单机短回合里读不出差别，
+     反而让玩家算不过来。倍率取 0.5 / 0.67 / 1 / 1.5 / 2，
+     一眼能看出「攻↑×1.5」这种整数关系。
+     缺字段一律按 0 处理 —— 测试和旧存档里的战斗对象没有 stages。 */
+  var STAGE_MAX = 2;
+  var STAGE_MUL = [0.5, 0.67, 1, 1.5, 2];   // 索引 = 等级 + 2
+  var STAT_CN = { atk:'攻击', def:'防御', spd:'速度' };
+  function statStage(f, k){
+    if (!f || !f.stages) return 0;
+    var v = f.stages[k];
+    return (typeof v === 'number' && v >= -STAGE_MAX && v <= STAGE_MAX) ? v : 0;
+  }
+  function statMul(f, k){
+    var v = statStage(f, k);
+    return STAGE_MUL[v + STAGE_MAX] || 1;
+  }
+  /* 返回「实际变化量」，0 = 已经到顶/到底 —— 调用方据此决定说哪句话 */
+  function bumpStage(f, k, d){
+    if (!f.stages) f.stages = { atk:0, def:0, spd:0 };
+    var old = statStage(f, k);
+    var nv = clamp(old + d, -STAGE_MAX, STAGE_MAX);
+    f.stages[k] = nv;
+    return nv - old;
+  }
+  /* 战斗立绘头顶的小牌：状态 + 能力变化合成一行字。
+     +1 画一个箭头、+2 画两个 —— 不写数字，免得挤不下。 */
+  function stageTag(f){
+    var out = [], ks = ['atk','def','spd'], sym = { atk:'攻', def:'防', spd:'速' };
+    for (var i=0;i<ks.length;i++){
+      var v = statStage(f, ks[i]);
+      if (!v) continue;
+      var ar = '';
+      for (var j=0;j<Math.abs(v);j++) ar += (v > 0 ? '↑' : '↓');
+      out.push(sym[ks[i]] + ar);
+    }
+    return out.join(' ');
+  }
+  /* 招式按钮/详情页上的一行小字，让「变化」招也读得懂在做什么 */
+  function fxTag(m){
+    if (!m) return '';
+    var fx = m.fx;
+    if (!fx){
+      var st = MOVE_STATUS[m.name];
+      if (!st) return '';
+      var sd = statusDef(st[0]);
+      return (sd ? sd.name : '') + Math.round(st[1]*100) + '%';
+    }
+    if (fx.protect) return '守护';
+    if (fx.heal) return '回复' + Math.round(fx.heal*100) + '%';
+    if (fx.drain) return '吸血' + Math.round(fx.drain*100) + '%';
+    if (fx.status){
+      var s2 = statusDef(fx.status);
+      return s2 ? s2.name : '';
+    }
+    if (fx.stat){
+      return fx.stat.map(function(s){
+        var k = s.k==='atk' ? '攻' : s.k==='def' ? '防' : '速';
+        return (s.who==='foe' ? '敌' : '') + k + (s.d > 0 ? '↑' : '↓');
+      }).join(' ');
+    }
+    return '';
   }
 
   // ===== 全局进度 =====
@@ -7033,7 +7205,10 @@
           var m = mv[idx];
           var tn = (m.type==='none') ? '普' : (SR.TYPES[m.type] ? SR.TYPES[m.type].name : '');
           var c = typeC(m.type), col = Array.isArray(c) ? c[0] : c;
-          list.push([ m.name+' · '+tn+' '+m.power, function(){ self.bMove(idx); }, { accent:col } ]);
+          var pwTxt = m.power > 0 ? String(m.power) : '变化';
+          var mTag = fxTag(m);
+          list.push([ m.name+' · '+tn+' '+pwTxt+(mTag ? ' · '+mTag : ''),
+                      function(){ self.bMove(idx); }, { accent:col } ]);
         })(k);
       }
       list.push(['← 返回', function(){ B.menuState='root'; self.renderMenu(); }, { accent:0x6b7a9e }]);
@@ -7664,14 +7839,20 @@
     ];
     for (var i=0;i<pairs.length;i++){
       var p = pairs[i], d = statusDef(p.f.status && p.f.status.kind);
+      var stg = stageTag(p.f);
+      /* 状态和「攻↑ 防↓」合成一行：两个牌子会互相顶掉，合起来最省地方，
+         也让玩家一眼看到「我现在是强还是弱」。 */
+      var lab = d ? (stg ? d.name + ' ' + stg : d.name) : stg;
       var cur = this[p.tag];
-      if (!d){
+      if (!lab){
         if (cur){ cur.destroy(); this[p.tag] = null; }
         continue;
       }
       if (!cur){
         cur = this[p.tag] = this.add.text(0, 0, '', {
-          fontFamily: FONT, fontSize: this.fz(12)+'px', color:d.color,
+          /* 只有能力等级、没有状态时 d 是 null —— 这里必须兜底，
+             否则「冥想」加防那一下会让 refreshBars 抛异常，第二个属性静默丢掉。 */
+          fontFamily: FONT, fontSize: this.fz(12)+'px', color:(d ? d.color : '#9fb4dd'),
           stroke:'#0b1026', strokeThickness:this.fz(3)
         }).setOrigin(0.5).setDepth(30);
         /* 状态牌不能进 this.ui：buildUI 先记下 menuStart 再 refreshBars，
@@ -7682,8 +7863,8 @@
         if (!this.stFx) this.stFx = [];
         this.stFx.push(cur);
       }
-      cur.setText(d.name);
-      cur.setColor(d.color);
+      cur.setText(lab);
+      cur.setColor(d ? d.color : '#9fb4dd');
       cur.setVisible(true);
       // 竖屏时我方面板正压在精灵头顶，牌子照「头顶往上顶」算就会落进血条里被切掉半截。
       // 撞到面板就往下让到面板下沿 —— 宁可贴着精灵，也不能压血条。
@@ -7698,16 +7879,22 @@
     B.busy = true;
     try {
     var pm = B.player.moves[idx];
-    var em = pick(B.enemy.moves);
-    // 麻痹会把速度砍半，可能直接翻掉出手顺序 —— 这是麻痹最容易被感知的价值
-    var pSpd = B.player.stats.spd * statusSpdMul(B.player);
-    var eSpd = B.enemy.stats.spd * statusSpdMul(B.enemy);
+    var em = aiMove(B.enemy, B.player);
+    // 麻痹会把速度砍半、顺风会翻倍，都可能直接翻掉出手顺序 —— 这是它们最容易被感知的价值
+    var pSpd = B.player.stats.spd * statusSpdMul(B.player) * statMul(B.player, 'spd');
+    var eSpd = B.enemy.stats.spd * statusSpdMul(B.enemy) * statMul(B.enemy, 'spd');
     var first = pSpd >= eSpd;
     var seq = first ? [['p',pm],['e',em]] : [['e',em],['p',pm]];
     for (var i=0;i<seq.length;i++){
       if (!this.B || this.B.over || this.B.force) break;
       if (seq[i][0]==='p') await this.execMove(this.B.player, this.B.enemy, seq[i][1], true);
       else await this.execMove(this.B.enemy, this.B.player, seq[i][1], false);
+    }
+    /* 守护只持续一回合：双方都行动完就摘掉。
+       这样「先手开墙」能挡到后手，「后手开墙」挡不住已经打过来的那一下 ——
+       和直觉一致，也避免了无限对墙。 */
+    if (this.B && !this.B.over){
+      this.B.player.protect = false; this.B.enemy.protect = false;
     }
     // 回合末结算：中毒/灼烧掉血。放在双方都行动完之后，而不是各自行动后，
     // 这样「先手把对手打倒」不会再多算一次毒伤。
@@ -7752,6 +7939,125 @@
     }
   };
 
+  /* 守护拦截：被守护的一方这一回合不受伤害，也不吃对敌的状态/削弱。 */
+  BattleScene.prototype.protectBlock = async function(atk, def, dstSpr){
+    if (!def || !def.protect) return false;
+    this.popNumber(dstSpr.x, dstSpr.y - dstSpr.displayHeight*0.5, '挡住', '#9fb4dd', false);
+    this.say(atk.name+' 的招式被「'+(def.protectMove || '守护')+'」挡住了！');
+    AUDIO.sfx('bump');
+    await this.bwait(400);
+    return true;
+  };
+
+  /* 战术招结算。参数与 execMove 一致，只是不做伤害。 */
+  BattleScene.prototype.execTactic = async function(atk, def, mv, isPlayer, srcSpr, dstSpr){
+    var fx = mv.fx || {};
+    var self = this;
+    var i;
+
+    // 连续守护必失手，否则双方可以一直对墙站到天荒地老
+    if (fx.protect && atk.protectLast){
+      atk.protectLast = false;
+      this.say(atk.name+' 想再用「'+mv.name+'」，但是失败了！');
+      await this.bwait(400);
+      return;
+    }
+
+    // 对敌的效果也要被守护挡住
+    var toFoe = !!fx.status || !!(fx.stat && fx.stat.some(function(s){ return s.who === 'foe'; }));
+    if (toFoe && def.protect){
+      if (await this.protectBlock(atk, def, dstSpr)) return;
+    }
+
+    this.say(atk.name+' 使用「'+mv.name+'」！');
+    await this.bwait(320);
+
+    if (fx.protect){
+      if (!atk.tacUsed) atk.tacUsed = { heal:0, protect:0 };
+      if (atk.tacUsed.protect >= 3){
+        this.say('「'+mv.name+'」在这场比赛里已经用尽了。');
+        await this.bwait(380);
+        return;
+      }
+      atk.tacUsed.protect++;
+      atk.protect = true; atk.protectMove = mv.name;
+      this.popNumber(srcSpr.x, srcSpr.y - srcSpr.displayHeight*0.62, '守护', '#9fe6ff', true);
+      this.say(atk.name+' 张开「'+mv.name+'」，这一回合不会受到伤害。');
+      AUDIO.sfx('select');
+      this.syncStatusFx();
+      await this.bwait(420);
+      return;
+    }
+
+    if (fx.heal){
+      if (!atk.tacUsed) atk.tacUsed = { heal:0, protect:0 };
+      if (atk.tacUsed.heal >= 3 && !fx.cure){
+        this.say('这场战斗里已经没办法再回复了。');
+        await this.bwait(380);
+        return;
+      }
+      if (atk.hp >= atk.maxHp && !fx.cure){
+        this.say(atk.name+' 的体力已经满了，没有效果…');
+        await this.bwait(380);
+        return;
+      }
+      atk.tacUsed.heal++;
+      var amt = Math.max(1, Math.round(atk.maxHp * fx.heal));
+      var bef = atk.hp;
+      atk.hp = Math.min(atk.maxHp, atk.hp + amt);
+      var got = atk.hp - bef;
+      if (got > 0){
+        this.popNumber(srcSpr.x, srcSpr.y - srcSpr.displayHeight*0.55, '+'+got, '#6ee7a1', true);
+        this.say(atk.name+' 回复了 '+got+' 点体力。');
+        AUDIO.sfx('heal');
+      }
+      this.tweenBars(); this.refreshBars();
+      await this.bwait(420);
+    }
+
+    if (fx.cure && atk.status){
+      var oldD = statusDef(atk.status.kind);
+      atk.status = null;
+      this.syncStatusFx(); this.refreshBars();
+      this.say(atk.name+' 身上的「'+(oldD ? oldD.name : '异常')+'」被清除了。');
+      await this.bwait(400);
+    }
+
+    if (fx.status){
+      if (def.status){
+        this.say(def.name+' 已经处于异常状态，没有效果…');
+        await this.bwait(380);
+      } else {
+        var sd = statusDef(fx.status);
+        this.applyStatus(def, dstSpr, fx.status);
+        this.say(def.name+' 陷入了「'+(sd ? sd.name : '')+'」状态！');
+        await this.bwait(440);
+      }
+    }
+
+    if (fx.stat){
+      for (i=0;i<fx.stat.length;i++){
+        var s = fx.stat[i];
+        var who = (s.who === 'foe') ? def : atk;
+        var spr = (s.who === 'foe') ? dstSpr : srcSpr;
+        var nm = STAT_CN[s.k] || s.k;
+        var d = bumpStage(who, s.k, s.d);
+        if (!d){
+          this.say(who.name+' 的'+nm+'已经' + (s.d > 0 ? '到顶了' : '到底了') + '。');
+        } else {
+          var ar = (d > 0 ? '↑' : '↓');
+          if (Math.abs(d) > 1) ar += ar;
+          this.popNumber(spr.x, spr.y - spr.displayHeight*0.62, nm+ar,
+                         d > 0 ? '#ffd93d' : '#9fb0dd', true);
+          this.say(who.name+' 的'+nm + (d > 0 ? '提升了！' : '下降了！'));
+          AUDIO.sfx(d > 0 ? 'item' : 'shake');
+        }
+        this.refreshBars(); this.syncStatusFx();
+        await this.bwait(400);
+      }
+    }
+  };
+
   BattleScene.prototype.execMove = async function(atk, def, mv, isPlayer){
     var B = this.B; if (!B || B.over) return;
     var srcSpr = isPlayer ? this.playerSpr : this.enemySpr;
@@ -7771,6 +8077,19 @@
     if (Math.random()*100 > mv.acc){
       this.say(atk.name+' 的「'+mv.name+'」没有命中！');
       await this.bwait(400);
+      return;
+    }
+
+    // 上一招不是守护，就解掉「连续守护」的判定
+    if (!(mv.fx && mv.fx.protect)) atk.protectLast = false;
+
+    if (await this.protectBlock(atk, def, dstSpr)) return;
+
+    /* 纯效果招（威力 0）直接结算，不走伤害流程 ——
+       否则会先算一次 0 伤害、再飘一个「-0」，玩家会以为是 bug。 */
+    if (mv.fx && !(mv.power > 0)){
+      await this.execTactic(atk, def, mv, isPlayer, srcSpr, dstSpr);
+      atk.protectLast = !!(mv.fx && mv.fx.protect);
       return;
     }
 
@@ -7827,6 +8146,22 @@
     this.say(msg);
 
     await this.bwait(immune?370:410);
+
+    /* 吸血（寄生藤蔓）：按「实际造成的伤害」回血，打空的招不回血。
+       放在倒地判定之前 —— 把对手打倒的同时吸回来，是这类招式的爽点。 */
+    if (mv.fx && mv.fx.drain && r.dmg > 0 && atk.hp > 0){
+      var dAmt = Math.max(1, Math.round(r.dmg * mv.fx.drain));
+      var dBef = atk.hp;
+      atk.hp = Math.min(atk.maxHp, atk.hp + dAmt);
+      var dGot = atk.hp - dBef;
+      if (dGot > 0){
+        this.popNumber(srcSpr.x, srcSpr.y - srcSpr.displayHeight*0.55, '+'+dGot, '#6ee7a1', true);
+        this.say(atk.name+' 吸取了 '+dGot+' 点体力。');
+        this.refreshBars();
+        await this.bwait(380);
+      }
+    }
+
     if (def.hp <= 0){ await this.onFaint(isPlayer ? 'enemy' : 'player'); return; }
 
     /* ---- 状态附加 ----
@@ -8958,7 +9293,8 @@
       this.track(mg);
       var sw = Math.max(8, Math.round(fz(9)));
       var tn = (mo.type==='none') ? '普通' : (SR.TYPES[mo.type]?SR.TYPES[mo.type].name:'—');
-      this.utext(mx+this.gap*0.9, my+mh2*0.5, mo.name+' · '+tn+' · 威力 '+mo.power,
+      var pwTxt2 = mo.power > 0 ? ('威力 '+mo.power) : ('变化 · '+fxTag(mo));
+      this.utext(mx+this.gap*0.9, my+mh2*0.5, mo.name+' · '+tn+' · '+pwTxt2,
                  Math.max(9, Math.round(fz(11))), '#dfe8ff', 0, 7);
     }
     y += Math.ceil(mv.length/mCols)*(mh2+this.gap*0.5) + this.gap*1.2;
