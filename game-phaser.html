@@ -382,10 +382,10 @@
 <div id="pad"><u data-t="u"></u><u data-t="d"></u><u data-t="l"></u><u data-t="r"></u><i></i></div>
 
 <script src="phaser.min.js"></script>
-<script src="phaser-assets.js?v=20261125a"></script>
+<script src="phaser-assets.js?v=20261125b"></script>
 <!-- 剧情文本库（约 40KB，纯文本）。放在 assets 之后：它要往 window.SR 上挂 STORY。
      加载失败不影响游戏 —— 所有读取点都有兜底文案。 -->
-<script src="story.js?v=20261125a"></script>
+<script src="story.js?v=20261125b"></script>
 <script>
 (function () {
   var errEl = document.getElementById('err');
@@ -661,17 +661,17 @@
   var LEGEND_SITES = [
     { id:'s41', region:'town',   at:[9,7],   slot:'cleared', lv:46,
       intro:'广场边缘的石阶上多了一顶没有主人的冠。它一直在等你把八枚徽章和一件旧债都还清。' },
-    { id:'s42', region:'hollow', at:[13,8],  slot:'night',   lv:50,
+    { id:'s42', region:'hollow', at:[13,8],  slot:'roam',    lv:50, minBadges:4,
       intro:'回廊的穹顶裂开一道缝，缝里是星。有什么东西正从星的那边垂下来。' },
-    { id:'s43', region:'meadow', at:[36,29], slot:'dusk',    lv:42,
+    { id:'s43', region:'meadow', at:[36,29], slot:'roam',    lv:42, minBadges:4,
       intro:'低语森林最深处的老树下，年轮自己转了一圈。整片林子同时安静下来。' },
-    { id:'s44', region:'frost',  at:[34,30], slot:'day',     lv:44,
+    { id:'s44', region:'frost',  at:[34,30], slot:'roam',    lv:44, minBadges:4,
       intro:'龙脊山道的风停了。不是变小，是停——像有谁按住了一整片天空。' },
-    { id:'s45', region:'dunes',  at:[20,27], slot:'day',     lv:43,
+    { id:'s45', region:'dunes',  at:[20,27], slot:'roam',    lv:43, minBadges:4,
       intro:'沙丘下面传来一声很低的、像山在翻身的声音。脚下的沙开始往两边退。' },
-    { id:'s46', region:'lake',   at:[29,16], slot:'night',   lv:41,
+    { id:'s46', region:'lake',   at:[29,16], slot:'roam',    lv:41, minBadges:4,
       intro:'湖心浮起一圈涟漪，却没有风。水面下有个轮廓，比整片湖还大。' },
-    { id:'s47', region:'ember',  at:[29,15], slot:'day',     lv:45,
+    { id:'s47', region:'ember',  at:[29,15], slot:'roam',    lv:45, minBadges:4,
       intro:'熔岩环中央的火柱忽然不再往上升，而是收拢成一只眼睛的形状。' },
     { id:'s48', region:'hollow', at:[21,12], slot:'void',    lv:52,
       intro:'虚空重新睡下去之后，回廊深处多了一扇门。门后面是所有你没走过的路。' }
@@ -679,6 +679,101 @@
   var LEGEND_BY_ID = {}; LEGEND_SITES.forEach(function(s){ LEGEND_BY_ID[s.id] = s; });
   function legendSiteOf(id){ return LEGEND_BY_ID[id] || null; }
   function legendOf(id){ var sp = spOf(id); return (sp && sp.legend) ? sp : null; }
+
+  /* =====================================================================
+     神兽巡游（batch20）
+
+     原来八只神兽各钉死在一个坐标 + 一个时段上：走完八张图，玩家就等于把
+     名单背下来了 —— 「哪只在哪里」是确定的，没有「今天会碰到谁」这回事。
+
+     现在改成三层随机：
+       1) 每张图一个候选池（LEGEND_ROAM），按「游戏日」轮换驻场。
+          今天湖里是水之王，明天可能是宇宙龙。
+       2) 祭坛位置从该图几个候选点里换（LEGEND_SPOTS），没法靠坐标背图。
+       3) 进图后有 18% 概率被驻场的那只「拦路」，不走祭坛也能直接撞上。
+     轮换只在「还没收服」的候选里进行，免得抓到的那只天天占着岗、
+     另一只永远排不到。s41（通关后）与 s48（虚空后）仍由剧情解锁。
+     ===================================================================== */
+  var LEGEND_ROAM = {
+    town:   ['s41'],
+    meadow: ['s43','s46'],
+    lake:   ['s46','s42'],
+    dunes:  ['s45','s43'],
+    ember:  ['s47','s45'],
+    frost:  ['s44','s42'],
+    hollow: ['s48','s42']
+  };
+  /* 每张图的祭坛候选点。坐标都落在 [2, W-3] × [2, H-3] 内。 */
+  var LEGEND_SPOTS = {
+    town:   [[9,7],[17,12]],
+    meadow: [[36,29],[18,22],[28,33]],
+    lake:   [[29,16],[12,25],[38,10]],
+    dunes:  [[20,27],[38,32],[14,12]],
+    ember:  [[29,15],[13,24],[36,26]],
+    frost:  [[34,30],[16,18],[41,12]],
+    hollow: [[13,8],[21,12],[31,20]]
+  };
+  function legendDay(){ return (G.day|0) || 0; }
+  function strHash(s){
+    var h = 7, i;
+    for (i=0;i<s.length;i++) h = (h*31 + s.charCodeAt(i)) | 0;
+    return Math.abs(h);
+  }
+  function legendCaught(id){ return !!(G.flags.legendCaught && G.flags.legendCaught[id]); }
+  /* 今天这张图驻场的是谁；池子全收服了就返回 null（祭坛不再出现） */
+  function legendVisitor(region){
+    var pool = (LEGEND_ROAM[region] || []).filter(function(id){ return !legendCaught(id); });
+    if (!pool.length) return null;
+    var k = legendDay() + strHash(region);
+    return pool[((k % pool.length) + pool.length) % pool.length];
+  }
+  /* 本图当前该出现的祭坛（含随机位置）；没有就返回 null */
+  function legendSiteFor(region){
+    var id = legendVisitor(region);
+    if (!id) return null;
+    var site = legendSiteOf(id);
+    if (!site) return null;
+    var spots = LEGEND_SPOTS[region] || [site.at || [10,10]];
+    var k = legendDay() + strHash(region + '#spot');
+    var at = spots[((k % spots.length) + spots.length) % spots.length];
+    return { id:site.id, region:region, at:at, slot:site.slot, lv:site.lv,
+             intro:site.intro, minBadges:(site.minBadges || 0) };
+  }
+  /* 图鉴要回答「去哪找」：列出这只可能出现在哪几张图 */
+  function legendRegionsOf(id){
+    var out = [], k;
+    for (k in LEGEND_ROAM) if (LEGEND_ROAM[k].indexOf(id) >= 0) out.push(k);
+    return out;
+  }
+
+  /* 拦路：巡游神兽有时不待在祭坛上，而是你刚踏进这片地界时挡住去路。
+     每天每张图只掷一次骰 —— 掷空也算用掉，免得来回走两步就必中。 */
+  /* 概率放成一个可读写的对象而不是常量：探针要把它钉成 1 来验证拦路流程，
+     直接改 Math.random 会把 Phaser 的纹理 UUID 也一起钉死（重复 key）。 */
+  var AMBUSH_RATE = { chance: 0.18 };
+  function legendAmbush(world){
+    if (!world || world.inBattle || world.switching || world.talking || world.uiOpen) return false;
+    if (Date.now() - (world._regionAt || 0) < 6000) return false;   // 避开地名条与区域旁白
+    var key = legendDay() + ':' + G.region;
+    if (!G.flags.ambush) G.flags.ambush = {};
+    if (G.flags.ambush[key]) return false;
+    var site = legendSiteFor(G.region);
+    if (!site) return false;
+    if (!legendReady(site)) return false;
+    G.flags.ambush[key] = 1;
+    if (Math.random() >= AMBUSH_RATE.chance) { saveG(); return false; }
+    if (!world.readyToBattle()) return false;
+    saveG();
+    var sp = legendOf(site.id), nm = sp ? sp.stages[0] : '？';
+    world.showToast(nm + ' 拦住了去路！');
+    world.time.delayedCall(900, function(){
+      // 这 0.9 秒里玩家可能已经过了门、进了别的战斗 —— 都别再开一场
+      if (!world.scene || !world.scene.isActive()) return;
+      if (world.inBattle || world.switching || DLG.open || CHOICE.open) return;
+      world.startLegendBattle(site);
+    });
+    return true;
+  }
 
   /* 当前时段。用 CLOCK.t 换算成玩家看得懂的四个词，
      而不是直接把 0..1 的相位丢给玩家看。 */
@@ -690,7 +785,7 @@
     return 'day';
   }
   var SLOT_CN = { day:'白天', night:'夜晚', dusk:'黄昏', dawn:'黎明',
-                  cleared:'通关之后', void:'虚空之后' };
+                  cleared:'通关之后', void:'虚空之后', roam:'每日巡游' };
   /* 距离下一个目标时段还有多少秒 —— 祭坛提示用，让「等」变成可预期的事 */
   function slotWaitSec(slot){
     var t = ((CLOCK.t % 1) + 1) % 1;
@@ -706,6 +801,9 @@
     if (G.flags.legendCaught && G.flags.legendCaught[site.id]) return false;
     if (site.slot === 'cleared') return !!G.cleared;
     if (site.slot === 'void')    return !!G.flags.voidBeat;
+    /* 巡游的不再卡时段（已经卡了「今天是它驻场」），
+       只卡进程：徽记太少时它根本不愿现身。 */
+    if (site.slot === 'roam')    return badgeN() >= (site.minBadges || 0);
     var s = nowSlot();
     if (site.slot === 'day')   return s === 'day';
     if (site.slot === 'night') return s === 'night';
@@ -719,6 +817,11 @@
     if (G.flags.legendCaught && G.flags.legendCaught[site.id]) return nm + ' 已经与你同行。祭坛空着。';
     if (site.slot === 'cleared') return '祭坛沉睡着，还不到时候。通关之后再回来。';
     if (site.slot === 'void')    return '门还没有出现。先让虚空重新睡下去。';
+    if (site.slot === 'roam'){
+      if (badgeN() < (site.minBadges || 0))
+        return nm + ' 的气息还压得很远 —— 集齐 ' + (site.minBadges || 0) + ' 枚徽记再回来。';
+      return '祭坛亮了——' + nm + ' 今天正好巡游到这里。';
+    }
     if (legendReady(site)) return '祭坛亮了——' + nm + ' 就在光里。';
     var w = slotWaitSec(site.slot);
     return nm + ' 只在「' + SLOT_CN[site.slot] + '」出现 · 还要等约 ' + w + ' 秒';
@@ -1569,6 +1672,8 @@
           if (GYM_BY_KEY[k] && G.badges.indexOf(k) < 0) G.badges.push(k);
         });
         G.cleared = !!s.cleared;
+        // 巡游轮换的日计数。老存档没有这个字段 → 从 0 开始，不影响别的进度
+        G.day = (typeof s.day === 'number' && s.day >= 0) ? (s.day|0) : 0;
         G.flags = (s.flags && typeof s.flags === 'object' && !Array.isArray(s.flags)) ? s.flags : {};
         // 老存档没有 region 字段：一律送回灵契镇，坐标也重置（旧的大陆坐标在新图上没意义）
         G.region = (typeof s.region === 'string' && REGION_BY_KEY[s.region]) ? s.region : 'town';
@@ -1600,6 +1705,7 @@
         party:G.party, box:G.box, balls:G.balls, ballTopUp:true, activeIdx:G.activeIdx, defeated:G.defeated,
         badges:G.badges, flags:G.flags, cleared:G.cleared,
         region:G.region, pos:G.pos, dex:G.dex, bag:G.bag,
+        day:G.day|0,           // 神兽巡游按这个天数轮换，必须跟着存档走
         at:Date.now()          // 存档页要显示「什么时候存的」
       }));
     }catch(e){}
@@ -2061,12 +2167,14 @@
 
     /* 神兽祭坛：本图有神兽才放一座。放在最后，让它优先占用「离群系中心最近」
        的那个空位 —— 祭坛是这一带最显眼的东西，不该被普通道具挤到角落。 */
-    LEGEND_SITES.forEach(function(site){
-      if (site.region !== R.key) return;
-      var p = snapWalkable(grid, reachable, occupied, site.at[0], site.at[1]);
-      occupied.add(kOf(p.x,p.y));
-      ent.altars.push({ id:site.id, x:p.x, y:p.y, spr:null, orb:null });
-    });
+    /* 本图只放一座祭坛，而且放的是「今天巡游到这里的」那一只。
+       位置也跟着日子换，玩家没法靠坐标背图。 */
+    var lsite = legendSiteFor(R.key);
+    if (lsite){
+      var ap = snapWalkable(grid, reachable, occupied, lsite.at[0], lsite.at[1]);
+      occupied.add(kOf(ap.x,ap.y));
+      ent.altars.push({ id:lsite.id, x:ap.x, y:ap.y, spr:null, orb:null });
+    }
 
     /* 石碑：本图的所有碑文。位置不够（被建筑/水面占了）就就近吸附，
        吸附不到就跳过 —— 宁可少一块碑，也不能把石头摆进墙里。 */
@@ -2811,6 +2919,8 @@
     if (document.body.classList.contains('battle')) return false;
     // 换图后的 5.2 秒留给地名条和「首次踏入」旁白；两段一起弹会互相抢注意力
     if (Date.now() - (world._regionAt || 0) < 5200) return false;
+    /* 拦路神兽：放在主线之前判，免得「刚演完一场戏」把当天的机会吞掉 */
+    legendAmbush(world);
     // 上一场戏收官后留 4.5 秒，别让两场对话无缝接上
     if (Date.now() - (world._storyAt || 0) < 4500) return false;
     var n = mainNext();
@@ -5632,6 +5742,10 @@
   WorldScene.prototype.startLegendBattle = function(site){
     var sp = legendOf(site.id);
     if (!sp) return;
+    /* 防重入：拦路判定是按「进图多久」算的，玩家正好在切图或刚打完一场，
+       条件又满足就会把 battle 场景叠起来跑两份，新那份拿不到渲染上下文，
+       报「drawImage of null」。祭坛点击与拦路共用这个入口，必须在这儿拦。 */
+    if (this.inBattle || this.scene.isActive('battle')) return;
     cancelTalk();
     /* 神兽全额兑现进化倍率（damp=1）：它不是「长成那个样子」，
        它是真的那么强。STAGE_DAMP 那套打折只适用于野生个体。 */
@@ -6089,7 +6203,11 @@
   };
 
   WorldScene.prototype.tickAmbient = function(dt){
-    CLOCK.t = (CLOCK.t + dt/DAY_LEN) % 1;
+    var _nt = CLOCK.t + dt/DAY_LEN;
+    /* 跨过一天：神兽换班。存一下盘，否则刷新页面会退回同一天、
+       同一只神兽永远驻场。一昼夜 5 分钟，写盘频率可以接受。 */
+    if (_nt >= 1){ G.day = (G.day|0) + 1; saveG(); }
+    CLOCK.t = _nt % 1;
     var ph = dayPhase(CLOCK.t);
     // 影蚀回廊：不管外面几点，这里的天从来亮不起来（暗色蒙版压到 0.34 起）
     var dark = !!(CUR_REGION && CUR_REGION.dark);
@@ -8971,10 +9089,12 @@
       /* 神兽不在野外刷新，用「祭坛 + 时段」代替栖息地 ——
          图鉴是玩家查「去哪找」的地方，给一句「暂未发现」等于没有信息。 */
       var site = legendSiteOf(sp.id);
-      var R0 = site ? REGION_BY_KEY[site.region] : null;
-      var whenTxt = site ? SLOT_CN[site.slot] : '';
-      var got = G.flags.legendCaught && G.flags.legendCaught[sp.id];
-      homes.push('神兽祭坛 · ' + (R0 ? R0.name : '？') + ' · ' + whenTxt
+      var regs = legendRegionsOf(sp.id).map(function(k){
+        return REGION_BY_KEY[k] ? REGION_BY_KEY[k].name : k;
+      });
+      var whenTxt = site ? (SLOT_CN[site.slot] || '') : '';
+      var got = legendCaught(sp.id);
+      homes.push('神兽祭坛 · ' + (regs.length ? regs.join('／') : '？') + ' · ' + whenTxt
                  + (got ? '（已收服）' : ''));
     }
     BIOMES.forEach(function(bm){
@@ -9662,7 +9782,10 @@
       mainNow:mainNow, mainNext:mainNext, mainTick:mainTick, MAIN_FLOW:MAIN_FLOW, markMainDone:markMainDone,
       ensureArt:ensureArt, prewarmArt:prewarmArt, loadTex:loadTex,
       openLore:openLore, closeLore:closeLore, openChronicle:openChronicle,
-      LEGEND_SITES:LEGEND_SITES, legendReady:legendReady, nowSlot:nowSlot };
+      LEGEND_SITES:LEGEND_SITES, legendReady:legendReady, nowSlot:nowSlot,
+      legendSiteFor:legendSiteFor, legendVisitor:legendVisitor, legendDay:legendDay,
+      legendAmbush:legendAmbush, LEGEND_ROAM:LEGEND_ROAM, LEGEND_SPOTS:LEGEND_SPOTS,
+      AMBUSH_RATE:AMBUSH_RATE };
   } catch(e){}
 
   /* 离线缓存。GitHub Pages 的 Cache-Control 固定 10 分钟且改不了，
