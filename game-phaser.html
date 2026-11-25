@@ -382,10 +382,10 @@
 <div id="pad"><u data-t="u"></u><u data-t="d"></u><u data-t="l"></u><u data-t="r"></u><i></i></div>
 
 <script src="phaser.min.js"></script>
-<script src="phaser-assets.js?v=20261125d"></script>
+<script src="phaser-assets.js?v=20261125e"></script>
 <!-- 剧情文本库（约 40KB，纯文本）。放在 assets 之后：它要往 window.SR 上挂 STORY。
      加载失败不影响游戏 —— 所有读取点都有兜底文案。 -->
-<script src="story.js?v=20261125d"></script>
+<script src="story.js?v=20261125e"></script>
 <script>
 (function () {
   var errEl = document.getElementById('err');
@@ -953,6 +953,9 @@
        不走对话 —— openUI 会被 talking 拦住。 */
     { key:'shopkeep', name:'杂货铺 老板', role:'shop', acc:'hat', vk:'shop',
       cloth:'#D8B87C', cloth2:'#8A6A3A', hair:'#4A3A2A', region:'town', at:[11,14] },
+    /* 试炼塔守门人（batch22）：通关后才肯放人进塔 */
+    { key:'towerkeep', name:'试炼塔 守门人', role:'tower', acc:'hood',
+      cloth:'#8A7AB8', cloth2:'#3A3058', hair:'#D8D0F0', region:'town', at:[15,16] },
 
     { key:'mira',  name:'学徒 小满', role:'mira',  acc:'twintail',
       cloth:'#E8A0B8', cloth2:'#B06080', hair:'#3A2A1A', region:'meadow', at:[24,13] },
@@ -1643,6 +1646,8 @@
     /* 金币（batch21）：打赢才来钱，商店只进不出不回血。
        不做「卖精灵换钱」——那会诱导玩家把伙伴当资源，和整个游戏的调性冲突。 */
     money: 0,
+    // 试炼塔最高层数（batch22）。0 = 还没打过
+    towerBest: 0,
     activeIdx: 0,
     defeated: [],
     // 徽章：存道馆 key。顺序即获得顺序，徽章盒子按 GYMS 顺序展示
@@ -1726,6 +1731,7 @@
         G.day = (typeof s.day === 'number' && s.day >= 0) ? (s.day|0) : 0;
         // 老存档没有金币字段 → 从 0 起，不补发（补发会让老玩家和新玩家起跑线错位）
         G.money = (typeof s.money === 'number' && s.money >= 0) ? Math.floor(s.money) : 0;
+        G.towerBest = (typeof s.towerBest === 'number' && s.towerBest >= 0) ? Math.floor(s.towerBest) : 0;
         G.flags = (s.flags && typeof s.flags === 'object' && !Array.isArray(s.flags)) ? s.flags : {};
         // 老存档没有 region 字段：一律送回灵契镇，坐标也重置（旧的大陆坐标在新图上没意义）
         G.region = (typeof s.region === 'string' && REGION_BY_KEY[s.region]) ? s.region : 'town';
@@ -1764,6 +1770,7 @@
         region:G.region, pos:G.pos, dex:G.dex, bag:G.bag,
         day:G.day|0,           // 神兽巡游按这个天数轮换，必须跟着存档走
         money:G.money|0,
+        towerBest:G.towerBest|0,
         at:Date.now()          // 存档页要显示「什么时候存的」
       }));
     }catch(e){}
@@ -5831,10 +5838,19 @@
     if (!this.readyToBattle()) return;
     cancelTalk();
     var team = [], i;
+    var boost = (typeof opt.boost === 'number' && opt.boost > 0) ? opt.boost : 1;
     for (i=0; i<opt.team.length; i++){
       var e = opt.team[i], sp = spOf(e[0]);
       if (sp){
-        team.push(buildFighter(sp, e[1], findNature('固执'), e[2], STAGE_DAMP));
+        var f = buildFighter(sp, e[1], findNature('固执'), e[2], STAGE_DAMP);
+        /* 试炼塔高层用（batch22）：等级到 MAX_LV 就封顶了，
+           再往上只能靠属性倍率，否则第 10 层和第 30 层一样好打。 */
+        if (boost !== 1){
+          ['atk','def','spd'].forEach(function(k){ f.stats[k] = Math.round(f.stats[k] * boost); });
+          f.maxHp = Math.round(f.maxHp * boost);
+          f.hp = f.maxHp;
+        }
+        team.push(f);
         dexSee(sp.id, e[1]);
       }
     }
@@ -5864,6 +5880,71 @@
         ref:{ key:g.key, gym:true, name:g.leader }
       });
     }, this);
+  };
+
+  /* ===== 试炼塔（batch22） =====
+     通关后的长期玩法：一层接一层打，输了收工，记最高层。
+     复用 startBossBattle —— 塔战和馆主战在结构上没有区别，
+     只是打完之后不结束、直接开下一层。 */
+  var TOWER_BASE_LV = 38;      // 第 1 层的对手等级
+  var TOWER_LV_STEP = 2;       // 每层涨多少级
+  var TOWER_FLOOR_GOLD = 200;  // 每层基础奖金
+  var TOWER_GOLD_STEP = 100;   // 每层递增多少
+
+  // 层数 → 对手数量。夹在 1~3：再多就变成拖时间而不是难度
+  function towerCount(n){ return n < 3 ? 1 : (n < 7 ? 2 : 3); }
+  function towerLevel(n, i){ return clamp(TOWER_BASE_LV + n * TOWER_LV_STEP + (i||0), 2, SR.CFG.MAX_LV); }
+  function towerReward(n){ return TOWER_FLOOR_GOLD + n * TOWER_GOLD_STEP; }
+  // 等级到 50 就封顶了，7 层之后靠属性倍率继续加压：每层 +6%
+  function towerBoost(n){ return 1 + Math.max(0, n - 7) * 0.06; }
+
+  WorldScene.prototype.talkTower = function(){
+    var self = this, best = G.towerBest|0;
+    if (!G.cleared){
+      say([
+        { who:'守门人', text:'这座塔不迎接还没走到终点的人。' },
+        { who:'守门人', text:'先去把八枚徽章集齐，站到冠军面前。活着回来，我再跟你谈里面的事。' }
+      ], null, this);
+      return;
+    }
+    say([
+      { who:'守门人', text:'试炼塔没有尽头。每上一层，对手就多一分不讲道理。' },
+      { who:'守门人', text:'塔里没有补给，也不会替你回血。能带你进去的只有你自己带的那些东西。' },
+      { who:'守门人', text: best > 0
+          ? ('你最高走到第 '+best+' 层。还想再试一次？')
+          : '还没有人在这里留下记录。要试试吗？' }
+    ], function(){
+      buildChoice({
+        title: '试炼塔', sub: best > 0 ? '最佳记录 · 第 '+best+' 层' : '尚无记录',
+        options: [
+          { label: '从第 1 层开始', value: 'go' },
+          { label: '先不了', value: 'no' }
+        ]
+      }, function(v){
+        if (v === 'go') self.startTowerFloor(1);
+      }, self);
+    }, this);
+  };
+
+  WorldScene.prototype.startTowerFloor = function(n){
+    n = Math.max(1, n|0);
+    if (!this.readyToBattle()) return;
+    cancelTalk();
+    // 池子排除神兽：塔里不该刷出八神兽，那是主线的东西
+    var pool = SR.SPIRITS.filter(function(s){ return !s.legend; });
+    if (!pool.length) return;
+    var cnt = towerCount(n), team = [], i;
+    for (i=0;i<cnt;i++){
+      var sp = pool[Math.floor(Math.random()*pool.length)];
+      // 每 6 层提一阶，让「层数」也体现在形态上，不只有等级
+      var stage = Math.min(maxStageOf(sp), Math.floor(n/6));
+      team.push([sp.id, stage, towerLevel(n, i)]);
+    }
+    this.startBossBattle({
+      team: team, name: '试炼塔 第 '+n+' 层', tier:'tower', biomeKey:'ruins',
+      boost: towerBoost(n),
+      ref: { key:'tower', tower:true, floor:n }
+    });
   };
 
   WorldScene.prototype.startShadowBattle = function(){
@@ -6145,6 +6226,7 @@
     if (n.role === 'lumen') return this.talkLumen();
     if (n.role === 'villain') return this.talkVillain(n.vk || n.key);
     if (n.role === 'shop')   return this.openUI('shop');
+    if (n.role === 'tower')  return this.talkTower();
   };
 
   /* =====================================================================
@@ -8832,6 +8914,18 @@
         } else {
           extra = '🌑 再次战胜 ' + ((V && V.name) || t.name);
         }
+      } else if (t && t.tower){
+        /* 塔战：给奖金、刷纪录、安排下一层。
+           注意这里不 finish —— 由下面的 afterTower 在场景恢复后再开，
+           否则会在同一帧里 stop 又 launch，渲染上下文会打架。 */
+        var fl = Math.max(1, t.floor|0), bonus = towerReward(fl);
+        G.money = (G.money|0) + bonus;
+        var isRecord = fl > (G.towerBest|0);
+        if (isRecord) G.towerBest = fl;
+        saveG();
+        extra = '🏯 第 '+fl+' 层通过 · +'+fmtMoney(bonus) + (isRecord ? '　·　新纪录' : '');
+        this._towerNext = fl + 1;
+        endToast = extra;
       } else if (t && t.champion){
         G.cleared = true; saveG();
         extra = '👑 击败冠军 曜';
@@ -8853,7 +8947,25 @@
       await this.bwait(700);
     }
     await this.bwait(400);
+    var towerNext = this._towerNext | 0;
+    this._towerNext = 0;
     this.finish(endToast);
+    // finish 已经把 world resume 回来了，这里再排下一层
+    if (towerNext) this.scheduleTowerFloor(towerNext);
+  };
+
+  /* 塔战续层：等场景真的恢复干净再开下一场。
+     中途玩家可能开了 UI、触发了对话、或者干脆站着不动 —— 都得让路。 */
+  BattleScene.prototype.scheduleTowerFloor = function(n){
+    var world = this.inData && this.inData.world;
+    if (!world) return;
+    world.time.delayedCall(1500, function(){
+      if (!world.scene || !world.scene.isActive()) return;
+      if (world.inBattle || world.uiOpen || world.talking) return;
+      if (typeof DLG !== 'undefined' && DLG.open) return;
+      if (typeof CHOICE !== 'undefined' && CHOICE.open) return;
+      world.startTowerFloor(n);
+    });
   };
 
   /* 战斗结算的金币（batch21）
@@ -8893,7 +9005,16 @@
     G.region = 'town';
     G.pos = { x:TOWN.hub[0], y:TOWN.hub[1]+2 };
     saveG();
-    this.finish('你被送回了灵契镇，队伍已恢复', true, 'town');
+    var towerMsg = null;
+    if (B.trainerRef && B.trainerRef.tower){
+      var diedAt = Math.max(1, B.trainerRef.floor|0);
+      var bestNow = G.towerBest|0;
+      // 到过的最深层就是「死掉的那层 - 1」，但只有超过旧纪录才算数
+      if (diedAt - 1 > bestNow) G.towerBest = diedAt - 1;
+      saveG();
+      towerMsg = '🏯 倒在第 '+diedAt+' 层 · 最佳 '+(G.towerBest|0)+' 层';
+    }
+    this.finish(towerMsg || '你被送回了灵契镇，队伍已恢复', true, 'town');
   };
 
   BattleScene.prototype.finish = function(toastMsg, teleport, regionKey){
@@ -10166,7 +10287,9 @@
       LEGEND_SITES:LEGEND_SITES, legendReady:legendReady, nowSlot:nowSlot,
       legendSiteFor:legendSiteFor, legendVisitor:legendVisitor, legendDay:legendDay,
       legendAmbush:legendAmbush, LEGEND_ROAM:LEGEND_ROAM, LEGEND_SPOTS:LEGEND_SPOTS,
-      AMBUSH_RATE:AMBUSH_RATE };
+      AMBUSH_RATE:AMBUSH_RATE,
+      towerReward:towerReward, towerCount:towerCount, towerLevel:towerLevel,
+      towerBoost:towerBoost };
   } catch(e){}
 
   /* 离线缓存。GitHub Pages 的 Cache-Control 固定 10 分钟且改不了，
