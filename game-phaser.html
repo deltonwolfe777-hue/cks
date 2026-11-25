@@ -382,10 +382,10 @@
 <div id="pad"><u data-t="u"></u><u data-t="d"></u><u data-t="l"></u><u data-t="r"></u><i></i></div>
 
 <script src="phaser.min.js"></script>
-<script src="phaser-assets.js?v=20261125c"></script>
+<script src="phaser-assets.js?v=20261125d"></script>
 <!-- 剧情文本库（约 40KB，纯文本）。放在 assets 之后：它要往 window.SR 上挂 STORY。
      加载失败不影响游戏 —— 所有读取点都有兜底文案。 -->
-<script src="story.js?v=20261125c"></script>
+<script src="story.js?v=20261125d"></script>
 <script>
 (function () {
   var errEl = document.getElementById('err');
@@ -949,6 +949,10 @@
       cloth:'#C8A860', cloth2:'#8A6A2A', hair:'#E8E4D8', region:'town', at:[15,11] },
     { key:'lumen', name:'冠军 曜',   role:'lumen', acc:'crown',
       cloth:'#F0D060', cloth2:'#A88018', hair:'#F8F0D8', region:'town', at:[16,13] },
+    /* 杂货铺老板（batch21）：镇上唯一的商人。撞上去直接开商店页，
+       不走对话 —— openUI 会被 talking 拦住。 */
+    { key:'shopkeep', name:'杂货铺 老板', role:'shop', acc:'hat', vk:'shop',
+      cloth:'#D8B87C', cloth2:'#8A6A3A', hair:'#4A3A2A', region:'town', at:[11,14] },
 
     { key:'mira',  name:'学徒 小满', role:'mira',  acc:'twintail',
       cloth:'#E8A0B8', cloth2:'#B06080', hair:'#3A2A1A', region:'meadow', at:[24,13] },
@@ -1584,6 +1588,49 @@
     SLOT = (k >= 1 && k <= 3) ? k : 1;
   })();
 
+  /* ===== 道具表（batch21） =====
+     一张表说清「叫什么、卖多少、干什么」，背包和商店都从这里取。
+     效果字段是声明式的：heal/bond/evolve/revive/cure，由 useItem 分发。
+     battleOnly 的只影响场外提示，真正的战斗内使用走 BattleScene 自己那条路。 */
+  var ITEM_DEF = {
+    potion:      { name:'伤药',       icon:'🧪', price:300,  heal:60,
+                   desc:'回复一只精灵 60 点体力' },
+    superpotion: { name:'高级伤药',   icon:'💉', price:700,  heal:200,
+                   desc:'回复一只精灵 200 点体力' },
+    antidote:    { name:'万能药',     icon:'🌿', price:250,  cure:1, battleOnly:1,
+                   desc:'解除出战精灵的中毒/灼烧/麻痹/睡眠/冰冻' },
+    revive:      { name:'复活草',     icon:'🌸', price:1200, revive:0.5,
+                   desc:'让一只倒下的精灵复活，恢复一半体力' },
+    candy:       { name:'亲密度糖果', icon:'🍬', price:500,  bond:2,
+                   desc:'给一只精灵 +2 羁绊，加快进化；羁绊是进化的唯一条件' },
+    stone:       { name:'进化石',     icon:'💎', price:2000, evolve:1,
+                   desc:'让满足羁绊条件的精灵立刻进化（羁绊不够会被拒绝）' }
+  };
+  var ITEM_ORDER = ['potion','superpotion','antidote','revive','candy','stone'];
+  var BALL_ITEM = { name:'精灵球', icon:'⚪', price:200, sell:80,
+                    desc:'战斗中点「捕捉」消耗，野生精灵残血时成功率更高' };
+
+  function itemDef(k){ return ITEM_DEF[k] || null; }
+  function itemCount(k){ return Math.max(0, (G && G.bag && G.bag[k]) | 0); }
+  function addItem(k, n){
+    if (!ITEM_DEF[k]) return 0;
+    G.bag[k] = itemCount(k) + (n|0);
+    return G.bag[k];
+  }
+  function spendItem(k){
+    if (!ITEM_DEF[k] || itemCount(k) <= 0) return false;
+    G.bag[k] = itemCount(k) - 1;
+    return true;
+  }
+  // 千分位：¥1,200 比 ¥1200 好扫
+  function fmtMoney(n){ return '¥' + ((n|0)+'').replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+  // 背包里所有消耗品的总件数（页头用）
+  function bagTotal(){
+    var t = 0, i;
+    for (i=0;i<ITEM_ORDER.length;i++) t += itemCount(ITEM_ORDER[i]);
+    return t;
+  }
+
   var G = {
     // batch14：新档不再预送两只精灵。开局在灵契镇的木桌上三选一，
     // 这三只是火/水/草三系的经典三角，也是玩家对这个世界的第一印象。
@@ -1593,6 +1640,9 @@
     box: [],
     balls: 0,
     ballTopUp: false,
+    /* 金币（batch21）：打赢才来钱，商店只进不出不回血。
+       不做「卖精灵换钱」——那会诱导玩家把伙伴当资源，和整个游戏的调性冲突。 */
+    money: 0,
     activeIdx: 0,
     defeated: [],
     // 徽章：存道馆 key。顺序即获得顺序，徽章盒子按 GYMS 顺序展示
@@ -1607,7 +1657,7 @@
     // 图鉴：id -> { see:[0,0,0], got:[0,0,0] }  每个阶独立记录「见过 / 收服」
     dex: {},
     // 背包：精灵球单独用 G.balls（战斗内直接消耗），其余道具走 bag
-    bag: { candy:0, stone:0 }
+    bag: { potion:0, superpotion:0, antidote:0, revive:0, candy:0, stone:0 }
   };
 
   // ---- 图鉴读写 ----
@@ -1674,6 +1724,8 @@
         G.cleared = !!s.cleared;
         // 巡游轮换的日计数。老存档没有这个字段 → 从 0 开始，不影响别的进度
         G.day = (typeof s.day === 'number' && s.day >= 0) ? (s.day|0) : 0;
+        // 老存档没有金币字段 → 从 0 起，不补发（补发会让老玩家和新玩家起跑线错位）
+        G.money = (typeof s.money === 'number' && s.money >= 0) ? Math.floor(s.money) : 0;
         G.flags = (s.flags && typeof s.flags === 'object' && !Array.isArray(s.flags)) ? s.flags : {};
         // 老存档没有 region 字段：一律送回灵契镇，坐标也重置（旧的大陆坐标在新图上没意义）
         G.region = (typeof s.region === 'string' && REGION_BY_KEY[s.region]) ? s.region : 'town';
@@ -1683,9 +1735,14 @@
         if (!G.flags.starterChosen && G.party.length) G.flags.starterChosen = 1;
         // 向后兼容：batch5 之前没有 dex / bag 字段
         G.dex = (s.dex && typeof s.dex === 'object' && !Array.isArray(s.dex)) ? s.dex : {};
-        G.bag = (s.bag && typeof s.bag === 'object')
-          ? { candy: Math.max(0, s.bag.candy|0), stone: Math.max(0, s.bag.stone|0) }
-          : { candy:0, stone:0 };
+        // 道具：按 ITEM_DEF 逐项兜底。老存档只有 candy/stone，其余补 0；
+        // 表里删掉的道具不再带进内存（免得背包显示一个用不了的条目）
+        G.bag = {};
+        (function(src, keys){
+          keys.forEach(function(k){
+            G.bag[k] = (src && typeof src[k] === 'number' && src[k] > 0) ? Math.floor(src[k]) : 0;
+          });
+        })(s.bag && typeof s.bag === 'object' ? s.bag : null, ITEM_ORDER);
         // 牧场：老存档没有这个字段，空数组即可（不会丢任何东西，因为以前装不下就不让捉）
         G.box = Array.isArray(s.box) ? s.box.filter(function(p){ return p && spOf(p.id); }) : [];
       }
@@ -1706,6 +1763,7 @@
         badges:G.badges, flags:G.flags, cleared:G.cleared,
         region:G.region, pos:G.pos, dex:G.dex, bag:G.bag,
         day:G.day|0,           // 神兽巡游按这个天数轮换，必须跟着存档走
+        money:G.money|0,
         at:Date.now()          // 存档页要显示「什么时候存的」
       }));
     }catch(e){}
@@ -1746,10 +1804,14 @@
       // 老玩家也补到 1000，和当前默认值一致，免得看起来很像是"迁移把球弄丢了"
       G.balls = Math.max(1000, (old && typeof old.balls === 'number') ? old.balls : 0);
       G.ballTopUp = true;
-      G.bag = {
-        candy: (old && typeof old.candy === 'number') ? Math.max(0, Math.floor(old.candy)) : 0,
-        stone: (old && typeof old.stone === 'number') ? Math.max(0, Math.floor(old.stone)) : 0
-      };
+      /* 旧版把 candy/stone 放在存档顶层，新版收进 bag（batch21 起 bag 里还有四种战斗道具）。
+         逐项按 ITEM_ORDER 建，别只写 candy/stone —— 少写的字段会让背包读到 undefined。 */
+      G.bag = {};
+      (function(o, keys){
+        keys.forEach(function(k){
+          G.bag[k] = (o && typeof o[k] === 'number') ? Math.max(0, Math.floor(o[k])) : 0;
+        });
+      })(old || {}, ITEM_ORDER);
       // 坐标可能已经落在 batch7 新增的建筑下方，越界先丢掉，交由 create() 兜底回枢纽
       if (old && old.pos && typeof old.pos.x === 'number' && typeof old.pos.y === 'number'
           && old.pos.x >= 2 && old.pos.x < MAP_W-2 && old.pos.y >= 2 && old.pos.y < MAP_H-2){
@@ -5628,7 +5690,8 @@
     this.hud.innerHTML =
       '坐标 ('+gx+', '+gy+') · '+TNAME[tile]+' · '+bio.name+'<br>' +
       '队伍 '+G.party.length+' 只 · 出战 '+lead+' · 精灵球 ×'+G.balls+'<br>' +
-      '徽章 '+G.badges.length+'/'+GYMS.length+' · 图鉴 '+dt.got+'/'+dt.total+' 收服';
+      '徽章 '+G.badges.length+'/'+GYMS.length+' · 图鉴 '+dt.got+'/'+dt.total+' 收服' +
+      ' · '+fmtMoney(G.money);
     // BGM 跟随群系；同曲不重播，切场景不重启
     AUDIO.track(BIO_TRACK[bio.key] || 'plains');
   };
@@ -5869,7 +5932,8 @@
 
     if (!f.metElder){
       f.metElder = 1;
-      G.balls += 8; saveG();
+      // 起步给一点钱：够买两三瓶伤药，不至于第一座馆被药钱卡住
+      G.balls += 8; G.money += 800; saveG();
       say([
         { who:'长老 岑', text:'选好了？让我看看——嗯，眼神不错。' },
         { who:'长老 岑', text:'这片地方叫灵契大陆。人和精灵之间有一条看不见的线。线在，就能一起变强；线断，两边都会变回野兽。' },
@@ -6080,6 +6144,7 @@
     if (n.role === 'shade') return this.talkShade();
     if (n.role === 'lumen') return this.talkLumen();
     if (n.role === 'villain') return this.talkVillain(n.vk || n.key);
+    if (n.role === 'shop')   return this.openUI('shop');
   };
 
   /* =====================================================================
@@ -7315,6 +7380,7 @@
         ['⚔ 战斗', function(){ B.menuState='moves'; self.renderMenu(); }, { accent:0xff6b6b }],
         ['🎯 捕捉', function(){ self.bCatch(); },                          { accent:0xffd93d }],
         ['🔄 队伍', function(){ B.menuState='party'; self.renderMenu(); },  { accent:0x4d96ff }],
+        ['🎒 背包', function(){ B.menuState='bag';   self.renderMenu(); },  { accent:0x7dd3fc }],
         ['🏃 逃跑', function(){ self.bFlee(); },                           { accent:0x8ea0c8 }]
       ]);
     } else if (st === 'moves'){
@@ -7346,6 +7412,30 @@
       }
       list2.push(['← 返回', function(){ B.menuState='root'; self.renderMenu(); }, { accent:0x6b7a9e }]);
       this.gridButtons(list2, true);
+    } else if (st === 'bag'){
+      var list3 = [];
+      BATTLE_ITEMS.forEach(function(k){
+        var d = ITEM_DEF[k], n = itemCount(k);
+        list3.push([ d.icon+' '+d.name+' ×'+n,
+                     function(){ self.bBagUse(k); },
+                     { disabled: n <= 0, accent: n > 0 ? 0x7dd3fc : 0x4a5578 } ]);
+      });
+      list3.push(['← 返回', function(){ B.menuState='root'; self.renderMenu(); }, { accent:0x6b7a9e }]);
+      this.gridButtons(list3, true);
+    } else if (st === 'bagTarget'){
+      var list4 = [];
+      for (var m=0;m<G.party.length;m++){
+        (function(idx){
+          var cc = G.party[idx], ss = spOf(cc.id);
+          var alive = hpOf(cc) > 0;
+          list4.push([ (alive ? '' : '✕ ') + ss.stages[cc.stage||0] + ' Lv.' + cc.lv +
+                       '  ' + Math.ceil(hpOf(cc)) + '/' + maxHpOf(cc),
+                       function(){ self.bBagRevive(idx); },
+                       { disabled: alive, accent: alive ? 0x4a5578 : 0xf0c060 } ]);
+        })(m);
+      }
+      list4.push(['← 返回', function(){ B.menuState='bag'; self.renderMenu(); }, { accent:0x6b7a9e }]);
+      this.gridButtons(list4, true);
     }
   };
 
@@ -8456,6 +8546,87 @@
     }
   };
 
+  /* ===== 战斗内道具（batch21） =====
+     伤药/高级伤药/万能药都对「当前出战的那只」——这是宝可梦的老规矩，
+     要治后排就先换人。复活草例外：后排倒下的人才需要它，所以走选人。 */
+  var BATTLE_ITEMS = ['potion','superpotion','antidote','revive'];
+
+  /* 用道具占掉这一回合：敌方接着行动。节奏对齐 bSwitch（620ms 起手） */
+  BattleScene.prototype.endBagTurn = function(){
+    var self = this, B = this.B;
+    if (!B || B.over) return;
+    B.busy = true;
+    setTimeout(async function(){
+      if (!self.B || self.B.over) return;
+      await self.execMove(self.B.enemy, self.B.player,
+                          aiMove(self.B.enemy, self.B.player), false);
+      if (self.B && !self.B.over) await self.endTurnStatus();
+      if (self.B && !self.B.over){ self.B.busy = false; self.B.menuState='root'; self.renderMenu(); }
+    }, 620);
+  };
+
+  BattleScene.prototype.bBagUse = function(kind){
+    var B = this.B;
+    if (!B || B.over || B.busy) return;
+    var d = itemDef(kind);
+    if (!d) return;
+    if (itemCount(kind) <= 0){ this.say('没有'+d.name+'了。'); return; }
+    var p = B.player, inst = G.party[B.activeIdx];
+
+    // 万能药：只清状态，不改血
+    if (d.cure){
+      if (!p.status){ this.say(p.name+' 现在没有异常状态。'); return; }
+      var was = statusLabel(p);
+      spendItem(kind);
+      p.status = null;
+      this.syncStatusFx();
+      saveG();
+      this.say('用了'+d.name+'——'+p.name+' 的'+was+'消除了。');
+      this.endBagTurn();
+      return;
+    }
+
+    // 回复类
+    if (d.heal){
+      if (p.hp <= 0){ this.say(p.name+' 已经倒下了，得用复活草。'); return; }
+      if (p.hp >= p.maxHp){ this.say(p.name+' 的体力已经满了。'); return; }
+      var before = p.hp;
+      spendItem(kind);
+      p.hp = Math.min(p.maxHp, p.hp + d.heal);
+      if (inst) inst.hp = p.hp;
+      saveG();
+      this.refreshBars(); this.syncStatusFx();
+      this.popNumber(this.playerSpr.x, this.playerSpr.y - this.playerSpr.displayHeight*0.55,
+                     '+'+(p.hp - before), '#4ade80', false);
+      this.say('用了'+d.name+'——'+p.name+' 回复了 '+(p.hp - before)+' 点体力。');
+      this.endBagTurn();
+      return;
+    }
+
+    // 复活草：先看有没有倒下的，再决定要不要选
+    if (d.revive){
+      var dead = [];
+      for (var i=0;i<G.party.length;i++) if (hpOf(G.party[i]) <= 0) dead.push(i);
+      if (!dead.length){ this.say('队伍里没有倒下的精灵。'); return; }
+      if (dead.length === 1){ this.bBagRevive(dead[0]); return; }
+      B.menuState = 'bagTarget'; this.renderMenu();
+      return;
+    }
+  };
+
+  BattleScene.prototype.bBagRevive = function(idx){
+    var B = this.B;
+    if (!B || B.over || B.busy) return;
+    var inst = G.party[idx];
+    if (!inst || hpOf(inst) > 0) return;
+    if (itemCount('revive') <= 0){ this.say('没有复活草了。'); return; }
+    spendItem('revive');
+    inst.hp = Math.max(1, Math.round(maxHpOf(inst) * (itemDef('revive').revive || 0.5)));
+    saveG();
+    this.say('用了复活草——'+spOf(inst.id).stages[inst.stage||0]+' 站起来了。');
+    this.endBagTurn();
+  };
+
   BattleScene.prototype.bCatch = async function(){
     var B = this.B;
     if (!B || B.over || B.busy) return;
@@ -8559,6 +8730,9 @@
   BattleScene.prototype.winBattle = async function(){
     var B = this.B; if (!B) return;
     B.over = true; B.busy = true;
+    var got = this.payout(B);
+    this.popNumber(this.playerSpr.x, this.playerSpr.y - this.playerSpr.displayHeight*1.05,
+                   '+¥' + got, '#ffd166', false);
     var inst = G.party[B.activeIdx];
     if (inst){ inst.hp = B.player.hp; inst.bond = Math.min(SR.CFG.MAX_BOND, (inst.bond||0)+2); }
     saveG();
@@ -8682,6 +8856,30 @@
     this.finish(endToast);
   };
 
+  /* 战斗结算的金币（batch21）
+     分档给钱，让「打谁」这件事有经济含义：
+     野生只够买药，训练师才是主要收入，馆主/反派/冠军是一次性大额。
+     按等级放权重，避免后期刷低级野怪也能攒钱。 */
+  BattleScene.prototype.payout = function(B){
+    var lv = (B.enemy && B.enemy.lv) ? B.enemy.lv : 5;
+    var t = B.trainerRef || null, n = 0;
+    if (!B.isTrainer){
+      n = 8 + lv * 2;                                    // 野生：随等级缓慢增长
+    } else if (t && t.gym){
+      n = 600 + lv * 14 + G.badges.length * 120;
+    } else if (t && t.champion){
+      n = 3000;
+    } else if (t && (t.shadow || t.villain)){
+      n = 700 + lv * 12;
+    } else {
+      n = 120 + lv * 10;
+    }
+    n = Math.max(1, Math.round(n));
+    G.money = (G.money|0) + n;
+    saveG();
+    return n;
+  };
+
   BattleScene.prototype.loseBattle = async function(){
     var B = this.B; if (!B) return;
     B.over = true; B.busy = true;
@@ -8750,6 +8948,7 @@
 
   UIScene.prototype.init = function(d){
     this.page  = (d && d.page) || 'dex';
+    this.selItem = null;   // 商店里选中的商品 key
     this.world = (d && d.world) || null;
     this.ui = [];
     this.dexPage = 0;
@@ -8774,12 +8973,13 @@
   };
 
   UIScene.prototype.goto = function(page){
-    if (this.page === page && this.selId===null && this.selMon===null && this.bagSel===null){
+    if (this.page === page && this.selId===null && this.selMon===null &&
+        this.bagSel===null && this.selItem===null){
       this.close(); return;     // 再次按同一键 = 关闭（快捷键手感）
     }
     AUDIO.sfx('click');
     this.page = page;
-    this.selId = null; this.selMon = null; this.bagSel = null;
+    this.selId = null; this.selMon = null; this.bagSel = null; this.selItem = null;
     this.render();
   };
 
@@ -8840,6 +9040,7 @@
     if (this.page === 'team')               return this.renderTeam(head, body, foot);
     if (this.page === 'box')                return this.renderBox(head, body, foot);
     if (this.page === 'badge')              return this.renderBadge(head, body, foot);
+    if (this.page === 'shop')               return this.renderShop(head, body, foot);
     return this.renderBag(head, body, foot);
   };
 
@@ -9521,19 +9722,25 @@
     var self = this, fz = this.fz.bind(this);
     // 正在选使用对象时，整页交给选择界面（避免页头被画两遍）
     if (this.bagSel) return this.renderBagPick(head, body, foot);
-    this.header(head, '背包', '精灵球 '+G.balls+' · 糖果 '+G.bag.candy+' · 进化石 '+G.bag.stone);
+    this.header(head, '背包', fmtMoney(G.money)+' · 精灵球 '+G.balls+' · 道具 '+bagTotal()+' 件');
 
-    var items = [
-      { key:'ball',  icon:'⚪', name:'精灵球',       n:G.balls,      desc:'战斗中点「捕捉」消耗，野生精灵残血时成功率更高' },
-      { key:'candy', icon:'🍬', name:'亲密度糖果',   n:G.bag.candy,  desc:'给一只精灵 +2 羁绊，加快进化；羁绊是进化的唯一条件' },
-      { key:'stone', icon:'💎', name:'进化石',       n:G.bag.stone,  desc:'让满足羁绊条件的精灵立刻进化（羁绊不够会被拒绝）' }
-    ];
+    // 球在最前（唯一一个战斗里直接用的），后面按 ITEM_ORDER 排
+    var items = [{ key:'ball', icon:BALL_ITEM.icon, name:BALL_ITEM.name,
+                   n:G.balls, desc:BALL_ITEM.desc, usable:false }];
+    ITEM_ORDER.forEach(function(k){
+      var d = ITEM_DEF[k], n = itemCount(k);
+      items.push({ key:k, icon:d.icon, name:d.name, n:n,
+                   desc:d.desc + (d.battleOnly ? '（仅战斗中可用）' : ''),
+                   usable: !d.battleOnly && n > 0 });
+    });
 
-    var rowH = Math.min((body.h - this.gap*2) / items.length, fz(84));
+    /* 行高要扣掉「行数-1」个间距。原来写死 gap*2 —— 只有 3 条时凑巧对，
+       batch21 加到 7 条之后最后一行会溢出到页脚，被「关闭」按钮压住。 */
+    var rowH = Math.min((body.h - this.gap*(items.length-1)) / items.length, fz(84));
     var y = body.y;
     for (var i=0;i<items.length;i++){
       var it = items[i];
-      var usable = it.key !== 'ball' && it.n > 0;
+      var usable = !!it.usable;
       var g = this.add.graphics().setDepth(5);
       g.fillStyle(usable ? 0x1c2f52 : 0x141a2e, 0.96);
       g.fillRoundedRect(body.x, y, body.w, rowH, 9);
@@ -9570,7 +9777,8 @@
     var self = this, fz = this.fz.bind(this);
     var kind = this.bagSel;
     var tok = ++this._tok;
-    var label = kind === 'candy' ? '亲密度糖果' : '进化石';
+    var def = itemDef(kind);
+    var label = def ? def.name : kind;
     this.header(head, '使用 '+label, '选一只精灵', function(){ self.bagSel = null; self.render(); });
 
     var keys = G.party.map(function(c){ return c.id+'_'+(c.stage||0); });
@@ -9593,10 +9801,18 @@
       }
       var nx = body.x + rowH*0.95;
       this.utext(nx, y+rowH*0.36, sp.stages[c.stage||0]+'  Lv.'+c.lv, fz(14), '#eaf0ff', 0, 7);
-      var evoNeed = evoNeedOf(c);
-      var info = evoNeed === 0
-        ? '最终形态 · 羁绊 '+c.bond
-        : '羁绊 '+c.bond+' / 进化需 '+evoNeed;
+      // 每种道具关心的事不一样：伤药看血、复活草看死没死、糖果/石头看羁绊
+      var info;
+      if (def && def.heal){
+        info = '体力 '+Math.ceil(hpOf(c))+' / '+maxHpOf(c);
+      } else if (def && def.revive){
+        info = hpOf(c) > 0 ? '体力 '+Math.ceil(hpOf(c))+' · 未倒下' : '已倒下 · 可复活';
+      } else {
+        var evoNeed = evoNeedOf(c);
+        info = evoNeed === 0
+          ? '最终形态 · 羁绊 '+c.bond
+          : '羁绊 '+c.bond+' / 进化需 '+evoNeed;
+      }
       this.utext(nx, y+rowH*0.68, info, fz(11), '#8fa0cc', 0, 7);
 
       (function(idx){
@@ -9609,6 +9825,135 @@
     this.makeBtn(foot.x, foot.y, Math.min(foot.w*0.34, fz(160)), foot.h, '← 返回背包', function(){
       self.bagSel = null; self.render();
     }, { size: fz(13) });
+  };
+
+  /* ===== 商店（batch21） =====
+     商品表就是 ITEM_ORDER 加上精灵球 —— 和背包同源，不会出现「背包有、商店没有」
+     或者反过来这种对不上的情况。 */
+  var SHOP_GOODS = ['ball'].concat(ITEM_ORDER);
+  function goodDef(k){ return k === 'ball' ? BALL_ITEM : ITEM_DEF[k]; }
+  function goodHave(k){ return k === 'ball' ? G.balls : itemCount(k); }
+  function goodSell(k){ return Math.floor(goodDef(k).price * 0.4); }
+
+  UIScene.prototype.renderShop = function(head, body, foot){
+    var self = this, fz = this.fz.bind(this);
+    if (this.selItem) return this.renderShopItem(head, body, foot);
+    this.header(head, '杂货铺', fmtMoney(G.money) + ' · 点商品看价');
+
+    var rowH = Math.min((body.h - this.gap*(SHOP_GOODS.length-1)) / SHOP_GOODS.length, fz(62));
+    var y = body.y;
+    for (var i=0;i<SHOP_GOODS.length;i++){
+      var k = SHOP_GOODS[i], d = goodDef(k), n = goodHave(k);
+      var afford = (G.money|0) >= d.price;
+      var g = this.add.graphics().setDepth(5);
+      g.fillStyle(afford ? 0x1c2f52 : 0x141a2e, 0.96);
+      g.fillRoundedRect(body.x, y, body.w, rowH, 9);
+      g.lineStyle(2, afford ? 0x5a86d6 : 0x2b3352, 0.9);
+      g.strokeRoundedRect(body.x, y, body.w, rowH, 9);
+      this.track(g);
+
+      this.utext(body.x + rowH*0.5, y + rowH*0.5, d.icon, Math.round(rowH*0.44), '#fff');
+      var nx = body.x + rowH*0.95;
+      this.utext(nx, y + rowH*0.35, d.name, fz(14), '#eaf0ff', 0, 7);
+      this.utext(nx, y + rowH*0.70, '持有 ×' + n, fz(10.5), '#8fa0cc', 0, 7);
+
+      this.utext(body.x + body.w - rowH*0.35, y + rowH*0.5, fmtMoney(d.price),
+                 Math.max(11, Math.round(fz(15))), afford ? '#ffd166' : '#7a5a3a', 1, 7);
+
+      (function(key){
+        self.hit(body.x, y, body.w, rowH, function(){
+          self.selItem = key; AUDIO.sfx('click'); self.render();
+        });
+      })(k);
+
+      y += rowH + this.gap;
+    }
+
+    this.makeBtn(foot.x, foot.y, Math.min(foot.w*0.34, fz(160)), foot.h, '离开',
+                 this.close.bind(this), { size: fz(13) });
+  };
+
+  UIScene.prototype.renderShopItem = function(head, body, foot){
+    var self = this, fz = this.fz.bind(this);
+    var k = this.selItem, d = goodDef(k), n = goodHave(k);
+    this.header(head, d.name, '持有 ×' + n + ' · ' + fmtMoney(G.money),
+      function(){ self.selItem = null; self.render(); });
+
+    // 上半：大图标 + 描述（占 42%，再小的话图标和描述都撑不开，下半会空一大片）
+    var topH = Math.max(88, Math.round(body.h * 0.42));
+    var g = this.add.graphics().setDepth(5);
+    g.fillStyle(0x1a2440, 0.96); g.fillRoundedRect(body.x, body.y, body.w, topH, 10);
+    g.lineStyle(2, 0x46557f, 0.9); g.strokeRoundedRect(body.x, body.y, body.w, topH, 10);
+    this.track(g);
+
+    this.utext(body.x + topH*0.5, body.y + topH*0.5, d.icon,
+               Math.round(Math.min(topH*0.52, fz(48))), '#fff');
+    var tx = body.x + topH*0.95;
+    var ds = this.utext(tx, body.y + topH*0.40, d.desc, Math.max(10, Math.round(fz(12.5))), '#c8d6f2', 0, 7);
+    ds.setWordWrapWidth(body.w - (tx - body.x) - fz(20), true);
+    this.utext(tx, body.y + topH*0.68, '买入 ' + fmtMoney(d.price) + ' · 卖出 ' + fmtMoney(goodSell(k)),
+               fz(12), '#8fa0cc', 0, 7);
+
+    // 下半：买 1 / 5 / 10 + 卖 1。按钮组在剩余区域里垂直居中，
+    // 否则上面挤两行、下面空半个面板，看着像没画完
+    var availTop = body.y + topH + this.gap * 2;
+    var availH = body.y + body.h - availTop;
+    var bh = Math.min(Math.max(40, Math.round(fz(50))), Math.max(34, (availH - this.gap) / 2));
+    var by = availTop + Math.max(0, (availH - (bh * 2 + this.gap)) / 2);
+    var bw = (body.w - this.gap) / 2;
+    var canBuy = (G.money|0) >= d.price;
+    var canSell = n > 0;
+
+    var buys = [1, 5, 10];
+    for (var i=0;i<buys.length;i++){
+      (function(qty){
+        var cost = d.price * qty;
+        var ok = (G.money|0) >= cost;
+        var r = Math.floor(i/2), c = i%2;
+        self.makeBtn(body.x + c*(bw+self.gap), by + r*(bh+self.gap), bw, bh,
+          '买 ×'+qty+'  '+fmtMoney(cost),
+          function(){ self.shopBuy(k, qty); },
+          { size: fz(12), disabled: !ok,
+            fill:0x1c2a4a, stroke: ok ? 0x5a7bd6 : 0x2b3352, accent: ok ? 0x4ade80 : 0x4a5578 });
+      })(buys[i]);
+    }
+    // 「卖 1」占第二行右半
+    this.makeBtn(body.x + (bw + this.gap), by + (bh + this.gap), bw, bh,
+      '卖 ×1  +'+fmtMoney(goodSell(k)),
+      function(){ self.shopSell(k, 1); },
+      { size: fz(12), disabled: !canSell,
+        fill:0x1c2a4a, stroke: canSell ? 0xb45a5a : 0x2b3352, accent: canSell ? 0xf0a060 : 0x4a5578 });
+
+    this.makeBtn(foot.x, foot.y, Math.min(foot.w*0.34, fz(160)), foot.h, '← 返回',
+      function(){ self.selItem = null; self.render(); }, { size: fz(13) });
+  };
+
+  UIScene.prototype.shopBuy = function(k, qty){
+    var d = goodDef(k);
+    if (!d) return;
+    var cost = d.price * qty;
+    if ((G.money|0) < cost){
+      this.flashNote('金币不够，还差 ' + fmtMoney(cost - (G.money|0)));
+      return;
+    }
+    G.money = (G.money|0) - cost;
+    if (k === 'ball') G.balls += qty; else addItem(k, qty);
+    saveG(); AUDIO.sfx('levelup');
+    this.flashNote('买下 ' + d.name + ' ×' + qty);
+    this.render();
+  };
+
+  UIScene.prototype.shopSell = function(k, qty){
+    var d = goodDef(k);
+    if (!d) return;
+    var have = goodHave(k);
+    if (have < qty){ this.flashNote('没有那么多'); return; }
+    var gain = goodSell(k) * qty;
+    if (k === 'ball') G.balls -= qty; else G.bag[k] = have - qty;
+    G.money = (G.money|0) + gain;
+    saveG(); AUDIO.sfx('click');
+    this.flashNote('卖出 ' + d.name + ' ×' + qty);
+    this.render();
   };
 
   // 道具效果：糖果 +2 羁绊；进化石在羁绊够时进化（规则同原版 evolveInst）
@@ -9727,39 +10072,74 @@
   UIScene.prototype.useItem = async function(idx, kind){
     var c = G.party[idx];
     if (!c) return;
-    if (kind === 'candy'){
-      if (G.bag.candy <= 0){ this.flashNote('糖果不够了'); return; }
-      if (c.bond >= SR.CFG.MAX_BOND){ this.flashNote('羁绊已满'); return; }
-      G.bag.candy--;
-      c.bond = Math.min(SR.CFG.MAX_BOND, c.bond + 2);
+    var def = itemDef(kind);
+    if (!def) return;
+    var nm = spOf(c.id).stages[c.stage||0];
+
+    if (def.battleOnly){ this.flashNote(def.name+' 要在战斗里用'); return; }
+    if (itemCount(kind) <= 0){ this.flashNote(def.name+'不够了'); return; }
+
+    /* ---- 回复类 ---- */
+    if (def.heal){
+      var mx = maxHpOf(c), cur = hpOf(c);
+      if (cur <= 0){ this.flashNote(nm+' 已经倒下了，该用复活草'); return; }
+      if (cur >= mx){ this.flashNote(nm+' 体力已经满了'); return; }
+      spendItem(kind);
+      c.hp = Math.min(mx, cur + def.heal);
       saveG(); AUDIO.sfx('levelup');
-      this.flashNote(spOf(c.id).stages[c.stage||0]+' 羁绊 +2（'+c.bond+'/'+SR.CFG.MAX_BOND+'）');
+      this.flashNote(nm+' 回复了 '+(c.hp-cur)+' 点体力（'+c.hp+'/'+mx+'）');
       this.render();
       return;
     }
-    // stone
-    if (G.bag.stone <= 0){ this.flashNote('进化石不够了'); return; }
-    var sp = spOf(c.id);
-    if ((c.stage||0) >= maxStageOf(sp)){
-      this.flashNote(sp.legend ? '神兽没有下一形态' : '已是最终形态');
+
+    /* ---- 复活类 ---- */
+    if (def.revive){
+      if (hpOf(c) > 0){ this.flashNote(nm+' 还没倒下，不用复活'); return; }
+      spendItem(kind);
+      c.hp = Math.max(1, Math.round(maxHpOf(c) * def.revive));
+      saveG(); AUDIO.sfx('levelup');
+      this.flashNote(nm+' 站起来了（'+c.hp+'/'+maxHpOf(c)+'）');
+      this.render();
       return;
     }
-    var need = evoNeedOf(c);
-    if (c.bond < need){ this.flashNote('羁绊不足，需要 '+need+'（当前 '+c.bond+'）'); return; }
-    G.bag.stone--;
-    var fromStage = c.stage||0;
-    // 进化前后的真实数值：不给玩家看这两个数，进化就永远只是「换了张图」
-    var b4 = buildStats(sp, findNature(c.nature), fromStage, c.lv||20);
-    c.stage = fromStage + 1;
-    c.hp = maxHpOf(c);
-    var af = buildStats(sp, findNature(c.nature), c.stage, c.lv||20);
-    dexGot(c.id, c.stage);
-    saveG();
-    AUDIO.sfx('evolve');
-    // 新形态立绘可能还没进纹理池（玩家第一次进化到这里），先加载再放过场，
-    // 否则白光一闪之后换出来的是一张空白
-    await loadTex(this, sp.id+'_'+c.stage);
-    this.playEvolve(sp, fromStage, c.stage, b4, af);
+
+    if (def.cure){ this.flashNote('万能药要在战斗中使用'); return; }
+
+    /* ---- 羁绊类 ---- */
+    if (def.bond){
+      if (c.bond >= SR.CFG.MAX_BOND){ this.flashNote('羁绊已满'); return; }
+      spendItem(kind);
+      c.bond = Math.min(SR.CFG.MAX_BOND, c.bond + def.bond);
+      saveG(); AUDIO.sfx('levelup');
+      this.flashNote(nm+' 羁绊 +'+def.bond+'（'+c.bond+'/'+SR.CFG.MAX_BOND+'）');
+      this.render();
+      return;
+    }
+
+    /* ---- 进化类：往下接原来的进化逻辑 ---- */
+    if (def.evolve){
+      var sp = spOf(c.id);
+      if ((c.stage||0) >= maxStageOf(sp)){
+        this.flashNote(sp.legend ? '神兽没有下一形态' : '已是最终形态');
+        return;
+      }
+      var need = evoNeedOf(c);
+      if (c.bond < need){ this.flashNote('羁绊不足，需要 '+need+'（当前 '+c.bond+'）'); return; }
+      spendItem(kind);
+      var fromStage = c.stage||0;
+      // 进化前后的真实数值：不给玩家看这两个数，进化就永远只是「换了张图」
+      var b4 = buildStats(sp, findNature(c.nature), fromStage, c.lv||20);
+      c.stage = fromStage + 1;
+      c.hp = maxHpOf(c);
+      var af = buildStats(sp, findNature(c.nature), c.stage, c.lv||20);
+      dexGot(c.id, c.stage);
+      saveG();
+      AUDIO.sfx('evolve');
+      // 新形态立绘可能还没进纹理池（玩家第一次进化到这里），先加载再放过场，
+      // 否则白光一闪之后换出来的是一张空白
+      await loadTex(this, sp.id+'_'+c.stage);
+      this.playEvolve(sp, fromStage, c.stage, b4, af);
+    }
   };
 
   UIScene.prototype.flashNote = function(msg){
