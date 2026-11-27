@@ -333,7 +333,7 @@
 })();
 </script>
 <div id="hud">加载中…</div>
-<div id="hint">七张地图 · 拖动屏幕走路 · 踩到路口木牌切换地图 · 撞上馆主挑战道馆 · 撞上灰袍人是影蚀会主线 · 集齐 8 枚徽章并解决影蚀会后挑战冠军 · 左上角是功能键 · WASD · Q/E/B/R 图鉴/队伍/背包/徽章 · N 路线指引</div>
+<div id="hint">七张地图 · 拖动屏幕走路 · 踩到路口木牌切换地图 · 撞上馆主挑战道馆 · 撞上灰袍人是影蚀会主线 · 集齐 8 枚徽章并解决影蚀会后，穿过回廊抵达灵契圣地挑战冠军 · 左上角是功能键 · WASD · Q/E/B/R 图鉴/队伍/背包/徽章 · N 路线指引</div>
 <div id="toast"></div>
 <div id="zone"></div>
 <div id="clock"></div>
@@ -382,10 +382,10 @@
 <div id="pad"><u data-t="u"></u><u data-t="d"></u><u data-t="l"></u><u data-t="r"></u><i></i></div>
 
 <script src="phaser.min.js"></script>
-<script src="phaser-assets.js?v=20261126a"></script>
+<script src="phaser-assets.js?v=20261127a"></script>
 <!-- 剧情文本库（约 40KB，纯文本）。放在 assets 之后：它要往 window.SR 上挂 STORY。
      加载失败不影响游戏 —— 所有读取点都有兜底文案。 -->
-<script src="story.js?v=20261126a"></script>
+<script src="story.js?v=20261127a"></script>
 <script>
 (function () {
   var errEl = document.getElementById('err');
@@ -414,22 +414,26 @@
   // batch5 时有 6 只（s5/s26/s27/s28/s31/s37）不在任何池 —— 图鉴永远收不齐。
   // 这批按属性归位补进对应群系，并用 test_story 断言覆盖率达到 40/40。
   var BIOMES = [
-    { key:'plains',  name:'微风草原', cx:10, cy:10, r:8, pools:['s1','s3','s11','s9','s18','s23','s35','s28'], rare:'s18', sub:'开阔草场 · 微风掠过芒草',
+    { key:'plains',  name:'微风草原', cx:10, cy:10, r:8, pools:['s1','s3','s11','s9','s18','s23','s35','s28','s67'], rare:'s18', sub:'开阔草场 · 微风掠过芒草',
       sky:[0.62,0.80,0.96], ground:[0.48,0.74,0.44], hill:[0.36,0.58,0.36] },
-    { key:'forest',  name:'低语森林', cx:11, cy:38, r:8, pools:['s3','s12','s1','s10','s22','s24','s39'], rare:'s39', sub:'密林深处 · 树影与孢子',
+    { key:'forest',  name:'低语森林', cx:11, cy:38, r:8, pools:['s3','s12','s1','s10','s22','s24','s39','s64'], rare:'s39', sub:'密林深处 · 树影与孢子',
       sky:[0.34,0.52,0.44], ground:[0.26,0.44,0.32], hill:[0.16,0.30,0.22] },
-    { key:'lake',    name:'碧波湖',   cx:30, cy:8,  r:8, pools:['s2','s9','s4','s19','s20','s21'],       rare:'s20', sub:'碧水岸边 · 潮湿沙洲',
+    { key:'lake',    name:'碧波湖',   cx:30, cy:8,  r:8, pools:['s2','s9','s4','s19','s20','s21','s65'], rare:'s20', sub:'碧水岸边 · 潮湿沙洲',
       sky:[0.53,0.76,0.94], ground:[0.36,0.66,0.72], hill:[0.30,0.52,0.62] },
-    { key:'volcano', name:'灰烬火山', cx:52, cy:11, r:8, pools:['s1','s11','s13','s7','s16','s17','s33'], rare:'s17', sub:'熔岩地貌 · 灼热岩层',
+    { key:'volcano', name:'灰烬火山', cx:52, cy:11, r:8, pools:['s1','s11','s13','s7','s16','s17','s33','s52','s53'], rare:'s17', sub:'熔岩地貌 · 灼热岩层',
       sky:[0.42,0.26,0.22], ground:[0.30,0.20,0.18], hill:[0.22,0.14,0.14] },
-    { key:'snow',    name:'霜白雪原', cx:52, cy:38, r:8, pools:['s8','s13','s7','s33','s34'],            rare:'s33', sub:'极寒高原 · 霜与冰晶',
+    { key:'snow',    name:'霜白雪原', cx:52, cy:38, r:8, pools:['s8','s13','s7','s33','s34','s66'],      rare:'s33', sub:'极寒高原 · 霜与冰晶',
       sky:[0.72,0.84,0.94], ground:[0.84,0.90,0.95], hill:[0.64,0.75,0.85] },
-    { key:'desert',  name:'流沙荒漠', cx:30, cy:39, r:7, pools:['s7','s13','s4','s32','s25','s31','s26'], rare:'s25', sub:'流沙之地 · 干热风蚀',
+    { key:'desert',  name:'流沙荒漠', cx:30, cy:39, r:7, pools:['s7','s13','s4','s32','s25','s31','s26','s49','s51'], rare:'s25', sub:'流沙之地 · 干热风蚀',
       sky:[0.90,0.76,0.50], ground:[0.86,0.72,0.46], hill:[0.74,0.58,0.34] },
-    { key:'ruins',   name:'遗忘遗迹', cx:13, cy:24, r:5, pools:['s10','s6','s14','s29','s30','s38','s5','s27'], rare:'s38', sub:'上古石阵 · 无人的守夜',
+    { key:'ruins',   name:'遗忘遗迹', cx:13, cy:24, r:5, pools:['s10','s6','s14','s29','s30','s38','s5','s27','s63'], rare:'s38', sub:'上古石阵 · 无人的守夜',
       sky:[0.36,0.34,0.46], ground:[0.40,0.39,0.46], hill:[0.26,0.25,0.34] },
-    { key:'ridge',   name:'龙脊山道', cx:50, cy:24, r:6, pools:['s14','s15','s7','s40','s36','s37'], rare:'s40', sub:'龙脊山道 · 高处强风',
-      sky:[0.56,0.60,0.68], ground:[0.48,0.48,0.52], hill:[0.32,0.33,0.40] }
+    { key:'ridge',   name:'龙脊山道', cx:50, cy:24, r:6, pools:['s14','s15','s7','s40','s36','s37','s50','s54'], rare:'s40', sub:'龙脊山道 · 高处强风',
+      sky:[0.56,0.60,0.68], ground:[0.48,0.48,0.52], hill:[0.32,0.33,0.40] },
+    { key:'steel',   name:'钢铁熔炉', cx:44, cy:44, r:7, pools:['s55','s56','s57','s58','s59','s60','s61','s62','s68'], rare:'s68', sub:'钢铁熔炉 · 齿轮与铆钉',
+      sky:[0.42,0.46,0.52], ground:[0.55,0.58,0.62], hill:[0.36,0.38,0.42] },
+    { key:'light',   name:'灵契圣地', cx:30, cy:30, r:7, pools:['s5','s27','s28','s10','s38','s39','s14'], rare:'s28', sub:'灵契圣地 · 圣光普照',
+      sky:[0.95,0.88,0.62], ground:[0.82,0.80,0.60], hill:[0.68,0.66,0.50] }
   ];
   var BIOME_BY_KEY = {}; BIOMES.forEach(function(b){ BIOME_BY_KEY[b.key]=b; });
 
@@ -562,63 +566,104 @@
     { key:'town', name:'灵契镇', sub:'旅程的起点 · 中央枢纽', kind:'town',
       W:26, H:20, seed:20261114, hub:[12,9], lv0:0, track:'plains',
       gates:[
-        { x:23, y:9,  to:'meadow', spawn:[4,17],  label:'微风原野' },
-        { x:2,  y:9,  to:'frost',  spawn:[4,10],  label:'霜白雪原',
+        { x:23, y:9,  to:'plains', spawn:[4,17],  label:'微风草原' },
+        { x:2,  y:9,  to:'ridge',  spawn:[4,10],  label:'龙脊山道',
           lock:function(){ return G.badges.length >= 6; },
           lockMsg:'龙脊的山风太大——集齐六枚徽章，才有资格从这条路翻回镇上。' }
       ] },
 
-    { key:'meadow', name:'微风原野', sub:'风车草原 · 低语森林', kind:'wild',
-      W:48, H:36, seed:20261115, hub:[9,17], lv0:6, track:'plains',
-      biomes:[ patch('plains',22,10,9), patch('forest',36,27,10) ],
-      links:[[0,1]],
+    { key:'plains', name:'微风草原', sub:'风车草原 · 第 1 座道馆', kind:'wild',
+      W:40, H:30, seed:20261115, hub:[9,17], lv0:6, track:'plains',
+      biomes:[ patch('plains',24,13,10) ],
       gates:[
         { x:2,  y:17, to:'town',   spawn:[21,9], label:'灵契镇' },
-        { x:45, y:8,  to:'lake',   spawn:[4,25], label:'碧波湖区' }
+        { x:37, y:8,  to:'forest', spawn:[4,25], label:'低语森林' }
       ] },
 
-    { key:'lake', name:'碧波湖区', sub:'大湖与栈桥 · 潮汐的心跳', kind:'wild',
-      W:44, H:34, seed:20261116, hub:[7,25], lv0:14, track:'lake',
+    { key:'forest', name:'低语森林', sub:'密林深处 · 第 2 座道馆', kind:'wild',
+      W:40, H:30, seed:20261116, hub:[7,25], lv0:10, track:'forest',
+      biomes:[ patch('forest',28,12,10) ],
+      gates:[
+        { x:2,  y:25, to:'plains', spawn:[35,8], label:'微风草原' },
+        { x:37, y:27, to:'lake',   spawn:[4,25], label:'碧波湖区' }
+      ] },
+
+    { key:'lake', name:'碧波湖区', sub:'大湖与栈桥 · 第 3 座道馆', kind:'wild',
+      W:44, H:34, seed:20261117, hub:[7,25], lv0:14, track:'lake',
       biomes:[ patch('lake',27,14,11) ],
       gates:[
-        { x:2,  y:25, to:'meadow', spawn:[43,8], label:'微风原野' },
-        { x:36, y:31, to:'dunes',  spawn:[36,4],  label:'流沙荒漠' }
+        { x:2,  y:25, to:'forest', spawn:[35,27], label:'低语森林' },
+        { x:36, y:31, to:'desert', spawn:[36,4],  label:'流沙荒漠' }
       ] },
 
-    { key:'dunes', name:'流沙荒漠', sub:'风蚀石柱 · 遗忘遗迹', kind:'wild',
-      W:52, H:38, seed:20261117, hub:[10,30], lv0:20, track:'desert',
-      biomes:[ patch('desert',18,25,9), patch('ruins',40,11,9) ],
-      links:[[0,1]],
+    { key:'desert', name:'流沙荒漠', sub:'风蚀石柱 · 第 4 座道馆', kind:'wild',
+      W:44, H:34, seed:20261118, hub:[10,17], lv0:20, track:'desert',
+      biomes:[ patch('desert',24,14,10) ],
       gates:[
         { x:36, y:2,  to:'lake',   spawn:[36,29], label:'碧波湖区' },
-        { x:49, y:30, to:'ember', spawn:[4,27],  label:'灰烬火山' }
+        { x:41, y:30, to:'ruins',  spawn:[4,25],  label:'遗忘遗迹' }
       ] },
 
-    { key:'ember', name:'灰烬火山', sub:'熔岩之环 · 影蚀会的门', kind:'wild',
-      W:44, H:34, seed:20261118, hub:[9,27], lv0:27, track:'volcano',
+    { key:'ruins', name:'遗忘遗迹', sub:'上古石阵 · 第 5 座道馆', kind:'wild',
+      W:44, H:34, seed:20261119, hub:[7,25], lv0:24, track:'ruins',
+      biomes:[ patch('ruins',28,13,10) ],
+      gates:[
+        { x:2,  y:25, to:'desert', spawn:[39,30], label:'流沙荒漠' },
+        { x:41, y:10, to:'volcano', spawn:[4,27], label:'灰烬火山' }
+      ] },
+
+    { key:'volcano', name:'灰烬火山', sub:'熔岩之环 · 第 6 座道馆', kind:'wild',
+      W:44, H:34, seed:20261120, hub:[9,27], lv0:27, track:'volcano',
       biomes:[ patch('volcano',27,13,11) ],
       gates:[
-        { x:2,  y:27, to:'dunes',  spawn:[47,30], label:'流沙荒漠' },
-        { x:36, y:2,  to:'frost',  spawn:[36,33], label:'霜白雪原' },
-        { x:41, y:16, to:'hollow', spawn:[17,23], label:'影蚀回廊',
+        { x:2,  y:27, to:'ruins',  spawn:[39,10], label:'遗忘遗迹' },
+        { x:36, y:2,  to:'snow',   spawn:[36,33], label:'霜白雪原' }
+      ] },
+
+    { key:'snow', name:'霜白雪原', sub:'极寒高原 · 第 7 座道馆', kind:'wild',
+      W:44, H:34, seed:20261121, hub:[10,17], lv0:31, track:'snow',
+      biomes:[ patch('snow',20,14,10) ],
+      gates:[
+        { x:36, y:33, to:'volcano', spawn:[36,4], label:'灰烬火山' },
+        { x:2,  y:10, to:'ridge',   spawn:[41,17], label:'龙脊山道' }
+      ] },
+
+    { key:'ridge', name:'龙脊山道', sub:'高处强风 · 第 8 座道馆', kind:'wild',
+      W:48, H:32, seed:20261122, hub:[7,17], lv0:35, track:'ridge',
+      biomes:[ patch('ridge',32,14,11) ],
+      gates:[
+        { x:2,  y:17, to:'snow',  spawn:[4,10],  label:'霜白雪原' },
+        { x:2,  y:10, to:'town',  spawn:[4,9],   label:'灵契镇',
+          lock:function(){ return G.badges.length >= 6; },
+          lockMsg:'龙脊的山风太大——集齐六枚徽章，才有资格从这条路翻回镇上。' },
+        { x:45, y:17, to:'steel', spawn:[4,17],  label:'钢铁熔炉' }
+      ] },
+
+    { key:'steel', name:'钢铁熔炉', sub:'齿轮与铆钉 · 钢铁的国度', kind:'wild',
+      W:44, H:34, seed:20261123, hub:[9,17], lv0:36, track:'ruins',
+      biomes:[ patch('steel',26,15,11) ],
+      gates:[
+        { x:2,  y:17, to:'ridge', spawn:[43,17], label:'龙脊山道' },
+        { x:41, y:17, to:'hollow', spawn:[17,23], label:'影蚀回廊',
           lock:function(){ return !!G.flags.hollowOpen; },
           lockMsg:'回廊之门上锁着三道印记——影蚀会三位干部各持一把钥匙。' }
       ] },
 
-    { key:'frost', name:'霜白雪原', sub:'极寒高原 · 龙脊山道', kind:'wild',
-      W:52, H:38, seed:20261119, hub:[44,10], lv0:31, track:'snow',
-      biomes:[ patch('snow',18,11,9), patch('ridge',32,28,10) ],
-      links:[[0,1]],
-      gates:[
-        { x:36, y:35, to:'ember', spawn:[36,4],  label:'灰烬火山' },
-        { x:2,  y:10, to:'town',  spawn:[4,9],   label:'灵契镇' }
-      ] },
-
     { key:'hollow', name:'影蚀回廊', sub:'虚空之座 · 影蚀会本部', kind:'lair', dark:true,
-      W:36, H:28, seed:20261120, hub:[17,22], lv0:38, track:'ruins',
+      W:36, H:28, seed:20261124, hub:[17,22], lv0:38, track:'ruins',
       biomes:[ patch('ruins',17,10,9) ],
       gates:[
-        { x:17, y:25, to:'ember', spawn:[41,18], label:'灰烬火山' }
+        { x:17, y:25, to:'steel', spawn:[39,17], label:'钢铁熔炉' },
+        { x:17, y:2,  to:'final', spawn:[17,25], label:'灵契圣地',
+          lock:function(){ return !!G.flags.voidBeat; },
+          lockMsg:'虚空沉睡之后，圣地之门才会显现。' }
+      ] },
+
+    { key:'final', name:'灵契圣地', sub:'万灵之冠 · 冠军与神兽之地', kind:'lair', dark:false,
+      W:40, H:30, seed:20261125, hub:[17,25], lv0:45, track:'light',
+      biomes:[ patch('light',20,13,10) ],
+      gates:[
+        { x:17, y:27, to:'hollow', spawn:[17,4], label:'影蚀回廊' }
       ] }
   ];
   var REGION_BY_KEY = {}; REGIONS.forEach(function(r){ REGION_BY_KEY[r.key] = r; });
@@ -663,15 +708,15 @@
       intro:'广场边缘的石阶上多了一顶没有主人的冠。它一直在等你把八枚徽章和一件旧债都还清。' },
     { id:'s42', region:'hollow', at:[13,8],  slot:'roam',    lv:50, minBadges:4,
       intro:'回廊的穹顶裂开一道缝，缝里是星。有什么东西正从星的那边垂下来。' },
-    { id:'s43', region:'meadow', at:[36,29], slot:'roam',    lv:42, minBadges:4,
+    { id:'s43', region:'forest', at:[36,29], slot:'roam',    lv:42, minBadges:4,
       intro:'低语森林最深处的老树下，年轮自己转了一圈。整片林子同时安静下来。' },
-    { id:'s44', region:'frost',  at:[34,30], slot:'roam',    lv:44, minBadges:4,
+    { id:'s44', region:'ridge',  at:[34,30], slot:'roam',    lv:44, minBadges:4,
       intro:'龙脊山道的风停了。不是变小，是停——像有谁按住了一整片天空。' },
-    { id:'s45', region:'dunes',  at:[20,27], slot:'roam',    lv:43, minBadges:4,
+    { id:'s45', region:'desert',  at:[20,27], slot:'roam',    lv:43, minBadges:4,
       intro:'沙丘下面传来一声很低的、像山在翻身的声音。脚下的沙开始往两边退。' },
     { id:'s46', region:'lake',   at:[29,16], slot:'roam',    lv:41, minBadges:4,
       intro:'湖心浮起一圈涟漪，却没有风。水面下有个轮廓，比整片湖还大。' },
-    { id:'s47', region:'ember',  at:[29,15], slot:'roam',    lv:45, minBadges:4,
+    { id:'s47', region:'volcano', at:[29,15], slot:'roam',    lv:45, minBadges:4,
       intro:'熔岩环中央的火柱忽然不再往上升，而是收拢成一只眼睛的形状。' },
     { id:'s48', region:'hollow', at:[21,12], slot:'void',    lv:52,
       intro:'虚空重新睡下去之后，回廊深处多了一扇门。门后面是所有你没走过的路。' }
@@ -696,22 +741,32 @@
      ===================================================================== */
   var LEGEND_ROAM = {
     town:   ['s41'],
-    meadow: ['s43','s46'],
+    plains: ['s43','s46'],
+    forest: ['s43','s46'],
     lake:   ['s46','s42'],
-    dunes:  ['s45','s43'],
-    ember:  ['s47','s45'],
-    frost:  ['s44','s42'],
-    hollow: ['s48','s42']
+    desert: ['s45','s43'],
+    ruins:  ['s45','s48'],
+    volcano:['s47','s45'],
+    snow:   ['s44','s42'],
+    ridge:  ['s44','s42'],
+    steel:  ['s47','s45'],
+    hollow: ['s48','s42'],
+    final:  ['s41','s48']
   };
   /* 每张图的祭坛候选点。坐标都落在 [2, W-3] × [2, H-3] 内。 */
   var LEGEND_SPOTS = {
     town:   [[9,7],[17,12]],
-    meadow: [[36,29],[18,22],[28,33]],
+    plains: [[18,22],[28,25],[8,12]],
+    forest: [[18,22],[28,25],[8,12]],
     lake:   [[29,16],[12,25],[38,10]],
-    dunes:  [[20,27],[38,32],[14,12]],
-    ember:  [[29,15],[13,24],[36,26]],
-    frost:  [[34,30],[16,18],[41,12]],
-    hollow: [[13,8],[21,12],[31,20]]
+    desert: [[20,27],[38,30],[14,12]],
+    ruins:  [[20,27],[38,30],[14,12]],
+    volcano:[[29,15],[13,24],[36,26]],
+    snow:   [[20,27],[38,30],[14,12]],
+    ridge:  [[34,28],[16,18],[41,12]],
+    steel:  [[20,27],[38,30],[14,12]],
+    hollow: [[13,8],[21,12],[31,20]],
+    final:  [[18,22],[28,25],[8,12]]
   };
   function legendDay(){ return (G.day|0) || 0; }
   function strHash(s){
@@ -948,7 +1003,7 @@
     { key:'elder', name:'长老 岑',   role:'elder', acc:'beard',
       cloth:'#C8A860', cloth2:'#8A6A2A', hair:'#E8E4D8', region:'town', at:[15,11] },
     { key:'lumen', name:'冠军 曜',   role:'lumen', acc:'crown',
-      cloth:'#F0D060', cloth2:'#A88018', hair:'#F8F0D8', region:'town', at:[16,13] },
+      cloth:'#F0D060', cloth2:'#A88018', hair:'#F8F0D8', region:'final', at:[17,14] },
     /* 杂货铺老板（batch21）：镇上唯一的商人。撞上去直接开商店页，
        不走对话 —— openUI 会被 talking 拦住。 */
     { key:'shopkeep', name:'杂货铺 老板', role:'shop', acc:'hat', vk:'shop',
@@ -958,9 +1013,9 @@
       cloth:'#8A7AB8', cloth2:'#3A3058', hair:'#D8D0F0', region:'town', at:[15,16] },
 
     { key:'mira',  name:'学徒 小满', role:'mira',  acc:'twintail',
-      cloth:'#E8A0B8', cloth2:'#B06080', hair:'#3A2A1A', region:'meadow', at:[24,13] },
+      cloth:'#E8A0B8', cloth2:'#B06080', hair:'#3A2A1A', region:'plains', at:[24,13] },
     { key:'grunt1', name:'影蚀会众 · 灰鸦', role:'villain', vk:'grunt1', acc:'hood',
-      cloth:'#5A5470', cloth2:'#2C2842', hair:'#1A1826', region:'meadow', at:[35,24] },
+      cloth:'#5A5470', cloth2:'#2C2842', hair:'#1A1826', region:'forest', at:[35,24] },
 
     { key:'chord', name:'旅人 弦',   role:'chord', acc:'hat',
       cloth:'#6BA8D8', cloth2:'#2A5580', hair:'#2A2030', region:'lake', at:[23,24] },
@@ -968,20 +1023,39 @@
       cloth:'#5A5470', cloth2:'#2C2842', hair:'#1A1826', region:'lake', at:[29,22] },
 
     { key:'shade', name:'影',        role:'shade', acc:'hood',
-      cloth:'#3A3550', cloth2:'#1A1830', hair:'#101020', region:'dunes', at:[43,13] },
+      cloth:'#3A3550', cloth2:'#1A1830', hair:'#101020', region:'desert', at:[43,13] },
     { key:'admin1', name:'影蚀会干部 · 砂', role:'villain', vk:'admin1', acc:'hood',
-      cloth:'#C9A06A', cloth2:'#6B4A24', hair:'#2A1E14', region:'dunes', at:[38,15] },
+      cloth:'#C9A06A', cloth2:'#6B4A24', hair:'#2A1E14', region:'ruins', at:[38,15] },
 
     { key:'admin2', name:'影蚀会干部 · 烬', role:'villain', vk:'admin2', acc:'hood',
-      cloth:'#B4462C', cloth2:'#6A1E10', hair:'#1A120E', region:'ember', at:[24,19] },
+      cloth:'#B4462C', cloth2:'#6A1E10', hair:'#1A120E', region:'volcano', at:[24,19] },
 
     { key:'admin3', name:'影蚀会干部 · 寒', role:'villain', vk:'admin3', acc:'hood',
-      cloth:'#9FC8DE', cloth2:'#3E6E8C', hair:'#E8F4FA', region:'frost', at:[20,13] },
+      cloth:'#9FC8DE', cloth2:'#3E6E8C', hair:'#E8F4FA', region:'snow', at:[20,13] },
 
     { key:'boss', name:'影蚀会首领 · 蚀', role:'villain', vk:'boss', acc:'crown',
       cloth:'#2E2A40', cloth2:'#12101E', hair:'#0A0812', region:'hollow', at:[17,13] },
     { key:'void', name:'虚空之主', role:'villain', vk:'void', acc:'crown',
-      cloth:'#3A2A5E', cloth2:'#1A1030', hair:'#0A0614', region:'hollow', at:[17,6] }
+      cloth:'#3A2A5E', cloth2:'#1A1030', hair:'#0A0614', region:'hollow', at:[17,6] },
+
+    /* ---- batch24 支线 NPC（role:'side'，可选任务，不在主线 chapterNow 里） ----
+       每张缺友善 NPC 的图补一个：帮忙做事 -> 得道具 -> 顺带指点神兽行踪。 */
+    { key:'sideFor', name:'采菇人 阿蕈', role:'side', vk:'sideFor', acc:'hat',
+      cloth:'#6B8A4A', cloth2:'#3A5026', hair:'#5A4020', region:'forest', at:[31,20] },
+    { key:'sideRuin', name:'守碑人 阿桓', role:'side', vk:'sideRuin', acc:'hood',
+      cloth:'#A89878', cloth2:'#6A5A40', hair:'#8A7860', region:'ruins', at:[32,18] },
+    { key:'sideVolc', name:'铸甲师 阿炎', role:'side', vk:'sideVolc', acc:'beard',
+      cloth:'#C06030', cloth2:'#7A3014', hair:'#E8A060', region:'volcano', at:[30,24] },
+    { key:'sideSnow', name:'冰钓翁 阿寒', role:'side', vk:'sideSnow', acc:'hood',
+      cloth:'#8CC8E0', cloth2:'#3E6E8C', hair:'#E8F4FA', region:'snow', at:[24,18] },
+    { key:'sideRidge', name:'驯龙师 阿岚', role:'side', vk:'sideRidge', acc:'hat',
+      cloth:'#7A5AC0', cloth2:'#3A2A70', hair:'#D8C8F0', region:'ridge', at:[36,16] },
+    { key:'sideSteel', name:'齿轮匠 阿铁', role:'side', vk:'sideSteel', acc:'hat',
+      cloth:'#9AA8B8', cloth2:'#4A5868', hair:'#607080', region:'steel', at:[28,20] },
+    { key:'sideFinal', name:'圣坛僧 阿光', role:'side', vk:'sideFinal', acc:'crown',
+      cloth:'#E8D090', cloth2:'#A08020', hair:'#F8F0D8', region:'final', at:[24,12] },
+    { key:'sideHollow', name:'叛离者 昀', role:'side', vk:'sideHollow', acc:'hood',
+      cloth:'#6E6888', cloth2:'#38344E', hair:'#B8B0C8', region:'hollow', at:[24,20] }
   ];
   var NPC_BY_KEY = {}; STORY_NPCS.forEach(function(n){ NPC_BY_KEY[n.key] = n; });
   // 所有需要立绘的人物（馆主 + 剧情 NPC）
@@ -1165,7 +1239,8 @@
     light:    { name:'治愈之光', lv:5, acc:100, fx:{ heal:0.32, cure:1 } },
     psychic:  { name:'冥想',     lv:5, acc:100, fx:{ stat:[{who:'self',k:'atk',d:1},{who:'self',k:'def',d:1}] } },
     wind:     { name:'顺风',     lv:5, acc:100, fx:{ stat:[{who:'self',k:'spd',d:2}] } },
-    dragon:   { name:'龙之舞',   lv:5, acc:100, fx:{ stat:[{who:'self',k:'atk',d:1},{who:'self',k:'spd',d:1}] } }
+    dragon:   { name:'龙之舞',   lv:5, acc:100, fx:{ stat:[{who:'self',k:'atk',d:1},{who:'self',k:'spd',d:1}] } },
+    steel:    { name:'铁壁',     lv:5, acc:100, fx:{ stat:[{who:'self',k:'def',d:2}] } }
   };
   function tacticOf(type){ return TACTIC_MOVES[type] || null; }
   // 相性属性：给每只精灵留一个「可以跨属性学」的方向，克制关系才有搭配可言
@@ -2039,6 +2114,8 @@
           case 'desert': grid[yy][xx]= r<.18?T.TALL:T.SAND; break;
           case 'ruins':  grid[yy][xx]= r<.2?T.ROCK:T.RUIN; break;
           case 'ridge':  grid[yy][xx]= r<.4?T.ROCK : (r<.62?T.TALL:T.PATH); break;
+          case 'steel':  grid[yy][xx]= r<.5?T.RUIN : (r<.8?T.ROCK:T.PATH); break;
+          case 'light':  grid[yy][xx]= r<.6?T.TALL : T.GRASS; break;
         }
       }
     });
@@ -2360,7 +2437,7 @@
     light:[0xffe27a,0xfff6c8,0xffffff], dark:[0x9b6dff,0x6b45c9,0x2a1a4a],
     rock:[0xc08552,0xe0b080,0x8a5a2e], ice:[0x7fd8e8,0xd6f4fb,0xffffff],
     wind:[0x76e0a8,0xc6f7e0,0xffffff], psychic:[0xff8fd0,0xffc8e8,0xffffff],
-    dragon:[0x6b5cff,0xa99bff,0xffd93d]
+    dragon:[0x6b5cff,0xa99bff,0xffd93d], steel:[0xb8c0cc,0xd8dee6,0x8a94a3]
   };
   function typeC(t){ return TYPEC[t]||TYPEC.none; }
 
@@ -2647,7 +2724,7 @@
     function has(k){ return B.indexOf(k) >= 0; }
     function gymT(key, hint){
       var g = GYM_BY_KEY[key];
-      return { kind:'gym', key:key, region:gymRegionOf(key) || 'meadow',
+      return { kind:'gym', key:key, region:gymRegionOf(key) || 'plains',
                name:g.leader, hint:hint, color:g.color };
     }
     function npcT(key, region, name, hint, color){
@@ -2672,7 +2749,7 @@
       return { idx:2, name:'萌芽之风', target:gymT('plains','微风原野 · 风车下') };
     if (!f.grunt1)
       return { idx:2, name:'萌芽之风',
-               target:npcT('grunt1','meadow','影蚀会众 灰鸦','低语森林 · 神木祠旁 · 有人影在翻东西',V) };
+               target:npcT('grunt1','forest','影蚀会众 灰鸦','低语森林 · 神木祠旁 · 有人影在翻东西',V) };
     if (!has('forest'))
       return { idx:3, name:'林间低语', target:gymT('forest','低语森林 · 神木祠') };
 
@@ -2684,7 +2761,7 @@
 
     if (!f.admin1)
       return { idx:5, name:'沙下的石头',
-               target:npcT('admin1','dunes','影蚀会干部 砂','遗忘遗迹 · 拱门 · 干部砂守在那',V) };
+               target:npcT('admin1','ruins','影蚀会干部 砂','遗忘遗迹 · 拱门 · 干部砂守在那',V) };
     if (!has('desert'))
       return { idx:5, name:'沙下的石头', target:gymT('desert','流沙荒漠 · 断柱') };
     if (!has('ruins'))
@@ -2692,13 +2769,13 @@
 
     if (!f.admin2)
       return { idx:6, name:'余烬',
-               target:npcT('admin2','ember','影蚀会干部 烬','灰烬火山 · 熔岩环 · 干部烬在等你',V) };
+               target:npcT('admin2','volcano','影蚀会干部 烬','灰烬火山 · 熔岩环 · 干部烬在等你',V) };
     if (!has('volcano'))
       return { idx:6, name:'余烬', target:gymT('volcano','灰烬火山 · 方尖碑') };
 
     if (!f.admin3)
       return { idx:7, name:'霜与冰',
-               target:npcT('admin3','frost','影蚀会干部 寒','霜白雪原 · 木屋 · 最后一把钥匙',V) };
+               target:npcT('admin3','snow','影蚀会干部 寒','霜白雪原 · 木屋 · 最后一把钥匙',V) };
     if (!has('snow'))
       return { idx:7, name:'霜与冰', target:gymT('snow','霜白雪原 · 雪屋') };
     if (!has('ridge'))
@@ -2712,7 +2789,7 @@
                target:npcT('void','hollow','虚空之主','影蚀回廊 · 最深处 · 被唤醒的古老者',V) };
 
     return { idx:9, name:'灵契之巅',
-             target:npcT('lumen','town','冠军 曜','灵契镇广场 · 东侧 · 冠军在等你',GOLD) };
+             target:npcT('lumen','final','冠军 曜','灵契圣地 · 冠军之座 · 冠军在等你',GOLD) };
   }
 
   function nextGym(){
@@ -2856,25 +2933,25 @@
     { id:'s1b', ch:'序章 · 空白徽记', region:'town',
       need:function(f){ return !!f.metElder && badgeN() === 0; },
       until:function(f){ return badgeN() === 0; } },
-    { id:'s2', ch:'第 1 章 · 风不来的原野', region:'meadow',
+    { id:'s2', ch:'第 1 章 · 风不来的原野', region:'plains',
       need:function(f){ return badgeN() === 0; },
       until:function(f){ return badgeN() === 0; } },
-    { id:'s3', ch:'第 1 章 · 风不来的原野', region:'meadow',
+    { id:'s3', ch:'第 1 章 · 风不来的原野', region:'plains',
       need:function(f){ return badgeN() === 0; },
       until:function(f){ return badgeN() === 0; } },
-    { id:'s2b', ch:'第 2 章 · 林间低语', region:'meadow',
+    { id:'s2b', ch:'第 2 章 · 林间低语', region:'forest',
       need:function(f){ return hasBadge('plains') && badgeN() === 1; },
       until:function(f){ return badgeN() <= 1; } },
-    { id:'s4', ch:'第 2 章 · 林间低语', region:'meadow',
+    { id:'s4', ch:'第 2 章 · 林间低语', region:'forest',
       need:function(f){ return hasBadge('plains') && !f.grunt1; },
       until:function(f){ return !hasBadge('forest'); } },
-    { id:'s4b', ch:'第 2 章 · 林间低语', region:'meadow',
+    { id:'s4b', ch:'第 2 章 · 林间低语', region:'forest',
       need:function(f){ return !!f.grunt1 && !f.elderStory; },
       until:function(f){ return !hasBadge('lake'); } },
-    { id:'s5', ch:'第 2 章 · 苔痕', region:'meadow',
+    { id:'s5', ch:'第 2 章 · 苔痕', region:'forest',
       need:function(f){ return hasBadge('forest') && badgeN() === 2; },
       until:function(f){ return badgeN() <= 2; } },
-    { id:'s5b', ch:'第 2 章 · 苔痕', region:'meadow',
+    { id:'s5b', ch:'第 2 章 · 苔痕', region:'forest',
       need:function(f){ return hasBadge('forest') && badgeN() === 2; },
       until:function(f){ return badgeN() <= 2; } },
     { id:'s6', ch:'第 3 章 · 湖底的泪', region:'lake',
@@ -2892,46 +2969,46 @@
     { id:'s7b', ch:'第 3 章 · 湖底的泪', region:'lake',
       need:function(f){ return hasBadge('lake') && badgeN() === 3; },
       until:function(f){ return badgeN() <= 3; } },
-    { id:'s9', ch:'第 4 章 · 沙下的石头', region:'dunes',
+    { id:'s9', ch:'第 4 章 · 沙下的石头', region:'desert',
       need:function(f){ return hasBadge('lake') && !hasBadge('desert'); },
       until:function(f){ return !hasBadge('desert'); } },
-    { id:'s9b', ch:'第 4 章 · 沙下的石头', region:'dunes',
+    { id:'s9b', ch:'第 4 章 · 沙下的石头', region:'desert',
       need:function(f){ return hasBadge('lake') && !hasBadge('desert'); },
       until:function(f){ return !hasBadge('desert'); } },
-    { id:'s10', ch:'第 4 章 · 沙下的石头', region:'dunes',
+    { id:'s10', ch:'第 4 章 · 沙下的石头', region:'desert',
       need:function(f){ return hasBadge('lake') && !hasBadge('desert'); },
       until:function(f){ return !hasBadge('ruins'); } },
-    { id:'s10b', ch:'第 4 章 · 沙下的石头', region:'dunes',
+    { id:'s10b', ch:'第 4 章 · 沙下的石头', region:'ruins',
       need:function(f){ return hasBadge('desert') && !hasBadge('ruins'); },
       until:function(f){ return !hasBadge('volcano'); } },
-    { id:'s11', ch:'第 4 章 · 沙下的石头', region:'dunes',
+    { id:'s11', ch:'第 4 章 · 沙下的石头', region:'ruins',
       need:function(f){ return hasBadge('ruins') && !f.shadeBeat; },
       until:function(f){ return !hasBadge('volcano'); } },
-    { id:'s12', ch:'第 4 章 · 沙下的石头', region:'dunes',
+    { id:'s12', ch:'第 4 章 · 沙下的石头', region:'ruins',
       need:function(f){ return !!f.admin1; },
       until:function(f){ return !hasBadge('snow'); } },
-    { id:'s13', ch:'第 5 章 · 余烬', region:'ember',
+    { id:'s13', ch:'第 5 章 · 余烬', region:'volcano',
       need:function(f){ return hasBadge('ruins') && !hasBadge('volcano'); },
       until:function(f){ return !hasBadge('volcano'); } },
-    { id:'s14', ch:'第 5 章 · 余烬', region:'ember',
+    { id:'s14', ch:'第 5 章 · 余烬', region:'volcano',
       need:function(f){ return hasBadge('ruins') && !hasBadge('volcano'); },
       until:function(f){ return !hasBadge('snow'); } },
-    { id:'s14b', ch:'第 5 章 · 余烬', region:'ember',
+    { id:'s14b', ch:'第 5 章 · 余烬', region:'volcano',
       need:function(f){ return !!f.admin2; },
       until:function(f){ return !hasBadge('snow'); } },
-    { id:'s15', ch:'第 5 章 · 余烬', region:'ember',
+    { id:'s15', ch:'第 5 章 · 余烬', region:'volcano',
       need:function(f){ return !!f.admin2; },
       until:function(f){ return !hasBadge('snow'); } },
-    { id:'s16', ch:'第 6 章 · 霜与冰', region:'frost',
+    { id:'s16', ch:'第 6 章 · 霜与冰', region:'snow',
       need:function(f){ return hasBadge('volcano') && !hasBadge('snow'); },
       until:function(f){ return !hasBadge('snow'); } },
-    { id:'s17', ch:'第 6 章 · 霜与冰', region:'frost',
+    { id:'s17', ch:'第 6 章 · 霜与冰', region:'snow',
       need:function(f){ return hasBadge('volcano') && !hasBadge('snow'); },
       until:function(f){ return !hasBadge('ridge'); } },
-    { id:'s16b', ch:'第 6 章 · 霜与冰', region:'frost',
+    { id:'s16b', ch:'第 6 章 · 霜与冰', region:'ridge',
       need:function(f){ return hasBadge('snow') && badgeN() === 7; },
       until:function(f){ return badgeN() <= 7; } },
-    { id:'s18', ch:'第 6 章 · 霜晶核', region:'frost',
+    { id:'s18', ch:'第 6 章 · 霜晶核', region:'snow',
       need:function(f){ return !!f.admin3; },
       until:function(f){ return !f.bossBeat; } },
     { id:'s19', ch:'第 7 章 · 八枚之后', region:null,
@@ -2971,6 +3048,9 @@
       need:function(f){ return !!G.cleared; },
       until:function(f){ return !!G.cleared; } },
     { id:'s26', ch:'后日谈 · 一个月后', region:'town',
+      need:function(f){ return !!G.cleared; },
+      until:function(f){ return !!G.cleared; } },
+    { id:'s27', ch:'终章 · 神兽之约', region:null,
       need:function(f){ return !!G.cleared; },
       until:function(f){ return !!G.cleared; } },
   ];
@@ -3706,7 +3786,9 @@
     snow:    [[0x6f8f8a,0x8fada6,0xbcd2cb],[0x5a5048,0x7a6d60]],
     desert:  [[0x7d7a48,0x9a9459,0xb5ad72],[0x6b5a3a,0x8a7550]],
     ruins:   [[0x3e4a44,0x516058,0x687a6e],[0x4a4440,0x655c55]],
-    ridge:   [[0x3a5444,0x4a6b55,0x5f8468],[0x4a4238,0x655a4c]]
+    ridge:   [[0x3a5444,0x4a6b55,0x5f8468],[0x4a4238,0x655a4c]],
+    steel:   [[0x6b6f75,0x82868c,0x9aa0a6],[0x4a4e54,0x656a70]],
+    light:   [[0xd8c86a,0xe6d98a,0xf4eaaa],[0x8a7a3a,0xa89450]]
   };
   function drawTree(scene, bioKey, v){
     var c = TREE_COL[bioKey] || TREE_COL.plains, leaf=c[0], trunk=c[1];
@@ -4046,6 +4128,7 @@
   var MARK_SIZE = {
     center:[152,210], windmill:[76,124], shrine:[84,118], dock:[80,92],
     obelisk:[64,118], cabin:[80,110], pillar:[64,110], arch:[92,126], cairn:[64,94],
+    forge:[60,104], sanctum:[76,110],
     fountain:[96,92], banner:[62,112]
   };
   // 加法混合：Phaser 4 的常量挂在 Phaser.BlendModes 上；拿不到就退回普通混合（发光弱一点，但不会崩）
@@ -4056,17 +4139,20 @@
   var MARK_FP = {
     center:[4,3], windmill:[2,2], shrine:[2,2], dock:[2,2],
     obelisk:[2,2], cabin:[2,2], pillar:[2,2], arch:[3,2], cairn:[2,2],
+    forge:[2,2], sanctum:[3,2],
     fountain:[3,2], banner:[2,2]
   };
   var MARK_FOR = {
     plains:'windmill', forest:'shrine', lake:'dock', volcano:'obelisk',
-    snow:'cabin', desert:'pillar', ruins:'arch', ridge:'cairn'
+    snow:'cabin', desert:'pillar', ruins:'arch', ridge:'cairn',
+    steel:'forge', light:'sanctum'
   };
   // 夜间发光点：[贴图内 x, y, 半径, 色]
   var MARK_GLOW = {
     center:[76,150,54,0xfff1cf], windmill:[38,66,17,0xffe6ae], shrine:[42,90,24,0xc9ffd8],
     dock:[65,6,22,0xffd28a], obelisk:[32,30,22,0xff7a3c], cabin:[58,80,26,0xffdca0],
     pillar:[32,40,14,0xfff1cf], arch:[46,52,28,0xa8e0ff], cairn:[32,54,13,0xffe6ae],
+    forge:[34,40,16,0xffc46a], sanctum:[42,52,22,0xfff3c8],
     fountain:[48,46,32,0x9fd8ff], banner:[31,32,16,0xffd28a]
   };
 
@@ -4389,6 +4475,66 @@
       P(M.stone[1]); g.fillEllipse(cx+OR+2, H-9, 16, 9);
       P(M.stone[2]); g.fillEllipse(cx+OR, H-11, 7, 4);
       P(M.stone[0]); g.fillEllipse(cx-OR-4, H-7, 12, 7);
+
+    } else if (kind === 'forge'){
+      /* 钢铁熔炉：金属炉膛 + 齿轮 + 熔口火光，钢系地标 */
+      S(46, 15, H-6);
+      // 炉基（铆钉钢台）
+      P(M.metal[1]); g.fillRoundedRect(cx-26, H-16, 52, 12, 3);
+      P(M.metal[0]); g.fillRect(cx-26, H-8, 52, 4);
+      P(M.metal[2]); g.fillRect(cx-26, H-16, 52, 3);
+      // 铆钉
+      P(M.metal[2]);
+      g.fillCircle(cx-19, H-10, 2.2); g.fillCircle(cx+19, H-10, 2.2);
+      g.fillCircle(cx-10, H-10, 2.2); g.fillCircle(cx+10, H-10, 2.2);
+      // 炉膛（收腰圆柱）
+      var FG = [[0.24,0.25,0.28],[0.34,0.35,0.39],[0.52,0.53,0.58]];
+      P(FG[1]); g.fillPoints([{x:cx-20,y:H-16},{x:cx+20,y:H-16},{x:cx+14,y:44},{x:cx-14,y:44}], true);
+      P(FG[0]); g.fillPoints([{x:cx+4,y:H-16},{x:cx+20,y:H-16},{x:cx+14,y:44},{x:cx+4,y:44}], true);
+      P(FG[2]); g.fillPoints([{x:cx-20,y:H-16},{x:cx-15,y:H-16},{x:cx-10,y:44},{x:cx-14,y:44}], true);
+      // 顶盖
+      P(M.metal[1]); g.fillRoundedRect(cx-22, H-22, 44, 8, 3);
+      P(M.metal[2]); g.fillRect(cx-22, H-22, 44, 2);
+      // 熔口（发光拱门）
+      P([0.16,0.08,0.05]); g.fillRoundedRect(cx-10, 48, 20, H-58, 10);
+      P([1.00,0.42,0.12], 0.92); g.fillRoundedRect(cx-7, 52, 14, H-64, 7);
+      P([1.00,0.68,0.24], 0.9); g.fillRoundedRect(cx-4, 56, 8, H-72, 4);
+      P([1.00,0.94,0.66]); g.fillCircle(cx, 60, 3.4);
+      // 侧边齿轮
+      P(M.metal[1]); g.fillCircle(cx+26, 40, 14);
+      P(M.metal[2]); g.fillCircle(cx+26, 40, 9);
+      P(M.metal[0]); g.fillCircle(cx+26, 40, 4);
+      for (i=0;i<8;i++){ a = i*Math.PI/4; g.fillRect(cx+26+Math.cos(a)*10-1.6, 40+Math.sin(a)*10-1.6, 3.2, 3.2); }
+      // 烟囱
+      P(M.metal[0]); g.fillRect(cx-8, 20, 10, 20);
+      P(M.metal[2]); g.fillRect(cx-8, 20, 3, 20);
+      // 熔烟
+      P([0.30,0.28,0.26], 0.4); g.fillEllipse(cx-3, 16, 14, 8); g.fillEllipse(cx+2, 9, 9, 5);
+
+    } else if (kind === 'sanctum'){
+      /* 灵契圣地：金阶祭坛 + 拱柱 + 悬浮圣光球，冠军/神兽之地 */
+      S(54, 18, H-6);
+      // 三层金阶
+      P(M.gold[0]); g.fillRoundedRect(cx-30, H-12, 60, 9, 3);
+      P(M.gold[1]); g.fillRoundedRect(cx-24, H-20, 48, 9, 3);
+      P(M.gold[2]); g.fillRoundedRect(cx-18, H-28, 36, 9, 3);
+      P(M.gold[0], 0.5); g.fillRect(cx-18, H-28, 36, 2);
+      // 两侧光柱
+      var SG = [[0.86,0.80,0.58],[0.95,0.90,0.70],[1.00,0.97,0.86]];
+      P(SG[1]); g.fillRect(cx-24, 44, 9, H-58); g.fillRect(cx+15, 44, 9, H-58);
+      P(SG[2]); g.fillRect(cx-24, 44, 3, H-58); g.fillRect(cx+15, 44, 3, H-58);
+      P(M.gold[1]); g.fillRect(cx-27, 40, 15, 6); g.fillRect(cx+12, 40, 15, 6);
+      // 祭坛台面
+      P(SG[1]); g.fillRoundedRect(cx-16, 48, 32, 8, 3);
+      P(SG[2]); g.fillRect(cx-16, 48, 32, 2);
+      // 悬浮圣光球（径向光晕 + 实心球）
+      P([1.00,0.94,0.70], 0.35); g.fillCircle(cx, 30, 22);
+      P([1.00,0.96,0.78], 0.55); g.fillCircle(cx, 30, 15);
+      P([1.00,1.00,0.92]); g.fillCircle(cx, 30, 9);
+      P([1.00,1.00,1.00]); g.fillCircle(cx-2, 27, 3.6);
+      // 顶部光环
+      P([1.00,0.90,0.55], 0.6); g.fillEllipse(cx, 16, 30, 8);
+      P([1.00,0.96,0.72], 0.8); g.fillEllipse(cx, 16, 20, 5);
 
     } else {  // cairn —— 山道石堆路标
       S(42, 14, H-6);
@@ -4864,9 +5010,9 @@
       scene.skyStars = sg;
 
       // 极光只给「高纬度 + 魔域」两张图，否则到处都是就失去意义
-      if (R.key === 'frost' || R.key === 'hollow'){
+      if (R.key === 'snow' || R.key === 'hollow'){
         var aur = scene.addR(scene.add.graphics().setScrollFactor(0).setDepth(11.2));
-        var bands = R.key === 'frost'
+        var bands = R.key === 'snow'
           ? [[0x7ce0c0, 0.5], [0x9ab8ff, 0.36], [0xd8a8ff, 0.22]]
           : [[0x9a7cff, 0.34], [0x5a86d6, 0.26]];
         for (var b=0;b<bands.length;b++){
@@ -6236,6 +6382,134 @@
     }, this);
   };
 
+  /* ---- batch24 支线任务：key -> { task, need, reward, hint, lines } ----
+     need(f)：任务是否已完成（返回 true 表示已做过、只给后续对话）。
+     首次对话给 reward（一次性），并标记 flags['side_'+key]。
+     hint 是神兽收服引导里的一句话，穿插在各 NPC 的后续对话中。 */
+  var SIDE_QUESTS = {
+    sideFor: {
+      need: function(f){ return !!f.side_sideFor; },
+      reward: function(){ G.bag.potion += 2; G.balls += 3; },
+      done: '你帮我找到了那丛会发光的夜光蕈——拿去，伤药和精灵球。',
+      lines: [
+        { who:'采菇人 阿蕈', text:'森林里有一丛夜光蕈，天一黑就发蓝光。我年纪大了，钻不进那片刺藤。' },
+        { who:'采菇人 阿蕈', text:'帮我采回来，我拿伤药和精灵球跟你换。那丛蕈就在西南角的朽木旁边。' }
+      ],
+      again: [
+        { who:'采菇人 阿蕈', text:'听说北边的龙脊山道上，偶尔能看见一只浑身披着鳞光的大家伙掠过山脊。' },
+        { who:'采菇人 阿蕈', text:'老一辈说那是「神兽巡游」——它只会在你集齐徽章之后才肯现身。' }
+      ]
+    },
+    sideRuin: {
+      need: function(f){ return !!f.side_sideRuin; },
+      reward: function(){ G.bag.candy += 1; G.bag.stone += 1; },
+      done: '碑文抄回来了！这几个字我寻了半辈子……进化石和糖果，聊表谢意。',
+      lines: [
+        { who:'守碑人 阿桓', text:'这块古碑缺了一角，缺的那几个字，刻在废墟东边的高台上。' },
+        { who:'守碑人 阿桓', text:'我腿脚不便，上不去。帮我抄下来，报酬是一颗进化石和一颗亲密度糖果。' }
+      ],
+      again: [
+        { who:'守碑人 阿桓', text:'碑文里还提到「灵契圣地」——那是冠军和神兽共处的地方。' },
+        { who:'守碑人 阿桓', text:'通关之后，那里会亮起祭坛。神兽会一个一个来找你。' }
+      ]
+    },
+    sideVolc: {
+      need: function(f){ return !!f.side_sideVolc; },
+      reward: function(){ G.bag.superpotion += 1; G.money += 500; },
+      done: '好料！这块铁精石能打一副上好的鳞甲。这是高级伤药，还有五百块辛苦钱。',
+      lines: [
+        { who:'铸甲师 阿炎', text:'火山口的裂缝里，偶尔会析出「铁精石」。我这炉子正缺好料。' },
+        { who:'铸甲师 阿炎', text:'帮我去熔岩环北边找一块来，我拿高级伤药和金币谢你。' }
+      ],
+      again: [
+        { who:'铸甲师 阿炎', text:'我打铁的时候，见过火山深处有一道火红的身影在岩浆里打滚。' },
+        { who:'铸甲师 阿炎', text:'那是「炎」系的古老神兽。等你有了八枚徽章，它才会睁眼。' }
+      ]
+    },
+    sideSnow: {
+      need: function(f){ return !!f.side_sideSnow; },
+      reward: function(){ G.bag.candy += 2; G.balls += 3; },
+      done: '钓上来了！这条「冰鳞鳟」……好，糖果和球都归你。',
+      lines: [
+        { who:'冰钓翁 阿寒', text:'这冰窟窿里的鱼只吃「暖石饵」。饵我没了，得用火系精灵把冰块烘开。' },
+        { who:'冰钓翁 阿寒', text:'帮我把冰窟窿暖开、钓上一条冰鳞鳟，我拿亲密度糖果和精灵球谢你。' }
+      ],
+      again: [
+        { who:'冰钓翁 阿寒', text:'暴风雪夜里，我见过一头通体冰蓝的巨兽在雪原上踏过，脚印都结成了冰。' },
+        { who:'冰钓翁 阿寒', text:'那是「霜」系神兽。别追它，等它自己来找你——集齐徽章之后。' }
+      ]
+    },
+    sideRidge: {
+      need: function(f){ return !!f.side_sideRidge; },
+      reward: function(){ G.bag.stone += 2; G.money += 800; },
+      done: '找到了！这只小飞龙就是我要的坐骑幼崽。进化石两颗，外加八百块。',
+      lines: [
+        { who:'驯龙师 阿岚', text:'我养的小飞龙昨天被山风吹跑了，就困在南边的断崖上。' },
+        { who:'驯龙师 阿岚', text:'帮我把它带回来——别打它，用食物引它下来就行。报酬是进化石和金币。' }
+      ],
+      again: [
+        { who:'驯龙师 阿岚', text:'山道的最高处，夜里会有「龙」系的古老神兽盘踞，翅膀一扇就是一阵狂风。' },
+        { who:'驯龙师 阿岚', text:'要见它，先走完八座道馆。神兽只认真正的强者。' }
+      ]
+    },
+    sideSteel: {
+      need: function(f){ return !!f.side_sideSteel; },
+      reward: function(){ G.bag.superpotion += 1; G.bag.stone += 1; G.money += 1000; },
+      done: '装配好了！这台自律机兵又能动了。高级伤药、进化石，还有一千块，都是你的。',
+      lines: [
+        { who:'齿轮匠 阿铁', text:'这台自律机兵的齿轮卡死了，得用「磁力石」把卡住的轴承吸出来。' },
+        { who:'齿轮匠 阿铁', text:'磁力石在熔炉东边的矿车上。帮我取来，我拿高级伤药、进化石和金币谢你。' }
+      ],
+      again: [
+        { who:'齿轮匠 阿铁', text:'熔炉最深处的电磁场里，封着一具「钢」系的古老神兽，浑身都是铆钉和齿轮。' },
+        { who:'齿轮匠 阿铁', text:'它的封印要八枚徽章才能解开。到时候它自会来找你。' }
+      ]
+    },
+    sideFinal: {
+      need: function(f){ return !!f.side_sideFinal; },
+      reward: function(){ G.bag.revive += 2; G.balls += 5; },
+      done: '愿这份回礼，能陪你走完最后一程。复活草和精灵球，收好。',
+      lines: [
+        { who:'圣坛僧 阿光', text:'圣地已经很久没有新的守护者了。' },
+        { who:'圣坛僧 阿光', text:'帮我点一炷愿灯，为那些没能走到这里的人祈福。我把最后的补给交给你。' }
+      ],
+      again: [
+        { who:'圣坛僧 阿光', text:'冠军就在北边的高台上。打完之后，圣地的祭坛会为你开启。' },
+        { who:'圣坛僧 阿光', text:'八大神兽都还在沉睡。赢了冠军，它们会一个一个醒来、找上你。' }
+      ]
+    },
+    sideHollow: {
+      need: function(f){ return !!f.side_sideHollow; },
+      reward: function(){ G.bag.revive += 1; G.bag.antidote += 2; G.money += 600; },
+      done: '你真走到了这里……拿着。复活草、万能药，还有这些年的积蓄。',
+      lines: [
+        { who:'叛离者 昀', text:'别过来——我曾是影蚀会的人。' },
+        { who:'叛离者 昀', text:'被关在这儿两年了。他们以为我会一直关着。' },
+        { who:'叛离者 昀', text:'帮我把这道封印的锚点砸了——就在回廊西侧的柱子上。我把藏的东西都给你。' }
+      ],
+      again: [
+        { who:'叛离者 昀', text:'最深处那个「虚空之主」……我当年只看了一眼，就再也没睡着过。' },
+        { who:'叛离者 昀', text:'打倒它之后，回廊顶上的门会开。那后面是灵契圣地——冠军和八只神兽都在那儿等你。' }
+      ]
+    }
+  };
+
+  WorldScene.prototype.talkSide = function(key){
+    var q = SIDE_QUESTS[key];
+    if (!q) return;
+    var self = this;
+    if (!q.need(G.flags)){
+      G.flags['side_'+key] = 1;
+      if (q.reward) q.reward();
+      saveG();
+      var first = q.lines.slice();
+      first.push({ who: first[0].who, text: q.done });
+      say(first, function(){ refreshQuest(); }, this);
+      return;
+    }
+    say(q.again, null, this);
+  };
+
   WorldScene.prototype.talkTo = function(n){
     if (!n) return;
     if (n.role === 'elder') return this.talkElder();
@@ -6245,6 +6519,7 @@
     if (n.role === 'lumen') return this.talkLumen();
     if (n.role === 'villain') return this.talkVillain(n.vk || n.key);
     if (n.role === 'shop')   return this.openUI('shop');
+    if (n.role === 'side')   return this.talkSide(n.vk || n.key);
     if (n.role === 'tower')  return this.talkTower();
   };
 
@@ -10040,7 +10315,7 @@
 
     var msg;
     if (G.cleared) msg = '已通关 · 冠军 曜';
-    else if (G.badges.length >= GYMS.length) msg = '徽章已集齐 · 去广场东侧挑战冠军';
+    else if (G.badges.length >= GYMS.length) msg = '徽章已集齐 · 穿过回廊去灵契圣地挑战冠军';
     else msg = '再获得 '+(GYMS.length-G.badges.length)+' 枚即可挑战冠军 曜';
     var note = this.utext(foot.x, foot.y+foot.h*0.5, msg,
                           Math.max(10, Math.round(fz(11.5))), '#9fb0dd', 0, 7);
@@ -10500,7 +10775,9 @@
       legendAmbush:legendAmbush, LEGEND_ROAM:LEGEND_ROAM, LEGEND_SPOTS:LEGEND_SPOTS,
       AMBUSH_RATE:AMBUSH_RATE,
       towerReward:towerReward, towerCount:towerCount, towerLevel:towerLevel,
-      towerBoost:towerBoost };
+      towerBoost:towerBoost, DLG:DLG, REGIONS:REGIONS, REGION_BY_KEY:REGION_BY_KEY,
+      STORY_NPCS:STORY_NPCS, SIDE_QUESTS:SIDE_QUESTS, ITEM_ORDER:ITEM_ORDER,
+      advanceTalk:advanceTalk, finishTalk:finishTalk, cancelTalk:cancelTalk };
   } catch(e){}
 
   /* 离线缓存。GitHub Pages 的 Cache-Control 固定 10 分钟且改不了，
