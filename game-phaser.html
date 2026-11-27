@@ -300,7 +300,10 @@
   #boot .bIn{text-align:center;width:min(300px,76vw)}
   #boot .bName{font-size:23px;letter-spacing:9px;color:#eaf0ff;
                text-shadow:0 2px 16px rgba(120,160,255,.55)}
-  #boot .bSub{font-size:9.5px;letter-spacing:3px;color:#7c8bb5;margin:7px 0 22px}
+  #boot .bSub{font-size:9.5px;letter-spacing:3px;color:#7c8bb5;margin:7px 0 4px}
+  /* 版本号：让玩家一眼看出自己跑的是哪个 build。
+     发版后「链接没更新」这种问题，第一件事就是看这行，而不是猜缓存。 */
+  #boot .bVer{font-size:9px;letter-spacing:1.5px;color:#5a6688;margin:0 0 18px}
   #boot .bBar{height:5px;border-radius:3px;background:rgba(120,145,200,.22);overflow:hidden}
   #boot .bBar i{display:block;height:100%;width:4%;border-radius:3px;
                 background:linear-gradient(90deg,#5a86d6,#9ad0ff,#ffd166);
@@ -315,6 +318,7 @@
 <div id="boot"><div class="bIn">
   <div class="bName">灵 契 大 陆</div>
   <div class="bSub">SPIRIREALM</div>
+  <div class="bVer" id="bootVer">版本 20261127b</div>
   <div class="bBar"><i></i></div>
   <div class="bTip" id="bootTip">正在载入精灵图鉴…</div>
 </div></div>
@@ -382,10 +386,10 @@
 <div id="pad"><u data-t="u"></u><u data-t="d"></u><u data-t="l"></u><u data-t="r"></u><i></i></div>
 
 <script src="phaser.min.js"></script>
-<script src="phaser-assets.js?v=20261127a"></script>
+<script src="phaser-assets.js?v=20261127b"></script>
 <!-- 剧情文本库（约 40KB，纯文本）。放在 assets 之后：它要往 window.SR 上挂 STORY。
      加载失败不影响游戏 —— 所有读取点都有兜底文案。 -->
-<script src="story.js?v=20261127a"></script>
+<script src="story.js?v=20261127b"></script>
 <script>
 (function () {
   var errEl = document.getElementById('err');
@@ -10785,7 +10789,12 @@
      file:// 和内嵌面板会直接抛错，这里静默跳过，不影响游戏。 */
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     try {
-      navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(function(){});
+      navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then(function(reg){
+        /* Chrome 对 SW 脚本的字节比对有节流，24h 内不一定复查 ——
+           不主动 update 的话，发了新版本玩家那边可能一天都换不过来。
+           update() 是幂等的，失败也不影响游戏。 */
+        try { reg.update(); } catch(e){}
+      }).catch(function(){});
     } catch(e){}
   }
 })();

@@ -20,6 +20,8 @@
   .t{font-size:17px;letter-spacing:3px;opacity:.92}
   .s{font-size:12px;opacity:.5;letter-spacing:1px}
   a{color:#8fb0ff;font-size:13px;text-decoration:none;border-bottom:1px solid rgba(143,176,255,.45)}
+  /* 版本号：发版后「链接没更新」一眼就能判定是不是旧 build */
+  .v{font-size:11px;letter-spacing:1.5px;color:#6a779e;margin-top:2px}
   .dot{width:26px;height:26px;border-radius:50%;border:3px solid rgba(120,170,255,.35);
        border-top-color:#7aa9ff;animation:spin .8s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -29,6 +31,7 @@
   <div class="dot"></div>
   <div class="t">灵契大陆</div>
   <div class="s">正在进入…</div>
+  <div class="v">版本 20261127b</div>
   <a href="./game-phaser.html">没有自动跳转？点这里</a>
 <script>
   // meta refresh 被某些内置浏览器忽略，补一次 JS 跳转；query/hash 一并带过去
