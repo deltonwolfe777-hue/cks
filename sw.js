@@ -14,7 +14,7 @@
 
    升级方法：改 VER，同时改 game-phaser.html 里的 ?v= 和资源生成器的 SR_VER。
 */
-const VER = '20261127a';
+const VER = '20261127b';
 const CACHE = 'sr-' + VER;
 const VER_KEY = './__sr_ver__';
 
@@ -65,6 +65,14 @@ async function noteVersion(html){
   }
   const c2 = await caches.open(CACHE);
   await c2.put(VER_KEY, new Response(m[1]));
+  /* 版本对不上就说明玩家拿到的是旧页面 —— 直接把当前这份（新的）重新落盘，
+     避免下一轮又从 HTTP 缓存里翻出旧的。 */
+  if (prev && prev !== m[1]) {
+    try {
+      const fresh = await fetch('./game-phaser.html', { cache: 'reload' });
+      if (fresh && fresh.ok) await c2.put('./game-phaser.html', fresh.clone());
+    } catch (err) {}
+  }
 }
 
 self.addEventListener('fetch', e => {
@@ -83,7 +91,12 @@ self.addEventListener('fetch', e => {
 
     e.respondWith((async () => {
       try {
-        const r = await fetch(docUrl);
+        /* cache:'reload' 是关键：Pages 的 Cache-Control 是 max-age=600，
+           不加这个，部署后 10 分钟内 fetch 会直接吐浏览器 HTTP 缓存里的旧 HTML。
+           旧 HTML 又指向旧版 phaser-assets.js?v=…，那个 URL 还在 SW 缓存里
+           （cache-first 命中）→ 整局跑的是旧版，而且 noteVersion 看两边都是旧版
+           不会触发自愈。 */
+        const r = await fetch(docUrl, { cache: 'reload' });
         try {
           await noteVersion(await r.clone().text());
           const c = await caches.open(CACHE);
